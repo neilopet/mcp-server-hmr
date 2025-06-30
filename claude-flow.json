@@ -1,0 +1,24 @@
+  {
+    "orchestrator": {
+      "maxConcurrentAgents": 5,
+      "taskQueueSize": 50
+    },
+    "terminal": {
+      "type": "native",
+      "poolSize": 3
+    },
+    "memory": {
+      "backend": "sqlite",
+      "cacheSizeMB": 50
+    },
+    "mcp": {
+      "transport": "stdio",
+      "port": 3000
+    },
+    "logging": {
+      "level": "info",
+      "format": "text",
+      "destination": "console"
+    }
+  }
+

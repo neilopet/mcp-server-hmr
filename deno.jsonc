@@ -1,0 +1,47 @@
+{
+  "name": "@mcp-tools/hot-reload-proxy",
+  "version": "0.1.0",
+  "description": "Hot-reload proxy for MCP servers with Vite-like HMR experience",
+  "exports": "./src/mod.ts",
+  "imports": {
+    "std/": "https://deno.land/std@0.224.0/"
+  },
+  "tasks": {
+    // Core development tasks
+    "dev": "deno run --allow-env --allow-read --allow-run --allow-net --watch src/main.ts",
+    "start": "deno run --allow-env --allow-read --allow-run --allow-net src/main.ts",
+    
+    // Code quality
+    "lint": "deno lint",
+    "format": "deno fmt",
+    "format:check": "deno fmt --check",
+    "check": "deno check src/mod.ts",
+    "test": "deno test --allow-env --allow-read",
+    
+    // Setup and security
+    "prepare": "echo 'Install pre-commit hooks: deno task hooks:install'",
+    "hooks:install": "echo 'Note: Pre-commit hooks will be implemented in next version'",
+    
+    // Examples
+    "example:basic": "deno run --allow-env --allow-read --allow-run --allow-net examples/basic/main.ts",
+    "example:inspector": "deno run --allow-env --allow-read --allow-run --allow-net examples/inspector/main.ts"
+  },
+  "lint": {
+    "rules": {
+      "tags": ["recommended"]
+    }
+  },
+  "fmt": {
+    "useTabs": false,
+    "lineWidth": 100,
+    "indentWidth": 2,
+    "semiColons": true,
+    "singleQuote": false,
+    "proseWrap": "preserve"
+  },
+  "compilerOptions": {
+    "allowJs": true,
+    "lib": ["deno.window"],
+    "strict": true
+  }
+}

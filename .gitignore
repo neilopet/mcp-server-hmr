@@ -1,0 +1,35 @@
+# Logs and sensitive data
+*.log
+*.log.*
+
+# Environment variables (never commit actual secrets)
+.env
+.env.local
+.env.production
+
+# Local configuration files
+claude-desktop-config.json
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# IDE / Editor folders
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build artifacts
+dist/
+build/
+
+# Deno cache
+.deno/
+
+# Node.js (in case of mixed projects)
+node_modules/
+
+# Temporary files
+tmp/
+temp/
