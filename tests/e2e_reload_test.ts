@@ -125,13 +125,55 @@ async function testWithOriginalWorkingProxy(targetServerPath: string, v1Content:
     }
     
     // Additional wait to ensure everything is stable
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    // Start a continuous reader to capture the tool response
+    const stdoutReader = proxyProcess.stdout.getReader();
+    let toolResponse2: any = null;
+    let responseFound = false;
+    
+    // Function to read and parse responses continuously
+    const readResponses = async () => {
+      try {
+        while (!responseFound) {
+          const { value, done } = await stdoutReader.read();
+          if (done) break;
+          
+          const text = new TextDecoder().decode(value);
+          const lines = text.trim().split('\n');
+          
+          for (const line of lines) {
+            if (line.trim()) {
+              try {
+                const parsed = JSON.parse(line);
+                // Look for our tool call response (id=10)
+                if (parsed.id === 10 && parsed.result) {
+                  toolResponse2 = parsed;
+                  responseFound = true;
+                  return;
+                }
+              } catch (e) {
+                // Not JSON, continue
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.log("Reader error:", error.message);
+      }
+    };
+    
+    // Start reading responses in background
+    const readPromise = readResponses();
+    
+    // Give it a moment to start reading
+    await new Promise(resolve => setTimeout(resolve, 100));
     
     // Test 2: Call tool again with fresh ID - should get "Result B"
     console.log("Calling test_tool again through original proxy (expecting 'Result B')...");
     const toolMessage2 = {
       jsonrpc: "2.0",
-      id: 10, // Use higher ID to avoid conflicts
+      id: 10,
       method: "tools/call", 
       params: {
         name: "test_tool",
@@ -143,47 +185,24 @@ async function testWithOriginalWorkingProxy(targetServerPath: string, v1Content:
     await writer2.write(new TextEncoder().encode(JSON.stringify(toolMessage2) + "\n"));
     writer2.releaseLock();
     
-    // Get fresh reader and read response
-    const reader2 = proxyProcess.stdout.getReader();
-    const { value: result2Value } = await reader2.read();
-    reader2.releaseLock();
+    // Wait for response with timeout
+    const timeout = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error("Tool call timeout")), 5000)
+    );
     
-    if (!result2Value || result2Value.length === 0) {
-      console.log("❌ No response received after hot-reload - server may still be restarting");
+    try {
+      await Promise.race([readPromise, timeout]);
+    } catch (error) {
+      console.log("❌ Timeout waiting for tool response:", error.message);
+      stdoutReader.releaseLock();
       proxyProcess.kill("SIGTERM");
       return false;
     }
     
-    const result2Text = new TextDecoder().decode(result2Value);
-    console.log("Raw response after reload:", result2Text);
+    stdoutReader.releaseLock();
     
-    // Parse multiple JSON objects (hot-reload sends multiple responses)
-    let toolResponse2;
-    try {
-      const lines = result2Text.trim().split('\n');
-      let foundToolResponse = false;
-      
-      for (const line of lines) {
-        if (line.trim()) {
-          const parsed = JSON.parse(line);
-          // Look for the tool call response (id=10 in our case)
-          if (parsed.id === 10 && parsed.result) {
-            toolResponse2 = parsed;
-            foundToolResponse = true;
-            break;
-          }
-        }
-      }
-      
-      if (!foundToolResponse) {
-        console.log("❌ Could not find tool call response in multi-response");
-        console.log("Available responses:", lines.length);
-        proxyProcess.kill("SIGTERM");
-        return false;
-      }
-    } catch (error) {
-      console.log("❌ Failed to parse response after reload:", error.message);
-      console.log("Raw data length:", result2Value.length);
+    if (!toolResponse2) {
+      console.log("❌ No tool response found");
       proxyProcess.kill("SIGTERM");
       return false;
     }
