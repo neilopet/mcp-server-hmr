@@ -11,13 +11,15 @@ async function testWithOriginalWorkingProxy(targetServerPath: string, v1Content:
   await Deno.writeTextFile(targetServerPath, v1Content);
   
   try {
-    // Use the recovered working proxy - spawn it with command line args like original
+    // Use our actual production implementation with command line arguments
     const proxyProcess = new Deno.Command("deno", {
       args: [
         "run", 
-        "--allow-all", 
-        "claude-code-flow/hot-reload-proxy-fixed.ts",
-        "node", 
+        "--allow-env", 
+        "--allow-read", 
+        "--allow-run", 
+        "src/main.ts",
+        "node",
         targetServerPath
       ],
       stdin: "piped",

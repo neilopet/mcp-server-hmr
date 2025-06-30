@@ -1,7 +1,7 @@
 /**
- * MCP Hot-Reload Proxy Module
- * 
- * Re-exports the main proxy functionality for library usage.
+ * MCP Server HMR Module
+ *
+ * Re-exports the main HMR functionality for library usage.
  */
 
 export { MCPProxy } from "./main.ts";
@@ -11,9 +11,13 @@ export interface MCPMessage {
   jsonrpc: string;
   id?: number;
   method?: string;
-  params?: any;
-  result?: any;
-  error?: any;
+  params?: unknown;
+  result?: unknown;
+  error?: {
+    code: number;
+    message: string;
+    data?: unknown;
+  };
 }
 
 export interface MCPProxyConfig {
