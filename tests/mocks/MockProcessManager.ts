@@ -8,7 +8,7 @@
  * - Trigger events manually for predictable testing
  */
 
-import { ExitStatus, ManagedProcess, ProcessManager, SpawnOptions } from "../../src/interfaces.ts";
+import { ExitStatus, ManagedProcess, ProcessManager, SpawnOptions } from "../../src/interfaces.js";
 
 /**
  * Mock implementation of ManagedProcess for testing

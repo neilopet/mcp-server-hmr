@@ -6,9 +6,9 @@
  * and improve test reliability by removing globalThis usage and setTimeout patterns.
  */
 
-import { MCPProxy, MCPProxyConfig } from "../../src/proxy.ts";
-import { MockProcessManager } from "../mocks/MockProcessManager.ts";
-import { MockFileSystem } from "../mocks/MockFileSystem.ts";
+import { MCPProxy, MCPProxyConfig } from "../../src/proxy.js";
+import { MockProcessManager } from "../mocks/MockProcessManager.js";
+import { MockFileSystem } from "../mocks/MockFileSystem.js";
 
 export interface TestContext {
   proxy: MCPProxy;

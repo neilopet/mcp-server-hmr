@@ -6,13 +6,54 @@
  * compatibility between Deno and Node.js environments.
  */
 
-import { debounce, type DebouncedFunction } from "std/async/debounce.ts";
 import type {
   FileSystem,
   ManagedProcess,
   ProcessManager,
   ProxyDependencies,
-} from "./interfaces.ts";
+} from "./interfaces.js";
+
+// Simple debounce implementation for Node.js
+type DebouncedFunction<T extends (...args: any[]) => any> = T & {
+  clear(): void;
+  flush(): void;
+};
+
+function debounce<T extends (...args: any[]) => any>(
+  fn: T,
+  delay: number
+): DebouncedFunction<T> {
+  let timeoutId: NodeJS.Timeout | undefined;
+  let latestArgs: Parameters<T>;
+
+  const debouncedFn = ((...args: Parameters<T>) => {
+    latestArgs = args;
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+    timeoutId = setTimeout(() => {
+      timeoutId = undefined;
+      fn(...latestArgs);
+    }, delay);
+  }) as DebouncedFunction<T>;
+
+  debouncedFn.clear = () => {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+      timeoutId = undefined;
+    }
+  };
+
+  debouncedFn.flush = () => {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+      timeoutId = undefined;
+      fn(...latestArgs);
+    }
+  };
+
+  return debouncedFn;
+}
 
 interface Message {
   jsonrpc: string;
@@ -246,10 +287,10 @@ export class MCPProxy {
     // Try to check if process still exists
     try {
       // On Unix systems, sending signal 0 checks if process exists
-      await new Deno.Command("kill", { args: ["-0", pid.toString()] }).output();
+      process.kill(pid, 0);
       // If we get here, process still exists
       console.error(`⚠️  Process ${pid} still running, forcing kill...`);
-      await new Deno.Command("kill", { args: ["-9", pid.toString()] }).output();
+      process.kill(pid, 'SIGKILL');
     } catch {
       // Process doesn't exist, which is what we want
     }
@@ -460,7 +501,7 @@ export class MCPProxy {
     }
   }
 
-  readonly restart: DebouncedFunction<[]>;
+  readonly restart: DebouncedFunction<() => Promise<void>>;
 
   private async startWatcher() {
     if (!this.config.entryFile) return;

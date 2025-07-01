@@ -7,11 +7,11 @@
  * MCP protocol continuity during hot-reload.
  */
 
-import { assertEquals, assertExists } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { MCPProxy } from "../../src/proxy.ts";
-import { MockManagedProcess, MockProcessManager } from "../mocks/MockProcessManager.ts";
-import { MockFileSystem } from "../mocks/MockFileSystem.ts";
-import { setupProxyTest, simulateRestart, waitForSpawns, waitForStable } from "./test_helper.ts";
+import { describe, it, expect } from '@jest/globals';
+import { MCPProxy } from "../../src/proxy.js";
+import { MockManagedProcess, MockProcessManager } from "../mocks/MockProcessManager.js";
+import { MockFileSystem } from "../mocks/MockFileSystem.js";
+import { setupProxyTest, simulateRestart, waitForSpawns, waitForStable } from "./test_helper.js";
 
 interface MCPMessage {
   jsonrpc: string;
@@ -22,9 +22,9 @@ interface MCPMessage {
   error?: unknown;
 }
 
-Deno.test({
-  name: "Message buffering - messages during restart are buffered and replayed",
-  async fn() {
+describe('Test Suite', () => {
+  it('Message buffering - messages during restart are buffered and replayed', async () => {
+  
     const { proxy, procManager, fs, teardown } = setupProxyTest({
       restartDelay: 100,
     });
@@ -35,7 +35,8 @@ Deno.test({
       await waitForSpawns(procManager, 1);
 
       const initialProcess = procManager.getLastSpawnedProcess();
-      assertExists(initialProcess, "Should spawn initial process");
+      expect(initialProcess).toBeTruthy(); // Should spawn initial process
+      if (!initialProcess) throw new Error('Initial process should exist');
 
       // Simulate initial process ready
       initialProcess.simulateStdout(
@@ -57,9 +58,10 @@ Deno.test({
       await simulateRestart(procManager, fs);
 
       // Should have new process
-      assertEquals(procManager.getSpawnCallCount(), 2, "Should spawn new server");
+      expect(procManager.getSpawnCallCount()).toBe(2); // Should spawn new server
       const newProcess = procManager.getLastSpawnedProcess();
-      assertExists(newProcess, "Should have new process");
+      expect(newProcess).toBeTruthy(); // Should have new process
+      if (!newProcess) throw new Error('New process should exist');
 
       // Simulate new process ready for messages
       newProcess.simulateStdout(
@@ -68,18 +70,17 @@ Deno.test({
 
       // The actual message buffering is tested by the integration tests
       // Here we verify the structure is in place
-      assertEquals(newProcess.pid !== initialProcess.pid, true, "Should have different process");
+      expect(newProcess.pid).not.toBe(initialProcess.pid); // Should have different process
     } finally {
       await teardown();
     }
-  },
-  sanitizeOps: false,
-  sanitizeResources: false,
+  });
+  
 });
 
-Deno.test({
-  name: "Message buffering - initialization params are captured and replayed",
-  async fn() {
+describe('Test Suite', () => {
+  it('Message buffering - initialization params are captured and replayed', async () => {
+  
     const { proxy, procManager, fs, teardown } = setupProxyTest({
       restartDelay: 100,
     });
@@ -90,7 +91,8 @@ Deno.test({
       await waitForSpawns(procManager, 1);
 
       const initialProcess = procManager.getLastSpawnedProcess();
-      assertExists(initialProcess, "Should spawn initial process");
+      expect(initialProcess).toBeTruthy(); // Should spawn initial process
+      if (!initialProcess) throw new Error('Initial process should exist');
 
       // The initialize params capture is tested in the actual MCPProxy
       // Here we verify that the mechanism exists for capturing and replaying
@@ -112,23 +114,23 @@ Deno.test({
       await simulateRestart(procManager, fs);
 
       // Should have new process
-      assertEquals(procManager.getSpawnCallCount(), 2, "Should spawn new server");
+      expect(procManager.getSpawnCallCount()).toBe(2); // Should spawn new server
       const newProcess = procManager.getLastSpawnedProcess();
-      assertExists(newProcess, "Should have new process");
+      expect(newProcess).toBeTruthy(); // Should have new process
+      if (!newProcess) throw new Error('New process should exist');
 
       // The new process should receive initialization replay
       // This is verified in the integration tests with actual message flow
     } finally {
       await teardown();
     }
-  },
-  sanitizeOps: false,
-  sanitizeResources: false,
+  });
+  
 });
 
-Deno.test({
-  name: "Message buffering - buffer overflow protection",
-  async fn() {
+describe('Test Suite', () => {
+  it('Message buffering - buffer overflow protection', async () => {
+  
     const { proxy, procManager, fs, teardown } = setupProxyTest({
       restartDelay: 100,
     });
@@ -139,7 +141,8 @@ Deno.test({
       await waitForSpawns(procManager, 1);
 
       const initialProcess = procManager.getLastSpawnedProcess();
-      assertExists(initialProcess, "Should spawn initial process");
+      expect(initialProcess).toBeTruthy(); // Should spawn initial process
+      if (!initialProcess) throw new Error('Initial process should exist');
 
       // Simulate initial process ready
       initialProcess.simulateStdout('{"jsonrpc":"2.0","id":1,"result":{}}\n');
@@ -152,18 +155,17 @@ Deno.test({
       await simulateRestart(procManager, fs);
 
       // Should complete restart
-      assertEquals(procManager.getSpawnCallCount(), 2, "Should complete restart");
+      expect(procManager.getSpawnCallCount()).toBe(2); // Should complete restart
     } finally {
       await teardown();
     }
-  },
-  sanitizeOps: false,
-  sanitizeResources: false,
+  });
+  
 });
 
-Deno.test({
-  name: "Message buffering - preserves message order during restart",
-  async fn() {
+describe('Test Suite', () => {
+  it('Message buffering - preserves message order during restart', async () => {
+  
     const { proxy, procManager, fs, teardown } = setupProxyTest({
       restartDelay: 100,
     });
@@ -174,7 +176,8 @@ Deno.test({
       await waitForSpawns(procManager, 1);
 
       const initialProcess = procManager.getLastSpawnedProcess();
-      assertExists(initialProcess, "Should spawn initial process");
+      expect(initialProcess).toBeTruthy(); // Should spawn initial process
+      if (!initialProcess) throw new Error('Initial process should exist');
 
       // This test ensures that message ordering is preserved
       // Messages should be replayed in the same order they were received
@@ -187,11 +190,10 @@ Deno.test({
       // Simulate restart
       await simulateRestart(procManager, fs);
 
-      assertEquals(procManager.getSpawnCallCount(), 2, "Should complete restart");
+      expect(procManager.getSpawnCallCount()).toBe(2); // Should complete restart
     } finally {
       await teardown();
     }
-  },
-  sanitizeOps: false,
-  sanitizeResources: false,
+  });
+  
 });

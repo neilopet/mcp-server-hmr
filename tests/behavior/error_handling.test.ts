@@ -12,19 +12,15 @@
  * Ensures robust operation and proper error recovery.
  */
 
-import {
-  assertEquals,
-  assertExists,
-  assertRejects,
-} from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { MCPProxy } from "../../src/proxy.ts";
-import { MockManagedProcess, MockProcessManager } from "../mocks/MockProcessManager.ts";
-import { MockFileSystem } from "../mocks/MockFileSystem.ts";
-import { setupProxyTest, simulateRestart, waitForSpawns, waitForStable } from "./test_helper.ts";
+import { describe, it, expect } from '@jest/globals';
+import { MCPProxy } from "../../src/proxy.js";
+import { MockManagedProcess, MockProcessManager } from "../mocks/MockProcessManager.js";
+import { MockFileSystem } from "../mocks/MockFileSystem.js";
+import { setupProxyTest, simulateRestart, waitForSpawns, waitForStable } from "./test_helper.js";
 
-Deno.test({
-  name: "Error handling - process spawn failure",
-  async fn() {
+describe('Test Suite', () => {
+  it('Error handling - process spawn failure', async () => {
+  
     const { proxy, procManager, fs, teardown } = setupProxyTest();
 
     // Configure spawn to fail
@@ -38,7 +34,7 @@ Deno.test({
       await waitForStable(100);
 
       // Should have attempted to spawn
-      assertEquals(procManager.getSpawnCallCount(), 1, "Should attempt to spawn");
+      expect(procManager.getSpawnCallCount()).toBe(1); // Should attempt to spawn
 
       // The proxy should handle the spawn failure and potentially retry
       // Exact behavior depends on implementation, but it shouldn't crash
@@ -51,7 +47,7 @@ Deno.test({
       await waitForStable(200);
 
       // Should successfully spawn on retry
-      assertEquals(procManager.getSpawnCallCount(), 2, "Should retry spawn after failure");
+      expect(procManager.getSpawnCallCount()).toBe(2); // Should retry spawn after failure
 
       // Ensure any spawned process is terminated before teardown
       const lastProcess = procManager.getLastSpawnedProcess();
@@ -61,14 +57,13 @@ Deno.test({
     } finally {
       await teardown();
     }
-  },
-  sanitizeOps: false,
-  sanitizeResources: false,
+  });
+  
 });
 
-Deno.test({
-  name: "Error handling - file watching failure",
-  async fn() {
+describe('Test Suite', () => {
+  it('Error handling - file watching failure', async () => {
+  
     // Create test context but don't set file as existing to simulate watch failure
     const procManager = new MockProcessManager();
     const fs = new MockFileSystem();
@@ -109,10 +104,10 @@ Deno.test({
       await waitForStable(100);
 
       // Should still spawn initial server even if file watching fails
-      assertEquals(procManager.getSpawnCallCount(), 1, "Should spawn server despite watch failure");
+      expect(procManager.getSpawnCallCount()).toBe(1); // Should spawn server despite watch failure
 
       // File watching should not be active
-      assertEquals(fs.getActiveWatcherCount(), 0, "Should not have active watchers due to failure");
+      expect(fs.getActiveWatcherCount()).toBe(0); // Should not have active watchers due to failure
 
       // Ensure any spawned process is terminated before teardown
       const lastProcess = procManager.getLastSpawnedProcess();
@@ -127,14 +122,13 @@ Deno.test({
         // Ignore shutdown errors
       }
     }
-  },
-  sanitizeOps: false,
-  sanitizeResources: false,
+  });
+  
 });
 
-Deno.test({
-  name: "Error handling - process crash during operation",
-  async fn() {
+describe('Test Suite', () => {
+  it('Error handling - process crash during operation', async () => {
+  
     const { proxy, procManager, fs, teardown } = setupProxyTest();
 
     try {
@@ -143,7 +137,8 @@ Deno.test({
       await waitForStable(50);
 
       const initialProcess = procManager.getLastSpawnedProcess();
-      assertExists(initialProcess, "Should spawn initial process");
+      expect(initialProcess).toBeTruthy(); // Should spawn initial process
+      if (!initialProcess) throw new Error('Initial process should exist');
 
       // Simulate process starting successfully
       initialProcess.simulateStdout('{"jsonrpc":"2.0","id":1,"result":{}}\n');
@@ -155,11 +150,7 @@ Deno.test({
       await waitForStable(300);
 
       // Proxy should attempt to restart after crash
-      assertEquals(
-        procManager.getSpawnCallCount() >= 2,
-        true,
-        "Should restart after process crash",
-      );
+      expect(procManager.getSpawnCallCount()).toBeGreaterThanOrEqual(2); // Should restart after process crash
 
       // Ensure any spawned process is terminated before teardown
       const lastProcess = procManager.getLastSpawnedProcess();
@@ -169,14 +160,13 @@ Deno.test({
     } finally {
       await teardown();
     }
-  },
-  sanitizeOps: false,
-  sanitizeResources: false,
+  });
+  
 });
 
-Deno.test({
-  name: "Error handling - invalid JSON messages",
-  async fn() {
+describe('Test Suite', () => {
+  it('Error handling - invalid JSON messages', async () => {
+  
     const { proxy, procManager, fs, teardown } = setupProxyTest();
 
     try {
@@ -185,7 +175,8 @@ Deno.test({
       await waitForStable(50);
 
       const initialProcess = procManager.getLastSpawnedProcess();
-      assertExists(initialProcess, "Should spawn initial process");
+      expect(initialProcess).toBeTruthy(); // Should spawn initial process
+      if (!initialProcess) throw new Error('Initial process should exist');
 
       // Simulate server sending invalid JSON
       initialProcess.simulateStdout("invalid json\n");
@@ -198,11 +189,7 @@ Deno.test({
       // Use simulateRestart helper instead of manual restart sequence
       await simulateRestart(procManager, fs);
 
-      assertEquals(
-        procManager.getSpawnCallCount(),
-        2,
-        "Should continue operating despite invalid JSON",
-      );
+      expect(procManager.getSpawnCallCount()).toBe(2); // Should continue operating despite invalid JSON
 
       // Ensure any spawned process is terminated before teardown
       const lastProcess = procManager.getLastSpawnedProcess();
@@ -212,14 +199,13 @@ Deno.test({
     } finally {
       await teardown();
     }
-  },
-  sanitizeOps: false,
-  sanitizeResources: false,
+  });
+  
 });
 
-Deno.test({
-  name: "Error handling - stream errors",
-  async fn() {
+describe('Test Suite', () => {
+  it('Error handling - stream errors', async () => {
+  
     const { proxy, procManager, fs, teardown } = setupProxyTest();
 
     try {
@@ -228,7 +214,8 @@ Deno.test({
       await waitForStable(50);
 
       const initialProcess = procManager.getLastSpawnedProcess();
-      assertExists(initialProcess, "Should spawn initial process");
+      expect(initialProcess).toBeTruthy(); // Should spawn initial process
+      if (!initialProcess) throw new Error('Initial process should exist');
 
       // Simulate stream working initially
       initialProcess.simulateStdout('{"jsonrpc":"2.0","id":1,"result":{}}\n');
@@ -240,7 +227,7 @@ Deno.test({
       await waitForStable(200);
 
       // Proxy should detect stream closure and attempt restart
-      assertEquals(procManager.getSpawnCallCount() >= 2, true, "Should restart after stream error");
+      expect(procManager.getSpawnCallCount()).toBeGreaterThanOrEqual(2); // Should restart after stream error
 
       // Ensure any spawned process is terminated before teardown
       const lastProcess = procManager.getLastSpawnedProcess();
@@ -250,14 +237,13 @@ Deno.test({
     } finally {
       await teardown();
     }
-  },
-  sanitizeOps: false,
-  sanitizeResources: false,
+  });
+  
 });
 
-Deno.test({
-  name: "Error handling - filesystem operations failure",
-  async fn() {
+describe('Test Suite', () => {
+  it('Error handling - filesystem operations failure', async () => {
+  
     // Create custom mocks with filesystem failures
     const procManager = new MockProcessManager();
     const fs = new MockFileSystem();
@@ -323,14 +309,13 @@ Deno.test({
         // Ignore shutdown errors
       }
     }
-  },
-  sanitizeOps: false,
-  sanitizeResources: false,
+  });
+  
 });
 
-Deno.test({
-  name: "Error handling - multiple concurrent errors",
-  async fn() {
+describe('Test Suite', () => {
+  it('Error handling - multiple concurrent errors', async () => {
+  
     const { proxy, procManager, fs, teardown } = setupProxyTest({
       restartDelay: 50, // Short delay for faster testing
     });
@@ -341,7 +326,8 @@ Deno.test({
       await waitForStable(50);
 
       const initialProcess = procManager.getLastSpawnedProcess();
-      assertExists(initialProcess, "Should spawn initial process");
+      expect(initialProcess).toBeTruthy(); // Should spawn initial process
+      if (!initialProcess) throw new Error('Initial process should exist');
 
       // Simulate multiple errors happening simultaneously:
       // 1. Process crash
@@ -365,7 +351,7 @@ Deno.test({
       await waitForStable(200);
 
       // Despite multiple concurrent errors, proxy should eventually stabilize
-      assertEquals(procManager.getSpawnCallCount() >= 2, true, "Should attempt multiple restarts");
+      expect(procManager.getSpawnCallCount()).toBeGreaterThanOrEqual(2); // Should attempt multiple restarts
 
       // Ensure any spawned process is terminated before teardown
       const lastProcess = procManager.getLastSpawnedProcess();
@@ -375,7 +361,6 @@ Deno.test({
     } finally {
       await teardown();
     }
-  },
-  sanitizeOps: false,
-  sanitizeResources: false,
+  });
+  
 });

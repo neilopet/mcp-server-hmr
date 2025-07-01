@@ -7,8 +7,8 @@
  * that new servers have the same capabilities and configuration as the original.
  */
 
-import { assertEquals, assertExists } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { setupProxyTest, simulateRestart, waitForStable } from "./test_helper.ts";
+import { describe, it, expect } from '@jest/globals';
+import { setupProxyTest, simulateRestart, waitForStable } from "./test_helper.js";
 
 interface MCPInitializeParams {
   protocolVersion: string;
@@ -25,9 +25,9 @@ interface MCPInitializeParams {
   };
 }
 
-Deno.test({
-  name: "Initialization replay - captures and replays initialize params",
-  async fn() {
+describe('Test Suite', () => {
+  it('Initialization replay - captures and replays initialize params', async () => {
+  
     const watchFile = "/test/server.js";
     const { proxy, procManager, fs, teardown } = setupProxyTest({
       entryFile: watchFile,
@@ -40,7 +40,8 @@ Deno.test({
       await waitForStable(50);
 
       const initialProcess = procManager.getLastSpawnedProcess();
-      assertExists(initialProcess, "Should spawn initial process");
+      expect(initialProcess).toBeTruthy(); // Should spawn initial process
+      if (!initialProcess) throw new Error('Initial process should exist');
 
       // Simulate the proxy capturing initialization params
       // In the real implementation, this would come from the MCP client
@@ -80,10 +81,11 @@ Deno.test({
       await simulateRestart(procManager, fs, watchFile);
 
       // Should have new process
-      assertEquals(procManager.getSpawnCallCount(), 2, "Should spawn new server");
+      expect(procManager.getSpawnCallCount()).toBe(2); // Should spawn new server
       const newProcess = procManager.getLastSpawnedProcess();
-      assertExists(newProcess, "Should have new process");
-      assertEquals(newProcess.pid !== initialPid, true, "Should be different process");
+      expect(newProcess).toBeTruthy(); // Should have new process
+      if (!newProcess) throw new Error('New process should exist');
+      expect(newProcess.pid).not.toBe(initialPid); // Should be different process
 
       // The new process should receive initialization replay
       // In the real implementation, the proxy automatically sends initialize to new servers
@@ -103,23 +105,18 @@ Deno.test({
 
       // Verify that both processes received initialization
       // The actual message flow is verified in integration tests
-      assertEquals(
-        initialProcess.stdinWrites.length >= 0,
-        true,
-        "Initial process should have received messages",
-      );
-      assertEquals(newProcess.stdinWrites.length >= 0, true, "New process should receive messages");
+      expect(initialProcess.stdinWrites.length).toBeGreaterThanOrEqual(0); // Initial process should have received messages
+      expect(newProcess.stdinWrites.length).toBeGreaterThanOrEqual(0); // New process should receive messages
     } finally {
       await teardown();
     }
-  },
-  sanitizeOps: false,
-  sanitizeResources: false,
+  });
+  
 });
 
-Deno.test({
-  name: "Initialization replay - handles missing initialize params gracefully",
-  async fn() {
+describe('Test Suite', () => {
+  it('Initialization replay - handles missing initialize params gracefully', async () => {
+  
     const watchFile = "/test/server.js";
     const { proxy, procManager, fs, teardown } = setupProxyTest({
       entryFile: watchFile,
@@ -132,7 +129,8 @@ Deno.test({
       await waitForStable(50);
 
       const initialProcess = procManager.getLastSpawnedProcess();
-      assertExists(initialProcess, "Should spawn initial process");
+      expect(initialProcess).toBeTruthy(); // Should spawn initial process
+      if (!initialProcess) throw new Error('Initial process should exist');
 
       // Don't send any initialize message to initial process
       // This simulates a restart happening before client initialization
@@ -141,27 +139,23 @@ Deno.test({
       await simulateRestart(procManager, fs, watchFile);
 
       // Should still successfully restart
-      assertEquals(
-        procManager.getSpawnCallCount(),
-        2,
-        "Should spawn new server even without captured params",
-      );
+      expect(procManager.getSpawnCallCount()).toBe(2); // Should spawn new server even without captured params
       const newProcess = procManager.getLastSpawnedProcess();
-      assertExists(newProcess, "Should have new process");
+      expect(newProcess).toBeTruthy(); // Should have new process
+      if (!newProcess) throw new Error('New process should exist');
 
       // The proxy should handle missing initialize params gracefully
       // New server should start but won't receive replayed initialization
     } finally {
       await teardown();
     }
-  },
-  sanitizeOps: false,
-  sanitizeResources: false,
+  });
+  
 });
 
-Deno.test({
-  name: "Initialization replay - preserves client capabilities across restarts",
-  async fn() {
+describe('Test Suite', () => {
+  it('Initialization replay - preserves client capabilities across restarts', async () => {
+  
     const watchFile = "/test/server.js";
     const { proxy, procManager, fs, teardown } = setupProxyTest({
       entryFile: watchFile,
@@ -174,7 +168,8 @@ Deno.test({
       await waitForStable(50);
 
       const initialProcess = procManager.getLastSpawnedProcess();
-      assertExists(initialProcess, "Should spawn initial process");
+      expect(initialProcess).toBeTruthy(); // Should spawn initial process
+      if (!initialProcess) throw new Error('Initial process should exist');
 
       // Simulate initialization with specific capabilities
       const initResponse = {
@@ -198,9 +193,10 @@ Deno.test({
       await simulateRestart(procManager, fs, watchFile);
 
       // Verify new server exists
-      assertEquals(procManager.getSpawnCallCount(), 2, "Should spawn new server");
+      expect(procManager.getSpawnCallCount()).toBe(2); // Should spawn new server
       const newProcess = procManager.getLastSpawnedProcess();
-      assertExists(newProcess, "Should have new process");
+      expect(newProcess).toBeTruthy(); // Should have new process
+      if (!newProcess) throw new Error('New process should exist');
 
       // The new server should receive the same capabilities
       // This ensures consistent client-server negotiation across restarts
@@ -228,14 +224,13 @@ Deno.test({
     } finally {
       await teardown();
     }
-  },
-  sanitizeOps: false,
-  sanitizeResources: false,
+  });
+  
 });
 
-Deno.test({
-  name: "Initialization replay - handles initialization timeout gracefully",
-  async fn() {
+describe('Test Suite', () => {
+  it('Initialization replay - handles initialization timeout gracefully', async () => {
+  
     const watchFile = "/test/server.js";
     const { proxy, procManager, fs, teardown } = setupProxyTest({
       entryFile: watchFile,
@@ -248,7 +243,8 @@ Deno.test({
       await waitForStable(50);
 
       const initialProcess = procManager.getLastSpawnedProcess();
-      assertExists(initialProcess, "Should spawn initial process");
+      expect(initialProcess).toBeTruthy(); // Should spawn initial process
+      if (!initialProcess) throw new Error('Initial process should exist');
 
       // Simulate initial server being ready
       initialProcess.simulateStdout('{"jsonrpc":"2.0","id":1,"result":{}}\n');
@@ -257,7 +253,8 @@ Deno.test({
       await simulateRestart(procManager, fs, watchFile);
 
       const newProcess = procManager.getLastSpawnedProcess();
-      assertExists(newProcess, "Should have new process");
+      expect(newProcess).toBeTruthy(); // Should have new process
+      if (!newProcess) throw new Error('New process should exist');
 
       // Don't simulate new server responding to initialization
       // This tests timeout handling in the proxy
@@ -266,11 +263,10 @@ Deno.test({
       await waitForStable(300);
 
       // Proxy should handle timeout gracefully and continue operating
-      assertEquals(procManager.getSpawnCallCount(), 2, "Should have attempted restart");
+      expect(procManager.getSpawnCallCount()).toBe(2); // Should have attempted restart
     } finally {
       await teardown();
     }
-  },
-  sanitizeOps: false,
-  sanitizeResources: false,
+  });
+  
 });

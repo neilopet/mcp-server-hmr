@@ -8,15 +8,15 @@
  * This test uses mock implementations to verify behavior without actual process spawning.
  */
 
-import { assertEquals, assertExists } from "https://deno.land/std@0.224.0/assert/mod.ts";
-import { MCPProxy } from "../../src/proxy.ts";
-import { MockManagedProcess, MockProcessManager } from "../mocks/MockProcessManager.ts";
-import { MockFileSystem } from "../mocks/MockFileSystem.ts";
-import { setupProxyTest, simulateRestart, waitForSpawns } from "./test_helper.ts";
+import { describe, it, expect } from '@jest/globals';
+import { MCPProxy } from "../../src/proxy.js";
+import { MockManagedProcess, MockProcessManager } from "../mocks/MockProcessManager.js";
+import { MockFileSystem } from "../mocks/MockFileSystem.js";
+import { setupProxyTest, simulateRestart, waitForSpawns } from "./test_helper.js";
 
-Deno.test({
-  name: "Proxy restart - file change triggers server restart sequence",
-  async fn() {
+describe('Test Suite', () => {
+  it('Proxy restart - file change triggers server restart sequence', async () => {
+  
     const { proxy, procManager, fs, teardown } = setupProxyTest({
       restartDelay: 100,
     });
@@ -27,9 +27,10 @@ Deno.test({
       await waitForSpawns(procManager, 1);
 
       // Verify initial server was spawned
-      assertEquals(procManager.getSpawnCallCount(), 1, "Should spawn initial server");
+      expect(procManager.getSpawnCallCount()).toBe(1); // Should spawn initial server
       const initialProcess = procManager.getLastSpawnedProcess();
-      assertExists(initialProcess, "Should have spawned process");
+      expect(initialProcess).toBeTruthy(); // Should have spawned process
+      if (!initialProcess) throw new Error('Initial process should exist');
 
       // Simulate initial server starting successfully
       initialProcess.simulateStdout(
@@ -43,22 +44,23 @@ Deno.test({
       await simulateRestart(procManager, fs);
 
       // Verify restart sequence
-      assertEquals(procManager.getSpawnCallCount(), 2, "Should spawn new server after file change");
+      expect(procManager.getSpawnCallCount()).toBe(2); // Should spawn new server after file change
 
       // Verify old process was killed
       const killCalls = initialProcess.killCalls || [];
-      assertEquals(killCalls.length >= 1, true, "Should kill old server");
+      expect(killCalls.length).toBeGreaterThanOrEqual(1); // Should kill old server
       if (killCalls.length > 0) {
-        assertEquals(killCalls[0].signal || "SIGTERM", "SIGTERM", "Should use SIGTERM signal");
+        expect(killCalls[0].signal || "SIGTERM").toBe("SIGTERM"); // Should use SIGTERM signal
       }
 
       // Verify new process is different
       const newProcess = procManager.getLastSpawnedProcess();
-      assertExists(newProcess, "Should have new process");
-      assertEquals(newProcess.pid !== initialPid, true, "New process should have different PID");
+      expect(newProcess).toBeTruthy(); // Should have new process
+      if (!newProcess) throw new Error('New process should exist');
+      expect(newProcess.pid).not.toBe(initialPid); // New process should have different PID
 
       // Verify watch is still active
-      assertEquals(fs.getActiveWatcherCount() > 0, true, "File watcher should still be active");
+      expect(fs.getActiveWatcherCount()).toBeGreaterThan(0); // File watcher should still be active
 
       // Test second restart to ensure it works repeatedly
       newProcess.simulateStdout('{"jsonrpc":"2.0","id":2,"result":{"tools":[]}}\n');
@@ -67,22 +69,17 @@ Deno.test({
       await simulateRestart(procManager, fs);
 
       // Should have spawned third server
-      assertEquals(
-        procManager.getSpawnCallCount(),
-        3,
-        "Should spawn third server after second file change",
-      );
+      expect(procManager.getSpawnCallCount()).toBe(3); // Should spawn third server after second file change
     } finally {
       await teardown();
     }
-  },
-  sanitizeOps: false,
-  sanitizeResources: false,
+  });
+  
 });
 
-Deno.test({
-  name: "Proxy restart - multiple rapid file changes are debounced",
-  async fn() {
+describe('Test Suite', () => {
+  it('Proxy restart - multiple rapid file changes are debounced', async () => {
+  
     const mockProcessManager = new MockProcessManager();
     const mockFileSystem = new MockFileSystem();
 
@@ -121,10 +118,12 @@ Deno.test({
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       // Verify initial spawn
-      assertEquals(mockProcessManager.getSpawnCallCount(), 1, "Should spawn initial server");
+      expect(mockProcessManager.getSpawnCallCount()).toBe(1); // Should spawn initial server
 
       const initialProcess = mockProcessManager.getLastSpawnedProcess();
-      assertExists(initialProcess, "Should have initial process");
+      expect(initialProcess).toBeTruthy();
+      if (!initialProcess) throw new Error('Initial process should exist'); // Should have initial process
+      if (!initialProcess) throw new Error('Initial process should exist');
 
       // Simulate rapid file changes (should be debounced)
       mockFileSystem.triggerFileEvent(watchFile, "modify");
@@ -143,11 +142,7 @@ Deno.test({
       await new Promise((resolve) => setTimeout(resolve, 300));
 
       // Should only have triggered one restart despite multiple changes
-      assertEquals(
-        mockProcessManager.getSpawnCallCount(),
-        2,
-        "Multiple rapid changes should be debounced to single restart",
-      );
+      expect(mockProcessManager.getSpawnCallCount()).toBe(2); // Multiple rapid changes should be debounced to single restart
 
       mockFileSystem.closeAllWatchers();
     } finally {
@@ -156,14 +151,13 @@ Deno.test({
       delete globalThis.entryFile;
       delete globalThis.restartDelay;
     }
-  },
-  sanitizeOps: false,
-  sanitizeResources: false,
+  });
+  
 });
 
-Deno.test({
-  name: "Proxy restart - handles process that fails to start",
-  async fn() {
+describe('Test Suite', () => {
+  it('Proxy restart - handles process that fails to start', async () => {
+  
     const mockProcessManager = new MockProcessManager();
     const mockFileSystem = new MockFileSystem();
 
@@ -202,7 +196,8 @@ Deno.test({
       await new Promise((resolve) => setTimeout(resolve, 50));
 
       const initialProcess = mockProcessManager.getLastSpawnedProcess();
-      assertExists(initialProcess, "Should spawn initial process");
+      expect(initialProcess).toBeTruthy();
+      if (!initialProcess) throw new Error('Initial process should exist'); // Should spawn initial process
 
       // Simulate initial process starting
       initialProcess.simulateStdout('{"jsonrpc":"2.0","id":1,"result":{}}\n');
@@ -220,10 +215,11 @@ Deno.test({
       await new Promise((resolve) => setTimeout(resolve, 150));
 
       // Should have attempted new spawn
-      assertEquals(mockProcessManager.getSpawnCallCount(), 2, "Should attempt to spawn new server");
+      expect(mockProcessManager.getSpawnCallCount()).toBe(2); // Should attempt to spawn new server
 
       const newProcess = mockProcessManager.getLastSpawnedProcess();
-      assertExists(newProcess, "Should have new process");
+      expect(newProcess).toBeTruthy();
+      if (!newProcess) throw new Error('New process should exist'); // Should have new process
 
       // Simulate new process failing quickly
       newProcess.simulateExit(1, null);
@@ -241,7 +237,6 @@ Deno.test({
       delete globalThis.entryFile;
       delete globalThis.restartDelay;
     }
-  },
-  sanitizeOps: false,
-  sanitizeResources: false,
+  });
+  
 });

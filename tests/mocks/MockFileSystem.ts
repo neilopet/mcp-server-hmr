@@ -9,7 +9,7 @@
  * - Simulate file system errors
  */
 
-import { FileEvent, FileEventType, FileSystem } from "../../src/interfaces.ts";
+import { FileEvent, FileEventType, FileSystem } from "../../src/interfaces.js";
 
 /**
  * Represents an active file watcher
