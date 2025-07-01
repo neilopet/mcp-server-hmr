@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# MCP Server HMR - Convenience wrapper for config launcher
+# MCP Server Watch - Hot-reload wrapper for MCP servers
 
 # Get the directory where this script is located
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"

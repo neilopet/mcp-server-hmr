@@ -17,7 +17,7 @@ Hot Module Replacement (HMR) for MCP (Model Context Protocol) servers - instant 
    ```bash
    git clone https://github.com/neilopet/mcp-server-hmr
    cd mcp-server-hmr
-   deno task setup  # Adds mcp-hmr to your PATH
+   deno task setup  # Adds 'watch' command to your PATH
    ```
 
 2. **Reload your shell**:
@@ -39,19 +39,19 @@ Perfect for one-off usage and MCP Inspector integration:
 
 ```bash
 # Basic usage (after running deno task setup)
-mcp-hmr node /path/to/your/mcp-server.js
+watch node /path/to/your/mcp-server.js
 
 # With MCP Inspector
 npx @modelcontextprotocol/inspector \
   -e API_KEY="your-key" \
-  "mcp-hmr" \
+  "watch" \
   "node" "/path/to/your/mcp-server.js"
 
 # Python server example
-mcp-hmr python -m mcp_server
+watch python -m mcp_server
 
 # Deno server example  
-mcp-hmr deno run --allow-all server.ts
+watch deno run --allow-all server.ts
 
 # Or use full paths if setup wasn't run
 ./src/main.ts node /path/to/your/mcp-server.js
@@ -72,17 +72,17 @@ Ideal for managing multiple MCP servers. The config launcher automatically searc
 
 ```bash
 # Launch a server from any found config
-mcp-hmr --server my-server
+watch --server my-server
 
 # List all available servers
-mcp-hmr --list
+watch --list
 
 # Use a specific config file
-mcp-hmr -s my-server -c ~/my-config.json
+watch -s my-server -c ~/my-config.json
 
 # Auto-configure servers for hot-reload
-mcp-hmr --setup channelape    # Setup specific server
-mcp-hmr --all                 # Setup all stdio servers
+watch --setup channelape    # Setup specific server
+watch --all                 # Setup all stdio servers
 ```
 
 #### Auto-Setup Feature
@@ -111,7 +111,7 @@ Example transformation:
 {
   "mcpServers": {
     "my-server": {
-      "command": "/path/to/mcp-hmr/src/main.ts",
+      "command": "/path/to/mcp-server-hmr/src/main.ts",
       "args": ["node", "dist/index.js"],
       "env": { "API_KEY": "key" }
     },
@@ -236,20 +236,38 @@ Then run: `npx @modelcontextprotocol/inspector --config config.json --server you
 
 ## Installation Options
 
-### Global Command Setup
+### Deno Users - Global Command Setup
 
-After cloning, run the setup task to add `mcp-hmr` to your PATH:
+After cloning, run the setup task to add `watch` to your PATH:
 
 ```bash
 deno task setup
 source ~/.bashrc  # or ~/.zshrc, ~/.bash_profile
 ```
 
-This allows you to use `mcp-hmr` from anywhere:
+This allows you to use `watch` from anywhere:
 ```bash
-mcp-hmr --help
-mcp-hmr --list
-mcp-hmr --server my-server
+watch --help
+watch --list
+watch --server my-server
+```
+
+### Node.js Users - Build and Install
+
+If you don't have Deno installed, you can build and use the Node.js version:
+
+```bash
+# Build Node.js version (requires Deno for building)
+deno task build:node
+
+# Or download pre-built release from GitHub
+cd dist
+npm install
+npm link  # Makes 'watch' command global
+
+# Use it the same way
+watch --help
+watch node /path/to/mcp-server.js
 ```
 
 ### Manual Setup
@@ -258,7 +276,7 @@ If you prefer not to modify your PATH, you can always use the full paths:
 ```bash
 ./src/main.ts                 # Direct hot-reload proxy
 ./src/config_launcher.ts      # Config-based launcher
-./mcp-hmr                     # Wrapper script
+./watch                       # Wrapper script
 ```
 
 ## Available Tasks
@@ -267,7 +285,8 @@ Run `deno task <name>` for any of these:
 
 | Task              | Description                                      |
 | ----------------- | ------------------------------------------------ |
-| `setup`           | **Add mcp-hmr to your PATH for global access**  |
+| `setup`           | **Add 'watch' command to your PATH**            |
+| `build:node`      | **Build Node.js compatible version**             |
 | `dev`             | Run proxy in development mode with file watching |
 | `start`           | Run proxy in production mode                     |
 | `build`           | Cache dependencies and type-check the project    |
@@ -281,6 +300,32 @@ Run `deno task <name>` for any of these:
 | `test:unit`       | Clean, build, then run unit tests only           |
 | `test:integration`| Clean, build, then run integration tests only    |
 | `test:quick`      | Run tests without clean/build (fast iteration)   |
+
+## Node.js Compatibility
+
+This project is written in Deno/TypeScript but provides a Node.js compatible build:
+
+```bash
+# Build Node.js version
+deno task build:node
+
+# The build creates:
+# dist/watch         - Executable command
+# dist/package.json  - Node dependencies
+# dist/README.md     - Usage instructions
+
+# Install and use
+cd dist
+npm install
+npm link  # Optional: make 'watch' global
+./watch --help
+```
+
+The Node.js build includes:
+- Full command-line compatibility
+- Deno API shims for Node.js
+- File watching via chokidar
+- All core functionality
 
 ## How It Works
 

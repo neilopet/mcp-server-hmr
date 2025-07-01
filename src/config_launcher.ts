@@ -226,14 +226,14 @@ function findConfigFile(providedPath?: string): string | null {
 
 // Show help
 if (args.help || (!args.server && !args.list && !args.setup && !args.all)) {
-  console.log(`MCP Server HMR - Config Launcher
+  console.log(`MCP Server Watch - Hot-reload for MCP servers
 
 Usage:
-  mcp-hmr --server <server-name> [--config <path>]
-  mcp-hmr -s <server-name> [-c <path>]
-  mcp-hmr --list [--config <path>]
-  mcp-hmr --setup [<server-name>] [--all] [--config <path>]
-  mcp-hmr --help
+  watch --server <server-name> [--config <path>]
+  watch -s <server-name> [-c <path>]
+  watch --list [--config <path>]
+  watch --setup [<server-name>] [--all] [--config <path>]
+  watch --help
 
 Options:
   -s, --server <name>    Name of the server to proxy from config
@@ -251,11 +251,11 @@ Default Config Search Order:
   3. ./mcpServers.json (current directory)
 
 Examples:
-  mcp-hmr --server channelape
-  mcp-hmr -s my-server -c ~/mcp-config.json
-  mcp-hmr --list
-  mcp-hmr --setup channelape    # Configure channelape to use hot-reload
-  mcp-hmr --setup --all         # Configure all stdio servers
+  watch --server channelape
+  watch -s my-server -c ~/mcp-config.json
+  watch --list
+  watch --setup channelape    # Configure channelape to use hot-reload
+  watch --setup --all         # Configure all stdio servers
 
 The config file should be in the standard MCP servers format:
 {
