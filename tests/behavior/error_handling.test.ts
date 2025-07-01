@@ -26,23 +26,34 @@ Deno.test({
     // Configure spawn to fail
     mockProcessManager.setSpawnShouldFail(true);
     
-    const proxy = new MCPProxy({
-      procManager: mockProcessManager,
-      fs: mockFileSystem,
-    }, {
-      command: globalThis.command,
-      commandArgs: globalThis.commandArgs,
-      entryFile: globalThis.entryFile,
-      restartDelay: globalThis.restartDelay,
-    });
-
     const watchFile = "/test/server.js";
     mockFileSystem.setFileExists(watchFile, true);
     
+    // Set up global variables that MCPProxy expects
     globalThis.command = "node";
     globalThis.commandArgs = [watchFile];
     globalThis.entryFile = watchFile;
     globalThis.restartDelay = 100;
+    
+    // Create mock I/O streams for testing
+    const { readable: mockStdin, writable: stdinWrite } = new TransformStream();
+    const { readable: stdoutRead, writable: mockStdout } = new TransformStream();
+    const { readable: stderrRead, writable: mockStderr } = new TransformStream();
+    
+    const proxy = new MCPProxy({
+      procManager: mockProcessManager,
+      fs: mockFileSystem,
+      stdin: mockStdin,
+      stdout: mockStdout,
+      stderr: mockStderr,
+    }, {
+      command: globalThis.command!,
+      commandArgs: globalThis.commandArgs!,
+      entryFile: globalThis.entryFile!,
+      restartDelay: globalThis.restartDelay!,
+      killDelay: 50,  // Fast test timing
+      readyDelay: 50, // Fast test timing
+    });
 
     try {
       // Start proxy - this should handle spawn failure gracefully
@@ -78,6 +89,7 @@ Deno.test({
   },
   sanitizeOps: false,
   sanitizeResources: false,
+});
 
 Deno.test({
   name: "Error handling - file watching failure",
@@ -85,23 +97,34 @@ Deno.test({
     const mockProcessManager = new MockProcessManager();
     const mockFileSystem = new MockFileSystem();
     
-    const proxy = new MCPProxy({
-      procManager: mockProcessManager,
-      fs: mockFileSystem,
-    }, {
-      command: globalThis.command,
-      commandArgs: globalThis.commandArgs,
-      entryFile: globalThis.entryFile,
-      restartDelay: globalThis.restartDelay,
-    });
-
     const watchFile = "/test/server.js";
     // Don't set file as existing to simulate watch failure
     
+    // Set up global variables that MCPProxy expects
     globalThis.command = "node";
     globalThis.commandArgs = [watchFile];
     globalThis.entryFile = watchFile;
     globalThis.restartDelay = 100;
+    
+    // Create mock I/O streams for testing
+    const { readable: mockStdin, writable: stdinWrite } = new TransformStream();
+    const { readable: stdoutRead, writable: mockStdout } = new TransformStream();
+    const { readable: stderrRead, writable: mockStderr } = new TransformStream();
+    
+    const proxy = new MCPProxy({
+      procManager: mockProcessManager,
+      fs: mockFileSystem,
+      stdin: mockStdin,
+      stdout: mockStdout,
+      stderr: mockStderr,
+    }, {
+      command: globalThis.command!,
+      commandArgs: globalThis.commandArgs!,
+      entryFile: globalThis.entryFile!,
+      restartDelay: globalThis.restartDelay!,
+      killDelay: 50,  // Fast test timing
+      readyDelay: 50, // Fast test timing
+    });
 
     try {
       // Start proxy - file watching should fail but proxy should continue
@@ -125,6 +148,7 @@ Deno.test({
   },
   sanitizeOps: false,
   sanitizeResources: false,
+});
 
 Deno.test({
   name: "Error handling - process crash during operation",
@@ -132,23 +156,34 @@ Deno.test({
     const mockProcessManager = new MockProcessManager();
     const mockFileSystem = new MockFileSystem();
     
-    const proxy = new MCPProxy({
-      procManager: mockProcessManager,
-      fs: mockFileSystem,
-    }, {
-      command: globalThis.command,
-      commandArgs: globalThis.commandArgs,
-      entryFile: globalThis.entryFile,
-      restartDelay: globalThis.restartDelay,
-    });
-
     const watchFile = "/test/server.js";
     mockFileSystem.setFileExists(watchFile, true);
     
+    // Set up global variables BEFORE creating proxy
     globalThis.command = "node";
     globalThis.commandArgs = [watchFile];
     globalThis.entryFile = watchFile;
     globalThis.restartDelay = 100;
+    
+    // Create mock I/O streams for testing
+    const { readable: mockStdin, writable: stdinWrite } = new TransformStream();
+    const { readable: stdoutRead, writable: mockStdout } = new TransformStream();
+    const { readable: stderrRead, writable: mockStderr } = new TransformStream();
+    
+    const proxy = new MCPProxy({
+      procManager: mockProcessManager,
+      fs: mockFileSystem,
+      stdin: mockStdin,
+      stdout: mockStdout,
+      stderr: mockStderr,
+    }, {
+      command: globalThis.command!,
+      commandArgs: globalThis.commandArgs!,
+      entryFile: globalThis.entryFile!,
+      restartDelay: globalThis.restartDelay!,
+      killDelay: 50,  // Fast test timing
+      readyDelay: 50, // Fast test timing
+    });
 
     try {
       // Start proxy
@@ -181,6 +216,7 @@ Deno.test({
   },
   sanitizeOps: false,
   sanitizeResources: false,
+});
 
 Deno.test({
   name: "Error handling - invalid JSON messages",
@@ -188,23 +224,34 @@ Deno.test({
     const mockProcessManager = new MockProcessManager();
     const mockFileSystem = new MockFileSystem();
     
-    const proxy = new MCPProxy({
-      procManager: mockProcessManager,
-      fs: mockFileSystem,
-    }, {
-      command: globalThis.command,
-      commandArgs: globalThis.commandArgs,
-      entryFile: globalThis.entryFile,
-      restartDelay: globalThis.restartDelay,
-    });
-
     const watchFile = "/test/server.js";
     mockFileSystem.setFileExists(watchFile, true);
     
+    // Set up global variables BEFORE creating proxy
     globalThis.command = "node";
     globalThis.commandArgs = [watchFile];
     globalThis.entryFile = watchFile;
     globalThis.restartDelay = 100;
+    
+    // Create mock I/O streams for testing
+    const { readable: mockStdin, writable: stdinWrite } = new TransformStream();
+    const { readable: stdoutRead, writable: mockStdout } = new TransformStream();
+    const { readable: stderrRead, writable: mockStderr } = new TransformStream();
+    
+    const proxy = new MCPProxy({
+      procManager: mockProcessManager,
+      fs: mockFileSystem,
+      stdin: mockStdin,
+      stdout: mockStdout,
+      stderr: mockStderr,
+    }, {
+      command: globalThis.command!,
+      commandArgs: globalThis.commandArgs!,
+      entryFile: globalThis.entryFile!,
+      restartDelay: globalThis.restartDelay!,
+      killDelay: 50,  // Fast test timing
+      readyDelay: 50, // Fast test timing
+    });
 
     try {
       // Start proxy
@@ -224,7 +271,12 @@ Deno.test({
       
       // Trigger restart to ensure proxy is still functional
       mockFileSystem.triggerFileEvent(watchFile, "modify");
-      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      // Wait for restart to begin, then simulate process exit to allow kill to complete
+      await new Promise(resolve => setTimeout(resolve, 150)); // Wait for restart to start
+      initialProcess.simulateExit(0); // Allow killServer() to complete
+      
+      await new Promise(resolve => setTimeout(resolve, 300)); // Wait for restart to complete
       
       assertEquals(mockProcessManager.getSpawnCallCount(), 2, "Should continue operating despite invalid JSON");
       
@@ -239,6 +291,7 @@ Deno.test({
   },
   sanitizeOps: false,
   sanitizeResources: false,
+});
 
 Deno.test({
   name: "Error handling - stream errors",
@@ -246,23 +299,34 @@ Deno.test({
     const mockProcessManager = new MockProcessManager();
     const mockFileSystem = new MockFileSystem();
     
-    const proxy = new MCPProxy({
-      procManager: mockProcessManager,
-      fs: mockFileSystem,
-    }, {
-      command: globalThis.command,
-      commandArgs: globalThis.commandArgs,
-      entryFile: globalThis.entryFile,
-      restartDelay: globalThis.restartDelay,
-    });
-
     const watchFile = "/test/server.js";
     mockFileSystem.setFileExists(watchFile, true);
     
+    // Set up global variables BEFORE creating proxy
     globalThis.command = "node";
     globalThis.commandArgs = [watchFile];
     globalThis.entryFile = watchFile;
     globalThis.restartDelay = 100;
+    
+    // Create mock I/O streams for testing
+    const { readable: mockStdin, writable: stdinWrite } = new TransformStream();
+    const { readable: stdoutRead, writable: mockStdout } = new TransformStream();
+    const { readable: stderrRead, writable: mockStderr } = new TransformStream();
+    
+    const proxy = new MCPProxy({
+      procManager: mockProcessManager,
+      fs: mockFileSystem,
+      stdin: mockStdin,
+      stdout: mockStdout,
+      stderr: mockStderr,
+    }, {
+      command: globalThis.command!,
+      commandArgs: globalThis.commandArgs!,
+      entryFile: globalThis.entryFile!,
+      restartDelay: globalThis.restartDelay!,
+      killDelay: 50,  // Fast test timing
+      readyDelay: 50, // Fast test timing
+    });
 
     try {
       // Start proxy
@@ -295,6 +359,7 @@ Deno.test({
   },
   sanitizeOps: false,
   sanitizeResources: false,
+});
 
 Deno.test({
   name: "Error handling - filesystem operations failure",
@@ -311,14 +376,24 @@ Deno.test({
       message: "Mock filesystem error"
     });
     
+    // Create mock I/O streams for testing
+    const { readable: mockStdin, writable: stdinWrite } = new TransformStream();
+    const { readable: stdoutRead, writable: mockStdout } = new TransformStream();
+    const { readable: stderrRead, writable: mockStderr } = new TransformStream();
+    
     const proxy = new MCPProxy({
       procManager: mockProcessManager,
       fs: mockFileSystem,
+      stdin: mockStdin,
+      stdout: mockStdout,
+      stderr: mockStderr,
     }, {
-      command: globalThis.command,
-      commandArgs: globalThis.commandArgs,
-      entryFile: globalThis.entryFile,
-      restartDelay: globalThis.restartDelay,
+      command: globalThis.command!,
+      commandArgs: globalThis.commandArgs!,
+      entryFile: globalThis.entryFile!,
+      restartDelay: globalThis.restartDelay!,
+      killDelay: 50,  // Fast test timing
+      readyDelay: 50, // Fast test timing
     });
 
     const watchFile = "/test/server.js";
@@ -353,6 +428,7 @@ Deno.test({
   },
   sanitizeOps: false,
   sanitizeResources: false,
+});
 
 Deno.test({
   name: "Error handling - multiple concurrent errors",
@@ -360,23 +436,34 @@ Deno.test({
     const mockProcessManager = new MockProcessManager();
     const mockFileSystem = new MockFileSystem();
     
-    const proxy = new MCPProxy({
-      procManager: mockProcessManager,
-      fs: mockFileSystem,
-    }, {
-      command: globalThis.command,
-      commandArgs: globalThis.commandArgs,
-      entryFile: globalThis.entryFile,
-      restartDelay: globalThis.restartDelay,
-    });
-
     const watchFile = "/test/server.js";
     mockFileSystem.setFileExists(watchFile, true);
     
+    // Set up global variables BEFORE creating proxy
     globalThis.command = "node";
     globalThis.commandArgs = [watchFile];
     globalThis.entryFile = watchFile;
     globalThis.restartDelay = 50; // Short delay for faster testing
+    
+    // Create mock I/O streams for testing
+    const { readable: mockStdin, writable: stdinWrite } = new TransformStream();
+    const { readable: stdoutRead, writable: mockStdout } = new TransformStream();
+    const { readable: stderrRead, writable: mockStderr } = new TransformStream();
+    
+    const proxy = new MCPProxy({
+      procManager: mockProcessManager,
+      fs: mockFileSystem,
+      stdin: mockStdin,
+      stdout: mockStdout,
+      stderr: mockStderr,
+    }, {
+      command: globalThis.command!,
+      commandArgs: globalThis.commandArgs!,
+      entryFile: globalThis.entryFile!,
+      restartDelay: globalThis.restartDelay!,
+      killDelay: 50,  // Fast test timing
+      readyDelay: 50, // Fast test timing
+    });
 
     try {
       // Start proxy
@@ -421,3 +508,4 @@ Deno.test({
   },
   sanitizeOps: false,
   sanitizeResources: false,
+});

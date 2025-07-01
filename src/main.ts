@@ -102,17 +102,28 @@ if (entryFile) {
 const proxy = new MCPProxy({
   procManager: new DenoProcessManager(),
   fs: new DenoFileSystem(),
+  stdin: Deno.stdin.readable,
+  stdout: Deno.stdout.writable,
+  stderr: Deno.stderr.writable,
 }, {
   command,
   commandArgs,
   entryFile,
   restartDelay,
   env: Deno.env.toObject(),
+  killDelay: 1000,  // Production timing
+  readyDelay: 2000, // Production timing
 });
 
 // Handle shutdown signals
-Deno.addSignalListener("SIGINT", () => proxy.shutdown());
-Deno.addSignalListener("SIGTERM", () => proxy.shutdown());
+Deno.addSignalListener("SIGINT", async () => {
+  await proxy.shutdown();
+  Deno.exit(0);
+});
+Deno.addSignalListener("SIGTERM", async () => {
+  await proxy.shutdown();
+  Deno.exit(0);
+});
 
 // Start the proxy
 await proxy.start();

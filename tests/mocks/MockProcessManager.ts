@@ -172,19 +172,25 @@ export class MockProcessManager implements ProcessManager {
   private shouldFailSpawn = false;
 
   spawn(command: string, args: string[], options?: SpawnOptions): ManagedProcess {
-    if (this.shouldFailSpawn) {
-      throw new Error(`Mock spawn failure for command: ${command}`);
-    }
-
-    const process = new MockManagedProcess(this.nextPid++);
-    
+    // Track spawn call even if it fails
     const spawnCall = {
       command,
       args: [...args], // Copy array
       options: options ? { ...options } : undefined, // Copy options
       timestamp: Date.now(),
-      process,
+      process: null as any, // Will be set below if successful
     };
+    
+    if (this.shouldFailSpawn) {
+      // Record the failed spawn attempt
+      this.spawnCalls.push(spawnCall);
+      throw new Error(`Mock spawn failure for command: ${command}`);
+    }
+
+    const process = new MockManagedProcess(this.nextPid++);
+    
+    // Update the spawn call with the successful process
+    spawnCall.process = process;
 
     this.spawnCalls.push(spawnCall);
 

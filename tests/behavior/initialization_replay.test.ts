@@ -33,23 +33,34 @@ Deno.test({
     const mockProcessManager = new MockProcessManager();
     const mockFileSystem = new MockFileSystem();
     
-    const proxy = new MCPProxy({
-      procManager: mockProcessManager,
-      fs: mockFileSystem,
-    }, {
-      command: globalThis.command,
-      commandArgs: globalThis.commandArgs,
-      entryFile: globalThis.entryFile,
-      restartDelay: globalThis.restartDelay,
-    });
-
     const watchFile = "/test/server.js";
     mockFileSystem.setFileExists(watchFile, true);
     
+    // Set up global variables BEFORE creating proxy
     globalThis.command = "node";
     globalThis.commandArgs = [watchFile];
     globalThis.entryFile = watchFile;
     globalThis.restartDelay = 100;
+    
+    // Create mock I/O streams for testing
+    const { readable: mockStdin, writable: stdinWrite } = new TransformStream();
+    const { readable: stdoutRead, writable: mockStdout } = new TransformStream();
+    const { readable: stderrRead, writable: mockStderr } = new TransformStream();
+    
+    const proxy = new MCPProxy({
+      procManager: mockProcessManager,
+      fs: mockFileSystem,
+      stdin: mockStdin,
+      stdout: mockStdout,
+      stderr: mockStderr,
+    }, {
+      command: globalThis.command!,
+      commandArgs: globalThis.commandArgs!,
+      entryFile: globalThis.entryFile!,
+      restartDelay: globalThis.restartDelay!,
+      killDelay: 50,  // Fast test timing
+      readyDelay: 50, // Fast test timing
+    });
 
     try {
       // Start proxy
@@ -95,6 +106,11 @@ Deno.test({
       
       // Trigger restart
       mockFileSystem.triggerFileEvent(watchFile, "modify");
+      
+      // Wait for restart to begin, then simulate process exit
+      await new Promise(resolve => setTimeout(resolve, 120));
+      initialProcess.simulateExit(0); // Allow killServer() to complete
+      
       await new Promise(resolve => setTimeout(resolve, 200));
       
       // Should have new process
@@ -135,6 +151,7 @@ Deno.test({
   },
   sanitizeOps: false,
   sanitizeResources: false,
+});
 
 Deno.test({
   name: "Initialization replay - handles missing initialize params gracefully",
@@ -142,23 +159,34 @@ Deno.test({
     const mockProcessManager = new MockProcessManager();
     const mockFileSystem = new MockFileSystem();
     
-    const proxy = new MCPProxy({
-      procManager: mockProcessManager,
-      fs: mockFileSystem,
-    }, {
-      command: globalThis.command,
-      commandArgs: globalThis.commandArgs,
-      entryFile: globalThis.entryFile,
-      restartDelay: globalThis.restartDelay,
-    });
-
     const watchFile = "/test/server.js";
     mockFileSystem.setFileExists(watchFile, true);
     
+    // Set up global variables BEFORE creating proxy
     globalThis.command = "node";
     globalThis.commandArgs = [watchFile];
     globalThis.entryFile = watchFile;
     globalThis.restartDelay = 100;
+    
+    // Create mock I/O streams for testing
+    const { readable: mockStdin, writable: stdinWrite } = new TransformStream();
+    const { readable: stdoutRead, writable: mockStdout } = new TransformStream();
+    const { readable: stderrRead, writable: mockStderr } = new TransformStream();
+    
+    const proxy = new MCPProxy({
+      procManager: mockProcessManager,
+      fs: mockFileSystem,
+      stdin: mockStdin,
+      stdout: mockStdout,
+      stderr: mockStderr,
+    }, {
+      command: globalThis.command!,
+      commandArgs: globalThis.commandArgs!,
+      entryFile: globalThis.entryFile!,
+      restartDelay: globalThis.restartDelay!,
+      killDelay: 50,  // Fast test timing
+      readyDelay: 50, // Fast test timing
+    });
 
     try {
       // Start proxy without any initialization happening first
@@ -173,6 +201,11 @@ Deno.test({
       
       // Trigger restart
       mockFileSystem.triggerFileEvent(watchFile, "modify");
+      
+      // Wait for restart to begin, then simulate process exit
+      await new Promise(resolve => setTimeout(resolve, 120));
+      initialProcess.simulateExit(0); // Allow killServer() to complete
+      
       await new Promise(resolve => setTimeout(resolve, 200));
       
       // Should still successfully restart
@@ -194,6 +227,7 @@ Deno.test({
   },
   sanitizeOps: false,
   sanitizeResources: false,
+});
 
 Deno.test({
   name: "Initialization replay - preserves client capabilities across restarts",
@@ -201,23 +235,34 @@ Deno.test({
     const mockProcessManager = new MockProcessManager();
     const mockFileSystem = new MockFileSystem();
     
-    const proxy = new MCPProxy({
-      procManager: mockProcessManager,
-      fs: mockFileSystem,
-    }, {
-      command: globalThis.command,
-      commandArgs: globalThis.commandArgs,
-      entryFile: globalThis.entryFile,
-      restartDelay: globalThis.restartDelay,
-    });
-
     const watchFile = "/test/server.js";
     mockFileSystem.setFileExists(watchFile, true);
     
+    // Set up global variables BEFORE creating proxy
     globalThis.command = "node";
     globalThis.commandArgs = [watchFile];
     globalThis.entryFile = watchFile;
     globalThis.restartDelay = 100;
+    
+    // Create mock I/O streams for testing
+    const { readable: mockStdin, writable: stdinWrite } = new TransformStream();
+    const { readable: stdoutRead, writable: mockStdout } = new TransformStream();
+    const { readable: stderrRead, writable: mockStderr } = new TransformStream();
+    
+    const proxy = new MCPProxy({
+      procManager: mockProcessManager,
+      fs: mockFileSystem,
+      stdin: mockStdin,
+      stdout: mockStdout,
+      stderr: mockStderr,
+    }, {
+      command: globalThis.command!,
+      commandArgs: globalThis.commandArgs!,
+      entryFile: globalThis.entryFile!,
+      restartDelay: globalThis.restartDelay!,
+      killDelay: 50,  // Fast test timing
+      readyDelay: 50, // Fast test timing
+    });
 
     try {
       // Start proxy
@@ -247,6 +292,11 @@ Deno.test({
       
       // Trigger restart
       mockFileSystem.triggerFileEvent(watchFile, "modify");
+      
+      // Wait for restart to begin, then simulate process exit
+      await new Promise(resolve => setTimeout(resolve, 120));
+      initialProcess.simulateExit(0); // Allow killServer() to complete
+      
       await new Promise(resolve => setTimeout(resolve, 200));
       
       // Verify new server exists
@@ -289,6 +339,7 @@ Deno.test({
   },
   sanitizeOps: false,
   sanitizeResources: false,
+});
 
 Deno.test({
   name: "Initialization replay - handles initialization timeout gracefully",
@@ -296,23 +347,34 @@ Deno.test({
     const mockProcessManager = new MockProcessManager();
     const mockFileSystem = new MockFileSystem();
     
-    const proxy = new MCPProxy({
-      procManager: mockProcessManager,
-      fs: mockFileSystem,
-    }, {
-      command: globalThis.command,
-      commandArgs: globalThis.commandArgs,
-      entryFile: globalThis.entryFile,
-      restartDelay: globalThis.restartDelay,
-    });
-
     const watchFile = "/test/server.js";
     mockFileSystem.setFileExists(watchFile, true);
     
+    // Set up global variables BEFORE creating proxy
     globalThis.command = "node";
     globalThis.commandArgs = [watchFile];
     globalThis.entryFile = watchFile;
     globalThis.restartDelay = 100;
+    
+    // Create mock I/O streams for testing
+    const { readable: mockStdin, writable: stdinWrite } = new TransformStream();
+    const { readable: stdoutRead, writable: mockStdout } = new TransformStream();
+    const { readable: stderrRead, writable: mockStderr } = new TransformStream();
+    
+    const proxy = new MCPProxy({
+      procManager: mockProcessManager,
+      fs: mockFileSystem,
+      stdin: mockStdin,
+      stdout: mockStdout,
+      stderr: mockStderr,
+    }, {
+      command: globalThis.command!,
+      commandArgs: globalThis.commandArgs!,
+      entryFile: globalThis.entryFile!,
+      restartDelay: globalThis.restartDelay!,
+      killDelay: 50,  // Fast test timing
+      readyDelay: 50, // Fast test timing
+    });
 
     try {
       // Start proxy
@@ -327,6 +389,11 @@ Deno.test({
       
       // Trigger restart
       mockFileSystem.triggerFileEvent(watchFile, "modify");
+      
+      // Wait for restart to begin, then simulate process exit
+      await new Promise(resolve => setTimeout(resolve, 120));
+      initialProcess.simulateExit(0); // Allow killServer() to complete
+      
       await new Promise(resolve => setTimeout(resolve, 200));
       
       const newProcess = mockProcessManager.getLastSpawnedProcess();
@@ -352,3 +419,4 @@ Deno.test({
   },
   sanitizeOps: false,
   sanitizeResources: false,
+});

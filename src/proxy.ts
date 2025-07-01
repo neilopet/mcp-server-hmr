@@ -28,6 +28,10 @@ export interface MCPProxyConfig {
   entryFile: string | null;
   restartDelay: number;
   env?: Record<string, string>;
+  /** Delay in ms after killing server before starting new one (default: 1000) */
+  killDelay?: number;
+  /** Delay in ms after starting server before declaring ready (default: 2000) */
+  readyDelay?: number;
 }
 
 /**
@@ -50,15 +54,22 @@ export class MCPProxy {
   private currentRequestId = 1;
   private initializeParams: unknown = null;
   private pendingRequests = new Map<number, (response: Message) => void>();
+  private stdinForwardingStarted = false;
   
   // Dependency injection
   private procManager: ProcessManager;
   private fs: FileSystem;
   private config: MCPProxyConfig;
+  private stdin: ReadableStream<Uint8Array>;
+  private stdout: WritableStream<Uint8Array>;
+  private stderr: WritableStream<Uint8Array>;
 
   constructor(dependencies: ProxyDependencies, config: MCPProxyConfig) {
     this.procManager = dependencies.procManager;
     this.fs = dependencies.fs;
+    this.stdin = dependencies.stdin;
+    this.stdout = dependencies.stdout;
+    this.stderr = dependencies.stderr;
     this.config = config;
     
     // Initialize restart function with config
@@ -70,13 +81,19 @@ export class MCPProxy {
       await this.killServer();
 
       // Wait a moment to ensure process is fully terminated
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, this.config.killDelay || 1000));
 
       // Start new server
-      await this.startServer();
+      try {
+        await this.startServer();
+      } catch (error) {
+        console.error(`❌ Failed to start server during restart: ${error}`);
+        this.restarting = false;
+        return; // Exit restart function if we can't start server
+      }
 
-      // Wait for server to be ready (increased from 1s to 2s)
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      // Wait for server to be ready
+      await new Promise((resolve) => setTimeout(resolve, this.config.readyDelay || 2000));
 
       // Get updated tools list
       const tools = await this.getToolsList();
@@ -91,7 +108,9 @@ export class MCPProxy {
       };
 
       try {
-        await Deno.stdout.write(new TextEncoder().encode(JSON.stringify(notification) + "\n"));
+        const writer = this.stdout.getWriter();
+        await writer.write(new TextEncoder().encode(JSON.stringify(notification) + "\n"));
+        writer.releaseLock();
         console.error(`📢 Sent tool change notification with ${tools.length} tools`);
       } catch (error) {
         console.error("❌ Failed to send notification:", error);
@@ -104,7 +123,13 @@ export class MCPProxy {
 
   async start() {
     // Start initial server
-    await this.startServer();
+    try {
+      await this.startServer();
+    } catch (error) {
+      console.error(`❌ Failed to start initial server: ${error}`);
+      // Continue with setup even if initial server fails
+      // Watcher can trigger restart later
+    }
 
     // Setup continuous stdin forwarding
     this.setupStdinForwarding();
@@ -123,14 +148,21 @@ export class MCPProxy {
           if (!this.restarting) {
             console.error(`⚠️  Server exited unexpectedly with code: ${status.code}`);
             console.error(`🔄 Restarting server...`);
-            await this.startServer();
-            this.setupStdinForwarding();
+            try {
+              await this.startServer();
+            } catch (error) {
+              console.error(`❌ Failed to restart server: ${error}`);
+            }
           }
         } catch (error) {
           if (!this.restarting) {
             console.error(`❌ Server process error: ${error}`);
             await new Promise((resolve) => setTimeout(resolve, 1000));
-            await this.startServer();
+            try {
+              await this.startServer();
+            } catch (startError) {
+              console.error(`❌ Failed to restart server after error: ${startError}`);
+            }
           }
         }
       }
@@ -141,12 +173,19 @@ export class MCPProxy {
   private async startServer() {
     console.error("🚀 Starting MCP server...");
 
-    this.managedProcess = this.procManager.spawn(this.config.command, this.config.commandArgs, {
-      env: this.config.env || {}, // Use config env or empty object
-    });
+    try {
+      this.managedProcess = this.procManager.spawn(this.config.command, this.config.commandArgs, {
+        env: this.config.env || {}, // Use config env or empty object
+      });
 
-    this.serverPid = this.managedProcess.pid || null;
-    console.error(`✅ Server started with PID: ${this.serverPid}`);
+      this.serverPid = this.managedProcess.pid || null;
+      console.error(`✅ Server started with PID: ${this.serverPid}`);
+    } catch (error) {
+      console.error(`❌ Failed to spawn server process: ${error}`);
+      this.managedProcess = null;
+      this.serverPid = null;
+      throw error; // Re-throw so caller can handle
+    }
 
     // Setup output forwarding
     this.setupOutputForwarding();
@@ -210,8 +249,13 @@ export class MCPProxy {
   }
 
   private setupStdinForwarding() {
+    if (this.stdinForwardingStarted) {
+      return; // Already started, don't start again
+    }
+    this.stdinForwardingStarted = true;
+    
     (async () => {
-      const reader = Deno.stdin.readable.getReader();
+      const reader = this.stdin.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
 
@@ -279,7 +323,9 @@ export class MCPProxy {
 
           // During restart, we still forward output to maintain connection
           const text = decoder.decode(value, { stream: true });
-          await Deno.stdout.write(value);
+          const writer = this.stdout.getWriter();
+          await writer.write(value);
+          writer.releaseLock();
 
           // Also parse messages to handle responses
           buffer += text;
@@ -315,7 +361,9 @@ export class MCPProxy {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          await Deno.stderr.write(value);
+          const writer = this.stderr.getWriter();
+          await writer.write(value);
+          writer.releaseLock();
         }
       } catch (error) {
         if (!this.restarting) {
@@ -431,6 +479,6 @@ export class MCPProxy {
     console.error("\n🛑 Shutting down proxy...");
     this.restarting = true;
     await this.killServer();
-    Deno.exit(0);
+    // Note: Process exit is handled by the caller (main.ts or test runner)
   }
 }

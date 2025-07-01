@@ -31,15 +31,25 @@ Deno.test({
     globalThis.entryFile = watchFile;
     globalThis.restartDelay = 100; // Short delay for testing
     
+    // Create mock I/O streams for testing
+    const { readable: mockStdin, writable: stdinWrite } = new TransformStream();
+    const { readable: stdoutRead, writable: mockStdout } = new TransformStream();
+    const { readable: stderrRead, writable: mockStderr } = new TransformStream();
+    
     // Create proxy with mock dependencies
     const proxy = new MCPProxy({
       procManager: mockProcessManager,
       fs: mockFileSystem,
+      stdin: mockStdin,
+      stdout: mockStdout,
+      stderr: mockStderr,
     }, {
       command: globalThis.command!,
       commandArgs: globalThis.commandArgs!,
       entryFile: globalThis.entryFile!,
       restartDelay: globalThis.restartDelay!,
+      killDelay: 50,  // Fast test timing
+      readyDelay: 50, // Fast test timing
     });
 
     try {
@@ -63,7 +73,11 @@ Deno.test({
       // Trigger file change event
       mockFileSystem.triggerFileEvent(watchFile, "modify");
       
-      // Wait for restart to process (debounce + restart time)
+      // Wait for restart to begin, then simulate process exit
+      await new Promise(resolve => setTimeout(resolve, 150));
+      initialProcess.simulateExit(0); // Allow killServer() to complete
+      
+      // Wait for restart to complete
       await new Promise(resolve => setTimeout(resolve, 200));
       
       // Verify restart sequence
@@ -89,6 +103,11 @@ Deno.test({
       
       // Trigger another file change
       mockFileSystem.triggerFileEvent(watchFile, "modify");
+      
+      // Wait for second restart to begin, then simulate process exit
+      await new Promise(resolve => setTimeout(resolve, 150));
+      newProcess?.simulateExit(0); // Allow second killServer() to complete
+      
       await new Promise(resolve => setTimeout(resolve, 200));
       
       // Should have spawned third server
@@ -123,14 +142,24 @@ Deno.test({
     globalThis.entryFile = watchFile;
     globalThis.restartDelay = 200; // Longer debounce for this test
     
+    // Create mock I/O streams for testing
+    const { readable: mockStdin, writable: stdinWrite } = new TransformStream();
+    const { readable: stdoutRead, writable: mockStdout } = new TransformStream();
+    const { readable: stderrRead, writable: mockStderr } = new TransformStream();
+    
     const proxy = new MCPProxy({
       procManager: mockProcessManager,
       fs: mockFileSystem,
+      stdin: mockStdin,
+      stdout: mockStdout,
+      stderr: mockStderr,
     }, {
       command: globalThis.command!,
       commandArgs: globalThis.commandArgs!,
       entryFile: globalThis.entryFile!,
       restartDelay: globalThis.restartDelay!,
+      killDelay: 50,  // Fast test timing
+      readyDelay: 50, // Fast test timing
     });
 
     try {
@@ -141,6 +170,9 @@ Deno.test({
       // Verify initial spawn
       assertEquals(mockProcessManager.getSpawnCallCount(), 1, "Should spawn initial server");
       
+      const initialProcess = mockProcessManager.getLastSpawnedProcess();
+      assertExists(initialProcess, "Should have initial process");
+      
       // Simulate rapid file changes (should be debounced)
       mockFileSystem.triggerFileEvent(watchFile, "modify");
       await new Promise(resolve => setTimeout(resolve, 10));
@@ -150,8 +182,12 @@ Deno.test({
       await new Promise(resolve => setTimeout(resolve, 10));
       mockFileSystem.triggerFileEvent(watchFile, "modify");
       
-      // Wait for debounce + restart
-      await new Promise(resolve => setTimeout(resolve, 400));
+      // Wait for debounce to begin, then simulate process exit
+      await new Promise(resolve => setTimeout(resolve, 150));
+      initialProcess.simulateExit(0); // Allow killServer() to complete
+      
+      // Wait for restart to complete
+      await new Promise(resolve => setTimeout(resolve, 300));
       
       // Should only have triggered one restart despite multiple changes
       assertEquals(mockProcessManager.getSpawnCallCount(), 2, "Multiple rapid changes should be debounced to single restart");
@@ -183,14 +219,24 @@ Deno.test({
     globalThis.entryFile = watchFile;
     globalThis.restartDelay = 100;
     
+    // Create mock I/O streams for testing
+    const { readable: mockStdin, writable: stdinWrite } = new TransformStream();
+    const { readable: stdoutRead, writable: mockStdout } = new TransformStream();
+    const { readable: stderrRead, writable: mockStderr } = new TransformStream();
+    
     const proxy = new MCPProxy({
       procManager: mockProcessManager,
       fs: mockFileSystem,
+      stdin: mockStdin,
+      stdout: mockStdout,
+      stderr: mockStderr,
     }, {
       command: globalThis.command!,
       commandArgs: globalThis.commandArgs!,
       entryFile: globalThis.entryFile!,
       restartDelay: globalThis.restartDelay!,
+      killDelay: 50,  // Fast test timing
+      readyDelay: 50, // Fast test timing
     });
 
     try {
@@ -209,6 +255,11 @@ Deno.test({
       
       // Trigger restart
       mockFileSystem.triggerFileEvent(watchFile, "modify");
+      
+      // Wait for restart to begin, then simulate process exit
+      await new Promise(resolve => setTimeout(resolve, 120));
+      initialProcess.simulateExit(0); // Allow killServer() to complete
+      
       await new Promise(resolve => setTimeout(resolve, 150));
       
       // Should have attempted new spawn

@@ -27,23 +27,34 @@ Deno.test({
     const mockProcessManager = new MockProcessManager();
     const mockFileSystem = new MockFileSystem();
     
-    const proxy = new MCPProxy({
-      procManager: mockProcessManager,
-      fs: mockFileSystem,
-    }, {
-      command: globalThis.command,
-      commandArgs: globalThis.commandArgs,
-      entryFile: globalThis.entryFile,
-      restartDelay: globalThis.restartDelay,
-    });
-
     const watchFile = "/test/server.js";
     mockFileSystem.setFileExists(watchFile, true);
     
+    // Set up global variables BEFORE creating proxy
     globalThis.command = "node";
     globalThis.commandArgs = [watchFile];
     globalThis.entryFile = watchFile;
     globalThis.restartDelay = 100;
+    
+    // Create mock I/O streams for testing
+    const { readable: mockStdin, writable: stdinWrite } = new TransformStream();
+    const { readable: stdoutRead, writable: mockStdout } = new TransformStream();
+    const { readable: stderrRead, writable: mockStderr } = new TransformStream();
+    
+    const proxy = new MCPProxy({
+      procManager: mockProcessManager,
+      fs: mockFileSystem,
+      stdin: mockStdin,
+      stdout: mockStdout,
+      stderr: mockStderr,
+    }, {
+      command: globalThis.command!,
+      commandArgs: globalThis.commandArgs!,
+      entryFile: globalThis.entryFile!,
+      restartDelay: globalThis.restartDelay!,
+      killDelay: 50,  // Fast test timing
+      readyDelay: 50, // Fast test timing
+    });
 
     try {
       // Start proxy
@@ -82,6 +93,10 @@ Deno.test({
       // but we can verify the buffering mechanism by checking the proxy's internal state
       // Instead, let's test the message replay behavior
       
+      // Wait for restart to begin, then simulate process exit
+      await new Promise(resolve => setTimeout(resolve, 120));
+      initialProcess.simulateExit(0); // Allow killServer() to complete
+      
       // Wait for restart to complete
       await new Promise(resolve => setTimeout(resolve, 200));
       
@@ -108,6 +123,7 @@ Deno.test({
   },
   sanitizeOps: false,
   sanitizeResources: false,
+});
 
 Deno.test({
   name: "Message buffering - initialization params are captured and replayed",
@@ -115,23 +131,34 @@ Deno.test({
     const mockProcessManager = new MockProcessManager();
     const mockFileSystem = new MockFileSystem();
     
-    const proxy = new MCPProxy({
-      procManager: mockProcessManager,
-      fs: mockFileSystem,
-    }, {
-      command: globalThis.command,
-      commandArgs: globalThis.commandArgs,
-      entryFile: globalThis.entryFile,
-      restartDelay: globalThis.restartDelay,
-    });
-
     const watchFile = "/test/server.js";
     mockFileSystem.setFileExists(watchFile, true);
     
+    // Set up global variables BEFORE creating proxy
     globalThis.command = "node";
     globalThis.commandArgs = [watchFile];
     globalThis.entryFile = watchFile;
     globalThis.restartDelay = 100;
+    
+    // Create mock I/O streams for testing
+    const { readable: mockStdin, writable: stdinWrite } = new TransformStream();
+    const { readable: stdoutRead, writable: mockStdout } = new TransformStream();
+    const { readable: stderrRead, writable: mockStderr } = new TransformStream();
+    
+    const proxy = new MCPProxy({
+      procManager: mockProcessManager,
+      fs: mockFileSystem,
+      stdin: mockStdin,
+      stdout: mockStdout,
+      stderr: mockStderr,
+    }, {
+      command: globalThis.command!,
+      commandArgs: globalThis.commandArgs!,
+      entryFile: globalThis.entryFile!,
+      restartDelay: globalThis.restartDelay!,
+      killDelay: 50,  // Fast test timing
+      readyDelay: 50, // Fast test timing
+    });
 
     try {
       // Start proxy
@@ -159,6 +186,11 @@ Deno.test({
       
       // Trigger restart
       mockFileSystem.triggerFileEvent(watchFile, "modify");
+      
+      // Wait for restart to begin, then simulate process exit
+      await new Promise(resolve => setTimeout(resolve, 120));
+      initialProcess.simulateExit(0); // Allow killServer() to complete
+      
       await new Promise(resolve => setTimeout(resolve, 200));
       
       // Should have new process
@@ -180,6 +212,7 @@ Deno.test({
   },
   sanitizeOps: false,
   sanitizeResources: false,
+});
 
 Deno.test({
   name: "Message buffering - buffer overflow protection",
@@ -187,23 +220,34 @@ Deno.test({
     const mockProcessManager = new MockProcessManager();
     const mockFileSystem = new MockFileSystem();
     
-    const proxy = new MCPProxy({
-      procManager: mockProcessManager,
-      fs: mockFileSystem,
-    }, {
-      command: globalThis.command,
-      commandArgs: globalThis.commandArgs,
-      entryFile: globalThis.entryFile,
-      restartDelay: globalThis.restartDelay,
-    });
-
     const watchFile = "/test/server.js";
     mockFileSystem.setFileExists(watchFile, true);
     
+    // Set up global variables BEFORE creating proxy
     globalThis.command = "node";
     globalThis.commandArgs = [watchFile];
     globalThis.entryFile = watchFile;
     globalThis.restartDelay = 100;
+    
+    // Create mock I/O streams for testing
+    const { readable: mockStdin, writable: stdinWrite } = new TransformStream();
+    const { readable: stdoutRead, writable: mockStdout } = new TransformStream();
+    const { readable: stderrRead, writable: mockStderr } = new TransformStream();
+    
+    const proxy = new MCPProxy({
+      procManager: mockProcessManager,
+      fs: mockFileSystem,
+      stdin: mockStdin,
+      stdout: mockStdout,
+      stderr: mockStderr,
+    }, {
+      command: globalThis.command!,
+      commandArgs: globalThis.commandArgs!,
+      entryFile: globalThis.entryFile!,
+      restartDelay: globalThis.restartDelay!,
+      killDelay: 50,  // Fast test timing
+      readyDelay: 50, // Fast test timing
+    });
 
     try {
       // Start proxy
@@ -226,6 +270,10 @@ Deno.test({
       // The current implementation uses an unbounded array for messageBuffer
       // This test documents the need for ring buffer implementation in Phase 6
       
+      // Wait for restart to begin, then simulate process exit
+      await new Promise(resolve => setTimeout(resolve, 120));
+      initialProcess.simulateExit(0); // Allow killServer() to complete
+      
       await new Promise(resolve => setTimeout(resolve, 200));
       
       // Should complete restart
@@ -242,6 +290,7 @@ Deno.test({
   },
   sanitizeOps: false,
   sanitizeResources: false,
+});
 
 Deno.test({
   name: "Message buffering - preserves message order during restart",
@@ -249,23 +298,34 @@ Deno.test({
     const mockProcessManager = new MockProcessManager();
     const mockFileSystem = new MockFileSystem();
     
-    const proxy = new MCPProxy({
-      procManager: mockProcessManager,
-      fs: mockFileSystem,
-    }, {
-      command: globalThis.command,
-      commandArgs: globalThis.commandArgs,
-      entryFile: globalThis.entryFile,
-      restartDelay: globalThis.restartDelay,
-    });
-
     const watchFile = "/test/server.js";
     mockFileSystem.setFileExists(watchFile, true);
     
+    // Set up global variables BEFORE creating proxy
     globalThis.command = "node";
     globalThis.commandArgs = [watchFile];
     globalThis.entryFile = watchFile;
     globalThis.restartDelay = 100;
+    
+    // Create mock I/O streams for testing
+    const { readable: mockStdin, writable: stdinWrite } = new TransformStream();
+    const { readable: stdoutRead, writable: mockStdout } = new TransformStream();
+    const { readable: stderrRead, writable: mockStderr } = new TransformStream();
+    
+    const proxy = new MCPProxy({
+      procManager: mockProcessManager,
+      fs: mockFileSystem,
+      stdin: mockStdin,
+      stdout: mockStdout,
+      stderr: mockStderr,
+    }, {
+      command: globalThis.command!,
+      commandArgs: globalThis.commandArgs!,
+      entryFile: globalThis.entryFile!,
+      restartDelay: globalThis.restartDelay!,
+      killDelay: 50,  // Fast test timing
+      readyDelay: 50, // Fast test timing
+    });
 
     try {
       // Start proxy
@@ -285,6 +345,11 @@ Deno.test({
       
       // Trigger restart
       mockFileSystem.triggerFileEvent(watchFile, "modify");
+      
+      // Wait for restart to begin, then simulate process exit
+      await new Promise(resolve => setTimeout(resolve, 120));
+      initialProcess.simulateExit(0); // Allow killServer() to complete
+      
       await new Promise(resolve => setTimeout(resolve, 200));
       
       assertEquals(mockProcessManager.getSpawnCallCount(), 2, "Should complete restart");
@@ -300,3 +365,4 @@ Deno.test({
   },
   sanitizeOps: false,
   sanitizeResources: false,
+});

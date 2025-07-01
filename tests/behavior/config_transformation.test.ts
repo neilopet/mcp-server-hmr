@@ -138,6 +138,7 @@ Deno.test({
   },
   sanitizeOps: false,
   sanitizeResources: false,
+});
 
 Deno.test({
   name: "Config transformation - setup all servers mode",
@@ -190,6 +191,7 @@ Deno.test({
   },
   sanitizeOps: false,
   sanitizeResources: false,
+});
 
 Deno.test({
   name: "Config transformation - handles missing server gracefully",
@@ -224,6 +226,7 @@ Deno.test({
   },
   sanitizeOps: false,
   sanitizeResources: false,
+});
 
 Deno.test({
   name: "Config transformation - preserves complex server configurations", 
@@ -278,6 +281,7 @@ Deno.test({
   },
   sanitizeOps: false,
   sanitizeResources: false,
+});
 
 Deno.test({
   name: "Config transformation - handles file system errors gracefully",
@@ -287,6 +291,10 @@ Deno.test({
     const configPath = "/test/config.json";
     
     // Test read failure
+    mockFileSystem.setFailures({
+      read: true,
+      message: "Permission denied"
+    });
     
     try {
       await setupHotReloadWithMocks(mockFileSystem, configPath, "server", false);
@@ -298,6 +306,11 @@ Deno.test({
     
     // Reset and test copy failure
     mockFileSystem.setFileContent(configPath, '{"mcpServers":{"test":{"command":"node"}}}');
+    mockFileSystem.setFailures({
+      read: false,  // Reset read failure
+      copy: true,
+      message: "Backup failed"
+    });
     
     try {
       await setupHotReloadWithMocks(mockFileSystem, configPath, "test", false);
@@ -308,6 +321,11 @@ Deno.test({
     }
     
     // Reset and test write failure
+    mockFileSystem.setFailures({
+      copy: false,  // Reset copy failure
+      write: true,
+      message: "Write failed"
+    });
     
     try {
       await setupHotReloadWithMocks(mockFileSystem, configPath, "test", false);
@@ -319,6 +337,7 @@ Deno.test({
   },
   sanitizeOps: false,
   sanitizeResources: false,
+});
 
 Deno.test({
   name: "Config transformation - validates operation tracking",
@@ -358,3 +377,4 @@ Deno.test({
   },
   sanitizeOps: false,
   sanitizeResources: false,
+});

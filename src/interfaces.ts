@@ -154,6 +154,12 @@ export interface ProxyDependencies {
   procManager: ProcessManager;
   /** File system interface for config and file watching */
   fs: FileSystem;
+  /** Standard input stream for receiving client messages */
+  stdin: ReadableStream<Uint8Array>;
+  /** Standard output stream for sending responses to client */
+  stdout: WritableStream<Uint8Array>;
+  /** Standard error stream for logging and diagnostics */
+  stderr: WritableStream<Uint8Array>;
 }
 
 /**
