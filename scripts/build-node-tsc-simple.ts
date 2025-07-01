@@ -1,115 +1,133 @@
-#!/usr/bin/env -S deno run --allow-read --allow-write
+#!/usr/bin/env -S deno run --allow-read --allow-write --allow-run
 /**
- * Simplified Node.js build - minimal TypeScript transformation
+ * Build Node.js version using TypeScript compiler
  */
 
 import { ensureDir } from "https://deno.land/std@0.224.0/fs/mod.ts";
 
-console.log("📦 Building Node.js version (simplified)...");
+console.log("📦 Building Node.js version using TypeScript compiler...");
 
 await ensureDir("dist");
+await ensureDir("dist/.build");
 
-// Read source files
-const mainSource = await Deno.readTextFile("src/main.ts");
-const configSource = await Deno.readTextFile("src/config_launcher.ts");
+// Create tsconfig for Node.js
+const tsconfig = {
+  compilerOptions: {
+    target: "ES2020",
+    module: "commonjs",
+    lib: ["ES2020"],
+    outDir: "./dist/.build",
+    rootDir: "./src",
+    strict: false,
+    esModuleInterop: true,
+    skipLibCheck: true,
+    forceConsistentCasingInFileNames: true,
+    removeComments: false,
+    declaration: false,
+    moduleResolution: "node",
+    allowJs: true
+  },
+  include: ["src/main.ts", "src/config_launcher.ts"],
+  exclude: ["src/**/*.test.ts"]
+};
 
-// Very simple TypeScript to JavaScript transformation
-function transformToJS(source: string, filename: string): string {
-  let js = source;
+await Deno.writeTextFile("tsconfig.node.json", JSON.stringify(tsconfig, null, 2));
+
+// Create a source file with imports replaced
+async function prepareSourceFile(srcPath: string, destPath: string) {
+  let content = await Deno.readTextFile(srcPath);
   
-  // Remove shebang
-  js = js.replace(/^#!.*$/gm, '');
+  // Remove Deno-specific imports
+  content = content.replace(/^import\s+.*from\s+['"]https:\/\/deno\.land.*['"];?$/gm, '');
+  content = content.replace(/^import\s+.*from\s+['"]std\/.*['"];?$/gm, '');
+  content = content.replace(/^export\s+.*from\s+.*$/gm, '');
   
-  // Remove TypeScript-only imports
-  js = js.replace(/^import\s+type\s+.*$/gm, '');
-  js = js.replace(/^import\s+.*from\s+['"]https:\/\/deno\.land.*['"];?$/gm, '');
-  js = js.replace(/^import\s+.*from\s+['"]std\/.*['"];?$/gm, '');
-  js = js.replace(/^export\s+.*from\s+.*$/gm, '');
-  
-  // Remove interfaces and type declarations
-  js = js.replace(/^export\s+interface\s+\w+\s*{[\s\S]*?^}/gm, '');
-  js = js.replace(/^interface\s+\w+\s*{[\s\S]*?^}/gm, '');
-  js = js.replace(/^export\s+type\s+.*$/gm, '');
-  js = js.replace(/^type\s+.*$/gm, '');
-  
-  // Remove export keywords but keep declarations
-  js = js.replace(/^export\s+(async\s+)?function/gm, '$1function');
-  js = js.replace(/^export\s+(const|let|var)/gm, '$1');
-  js = js.replace(/^export\s+class/gm, 'class');
-  
-  // Remove function parameter types
-  js = js.replace(/function\s+(\w+)\s*\(([^)]*)\)/g, (match, name, params) => {
-    const cleanParams = params.split(',').map(param => {
-      // Remove type annotation but keep parameter name
-      return param.replace(/(\w+)\s*\??\s*:\s*[^,)]+/, '$1');
-    }).join(',');
-    return `function ${name}(${cleanParams})`;
-  });
-  
-  // Remove arrow function parameter types
-  js = js.replace(/\(([^)]*)\)\s*=>/g, (match, params) => {
-    const cleanParams = params.split(',').map(param => {
-      return param.replace(/(\w+)\s*\??\s*:\s*[^,)]+/, '$1');
-    }).join(',');
-    return `(${cleanParams}) =>`;
-  });
-  
-  // Remove function return types
-  js = js.replace(/\)\s*:\s*[^{]+\s*{/g, ') {');
-  
-  // Remove variable type annotations
-  js = js.replace(/(const|let|var)\s+(\w+)\s*:\s*[^=;]+\s*=/g, '$1 $2 =');
-  js = js.replace(/(const|let|var)\s+(\w+)\s*:\s*[^;]+;/g, '$1 $2;');
-  
-  // Remove generic types
-  js = js.replace(/\w+<[^>]+>/g, match => match.split('<')[0]);
-  
-  // Simple type annotation removal
-  js = js.replace(/:\s*string\[\]/g, '');
-  js = js.replace(/:\s*number\[\]/g, '');
-  js = js.replace(/:\s*boolean\[\]/g, '');
-  js = js.replace(/:\s*any\[\]/g, '');
-  js = js.replace(/:\s*string/g, '');
-  js = js.replace(/:\s*number/g, '');
-  js = js.replace(/:\s*boolean/g, '');
-  js = js.replace(/:\s*any/g, '');
-  js = js.replace(/:\s*void/g, '');
-  js = js.replace(/:\s*unknown/g, '');
-  js = js.replace(/:\s*never/g, '');
-  
-  // Remove type assertions
-  js = js.replace(/\s+as\s+\w+/g, '');
-  js = js.replace(/<\w+>/g, '');
+  // Remove load() call
+  content = content.replace(/await\s+load\(\);?/g, '// load() removed for Node.js');
   
   // Replace import.meta.url
-  js = js.replace(/import\.meta\.url/g, '__filename');
+  content = content.replace(/import\.meta\.url/g, '__filename');
   
-  // For config_launcher, wrap main execution
-  if (filename === 'config_launcher') {
-    const lines = js.split('\n');
-    let mainStart = -1;
-    
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].includes('const args = parse(Deno.args')) {
-        mainStart = i;
-        break;
-      }
-    }
-    
-    if (mainStart > 0) {
-      const beforeMain = lines.slice(0, mainStart);
-      const afterMain = lines.slice(mainStart);
-      
-      js = beforeMain.join('\n') + '\n\n// Main execution\n(async () => {\n' + 
-           afterMain.join('\n') + '\n})().catch(console.error);\n';
-    }
-  }
+  // Add requires at top
+  const requires = `
+const { debounce } = require('./polyfills');
+const parse = require('minimist');
+const { resolve, join } = require('path');
+const { existsSync } = require('./polyfills');
+`;
   
-  return js;
+  content = requires + '\n' + content;
+  
+  await Deno.writeTextFile(destPath, content);
 }
 
-// Node.js polyfills
-const nodePolyfills = `#!/usr/bin/env node
+// Prepare source files
+await prepareSourceFile("src/main.ts", "dist/.build/main.ts");
+await prepareSourceFile("src/config_launcher.ts", "dist/.build/config_launcher.ts");
+
+// Create polyfills
+const polyfills = `
+exports.debounce = function(fn, delay) {
+  let timeout = null;
+  let lastCall = 0;
+  
+  const debounced = function(...args) {
+    const now = Date.now();
+    
+    if (timeout) clearTimeout(timeout);
+    
+    const timeSinceLastCall = now - lastCall;
+    
+    if (timeSinceLastCall >= delay) {
+      lastCall = now;
+      fn.apply(this, args);
+    } else {
+      timeout = setTimeout(() => {
+        lastCall = Date.now();
+        fn.apply(this, args);
+      }, delay - timeSinceLastCall);
+    }
+  };
+  
+  debounced.flush = () => {
+    if (timeout) {
+      clearTimeout(timeout);
+      timeout = null;
+    }
+  };
+  
+  return debounced;
+};
+
+exports.existsSync = function(filepath) {
+  const fs = require('fs');
+  try {
+    fs.statSync(filepath);
+    return true;
+  } catch {
+    return false;
+  }
+};
+`;
+
+await Deno.writeTextFile("dist/.build/polyfills.js", polyfills);
+
+// Compile with TypeScript
+console.log("📦 Compiling TypeScript...");
+const compile = new Deno.Command("tsc", {
+  args: ["--project", "tsconfig.node.json"],
+  stdout: "inherit",
+  stderr: "inherit"
+});
+
+const { code } = await compile.output();
+if (code !== 0) {
+  console.error("❌ TypeScript compilation failed");
+  Deno.exit(1);
+}
+
+// Node.js runtime wrapper
+const nodeWrapper = `#!/usr/bin/env node
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
@@ -270,7 +288,12 @@ global.Deno = {
   },
   addSignalListener: (signal, handler) => {
     process.on(signal, handler);
-  }
+  },
+  stdin: {
+    readable: process.stdin
+  },
+  stdout: process.stdout,
+  stderr: process.stderr
 };
 
 // TextEncoder/TextDecoder
@@ -279,60 +302,19 @@ if (!global.TextEncoder) {
   global.TextDecoder = require('util').TextDecoder;
 }
 
-// Import replacements
-const parse = require('minimist');
-const { resolve, join } = require('path');
-const existsSync = (filepath) => {
-  try {
-    fs.statSync(filepath);
-    return true;
-  } catch {
-    return false;
-  }
-};
+// URL polyfill
+global.URL = URL;
 
-// Debounce function
-function debounce(fn, delay) {
-  let timeoutId = null;
-  let lastCallTime = 0;
-  
-  const debounced = function(...args) {
-    const now = Date.now();
-    
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-    }
-    
-    const timeSinceLastCall = now - lastCallTime;
-    
-    if (timeSinceLastCall >= delay) {
-      lastCallTime = now;
-      fn.apply(this, args);
-    } else {
-      timeoutId = setTimeout(() => {
-        lastCallTime = Date.now();
-        fn.apply(this, args);
-      }, delay - timeSinceLastCall);
-    }
-  };
-  
-  debounced.flush = () => {
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-      timeoutId = null;
-    }
-  };
-  
-  return debounced;
-}
-
-// Compatibility
-const DebouncedFunction = function() {};
 `;
 
-// Create Node.js versions
-const mainJS = nodePolyfills + '\n\n// Transformed from src/main.ts\n' + transformToJS(mainSource, 'main') + `
-
+// Create final files
+async function wrapCompiledFile(compiledPath: string, outputPath: string) {
+  const compiled = await Deno.readTextFile(compiledPath);
+  const wrapped = nodeWrapper + '\n' + compiled;
+  
+  // For main.js, add startup code
+  if (outputPath.includes('main')) {
+    const startup = `
 // Start if main module
 if (require.main === module) {
   const proxy = new MCPProxy();
@@ -345,14 +327,28 @@ if (require.main === module) {
   proxy.start().catch(console.error);
 }
 `;
+    await Deno.writeTextFile(outputPath, wrapped + startup);
+  } else {
+    // For config_launcher, wrap main code in async IIFE
+    const wrappedWithAsync = wrapped.replace(
+      /const args = parse\(Deno\.args/,
+      `// Main execution
+(async () => {
+const args = parse(Deno.args`
+    ) + '\n})().catch(console.error);\n';
+    
+    await Deno.writeTextFile(outputPath, wrappedWithAsync);
+  }
+  
+  await Deno.chmod(outputPath, 0o755);
+}
 
-const configJS = nodePolyfills + '\n\n// Transformed from src/config_launcher.ts\n' + transformToJS(configSource, 'config_launcher');
+// Create final executables
+await wrapCompiledFile("dist/.build/main.js", "dist/watch-main.js");
+await wrapCompiledFile("dist/.build/config_launcher.js", "dist/watch-config.js");
 
-// Write files
-await Deno.writeTextFile("dist/watch-main.js", mainJS);
-await Deno.writeTextFile("dist/watch-config.js", configJS);
-await Deno.chmod("dist/watch-main.js", 0o755);
-await Deno.chmod("dist/watch-config.js", 0o755);
+// Copy polyfills
+await Deno.copyFile("dist/.build/polyfills.js", "dist/polyfills.js");
 
 // Create entry point
 const entryPoint = `#!/usr/bin/env node
@@ -389,6 +385,10 @@ const packageJson = {
 };
 
 await Deno.writeTextFile("dist/package.json", JSON.stringify(packageJson, null, 2));
+
+// Clean up
+await Deno.remove("tsconfig.node.json");
+await Deno.remove("dist/.build", { recursive: true });
 
 console.log("✅ Node.js build complete!");
 console.log("\n📦 Usage:");

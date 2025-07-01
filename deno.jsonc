@@ -13,7 +13,6 @@
 
     // Build and clean
     "build": "deno cache --reload src/mod.ts src/main.ts && deno check src/mod.ts src/main.ts",
-    "build:node": "deno run --allow-read --allow-write scripts/build-node-simple.ts",
     "clean": "rm -rf coverage/ .test_temp/ dist/ deno.lock && deno cache --reload src/mod.ts src/main.ts",
     "prebuild": "deno fmt && deno lint",
     

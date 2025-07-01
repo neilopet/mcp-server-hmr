@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "lib": [
+      "ES2020"
+    ],
+    "outDir": "./dist/.build",
+    "rootDir": "./src",
+    "strict": false,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "removeComments": false,
+    "declaration": false,
+    "moduleResolution": "node",
+    "allowJs": true
+  },
+  "include": [
+    "src/main.ts",
+    "src/config_launcher.ts"
+  ],
+  "exclude": [
+    "src/**/*.test.ts"
+  ]
+}
