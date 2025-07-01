@@ -2,10 +2,10 @@
   "mcpServers": {
     "channelape": {
       "command": "node",
-      "args": ["/Users/neilopet/Code/rothys/channelape-mcp/dist/index.js"],
+      "args": ["/path/to/channelape-mcp/dist/index.js"],
       "env": {
-        "CHANNELAPE_API_TOKEN": "1d9b807b-0cc4-40d2-a6a2-ae47aeeca70c",
-        "CHANNELAPE_BUSINESS_ID": "a6452cfb-f989-4727-b582-ac31478b151e"
+        "CHANNELAPE_API_TOKEN": "${CHANNELAPE_API_TOKEN}",
+        "CHANNELAPE_BUSINESS_ID": "${CHANNELAPE_BUSINESS_ID}"
       }
     },
     "example-python-server": {
@@ -14,13 +14,21 @@
       "cwd": "/path/to/python/project",
       "env": {
         "PYTHONPATH": "./src",
-        "API_KEY": "example-key"
+        "API_KEY": "${API_KEY}"
       }
     },
     "example-deno-server": {
       "command": "deno",
       "args": ["run", "--allow-all", "server.ts"],
       "cwd": "/path/to/deno/project"
+    },
+    "example-node-server": {
+      "command": "node",
+      "args": ["dist/index.js"],
+      "cwd": "/path/to/node/project",
+      "env": {
+        "NODE_ENV": "production"
+      }
     }
   }
 }

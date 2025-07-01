@@ -17,37 +17,124 @@ Hot Module Replacement (HMR) for MCP (Model Context Protocol) servers - instant 
    ```bash
    git clone https://github.com/neilopet/mcp-server-hmr
    cd mcp-server-hmr
-   cp .env.example .env
+   chmod +x src/main.ts src/config_launcher.ts
    ```
 
-2. **Configure your MCP server**:
-   Edit `.env` and set your server command and path:
-   ```env
-   MCP_SERVER_COMMAND="node"
-   MCP_SERVER_ARGS="/path/to/your/mcp-server.js"
-   ```
+2. **Choose your usage method** (see below)
 
-3. **Run the proxy**:
-   ```bash
-   deno task dev
-   ```
-
-4. **Connect your MCP client** to the proxy instead of directly to your server.
+3. **Connect your MCP client** to the proxy instead of directly to your server.
 
 📚 **New to MCP?** Check out the [Quick Start Example](examples/quickstart.md) for a complete walkthrough!
 
-## Configuration
+## Usage Methods
 
-All configuration is done via environment variables in your `.env` file. Copy `.env.example` to `.env` and customize:
+### Method 1: Command Line Arguments (Best for MCP Inspector)
 
-- `MCP_SERVER_COMMAND`: The command to run your server (e.g., "node", "deno", "python")
-- `MCP_SERVER_ARGS`: Arguments to pass to the command (typically the path to your server)
+Perfect for one-off usage and MCP Inspector integration:
+
+```bash
+# Basic usage
+./src/main.ts node /path/to/your/mcp-server.js
+
+# With MCP Inspector
+npx @modelcontextprotocol/inspector \
+  -e API_KEY="your-key" \
+  "./src/main.ts" \
+  "node" "/path/to/your/mcp-server.js"
+
+# Python server example
+./src/main.ts python -m mcp_server --port 3000
+
+# Deno server example  
+./src/main.ts deno run --allow-all server.ts
+```
+
+### Method 2: Config File (Best for Multiple Servers)
+
+Ideal for managing multiple MCP servers:
+
+1. Copy `mcpServers.example.json` to `mcpServers.json`
+2. Configure your servers:
+   ```json
+   {
+     "mcpServers": {
+       "my-server": {
+         "command": "node",
+         "args": ["dist/index.js"],
+         "cwd": "/path/to/project",
+         "env": {
+           "API_KEY": "your-key"
+         }
+       }
+     }
+   }
+   ```
+3. Launch with hot-reload:
+   ```bash
+   # Launch a specific server
+   ./src/config_launcher.ts --server my-server
+
+   # List available servers
+   ./src/config_launcher.ts --list
+
+   # Use custom config file
+   ./src/config_launcher.ts -s my-server -c ~/my-mcp-config.json
+   ```
+
+### Method 3: Environment Variables (Simple Single Server)
+
+For simple single-server setups:
+
+1. Copy `.env.example` to `.env`
+2. Configure your server:
+   ```env
+   MCP_SERVER_COMMAND="node"
+   MCP_SERVER_ARGS="/path/to/your/mcp-server.js"
+   MCP_WATCH_FILE="/path/to/watch.js"  # Optional
+   MCP_RESTART_DELAY="300"             # Optional (ms)
+   ```
+3. Run: `deno task start`
+
+## Configuration Options
+
+- **MCP_SERVER_COMMAND**: Command to run your server (node, deno, python, etc)
+- **MCP_SERVER_ARGS**: Arguments for your server command
+- **MCP_WATCH_FILE**: (Optional) Specific file to watch, auto-detected if not set
+- **MCP_RESTART_DELAY**: (Optional) Debounce delay in ms, default 300
 - Add any environment variables your MCP server needs
 
 ## Usage with Claude Desktop
 
-Edit your Claude Desktop configuration to use the proxy:
+Edit your Claude Desktop configuration (`~/Library/Application Support/Claude/claude_desktop_config.json`):
 
+**Option 1: Using Config File (Recommended)**
+```json
+{
+  "mcpServers": {
+    "my-server-hmr": {
+      "command": "/path/to/mcp-server-hmr/src/config_launcher.ts",
+      "args": ["--server", "my-server", "--config", "/path/to/mcpServers.json"]
+    }
+  }
+}
+```
+
+**Option 2: Using Command Line Mode**
+```json
+{
+  "mcpServers": {
+    "my-server-hmr": {
+      "command": "/path/to/mcp-server-hmr/src/main.ts",
+      "args": ["node", "/path/to/your/mcp-server.js"],
+      "env": {
+        "API_KEY": "your-key"
+      }
+    }
+  }
+}
+```
+
+**Option 3: Using Environment Variables**
 ```json
 {
   "mcpServers": {
