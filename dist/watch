@@ -1,0 +1,11 @@
+#!/usr/bin/env node
+const args = process.argv.slice(2);
+
+if (args.includes('--server') || args.includes('-s') || 
+    args.includes('--list') || args.includes('-l') ||
+    args.includes('--setup') || args.includes('--all') ||
+    args.includes('--help') || args.includes('-h')) {
+  require('./watch-config.js');
+} else {
+  require('./watch-main.js');
+}

@@ -21,6 +21,7 @@ Thumbs.db
 *.swo
 
 # Build artifacts
+# dist/ is not ignored - we want to commit the built Node.js files
 build/
 
 # Deno cache
