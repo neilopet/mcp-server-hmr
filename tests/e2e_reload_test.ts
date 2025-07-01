@@ -30,7 +30,34 @@ async function testWithOriginalWorkingProxy(targetServerPath: string, v1Content:
     // Give proxy time to start the target server
     await new Promise(resolve => setTimeout(resolve, 2000));
     
-    console.log("✅ Started original working proxy with target server");
+    // Check if proxy is still running
+    try {
+      const status = proxyProcess.status;
+      // If status resolves immediately, process has exited
+      const hasExited = await Promise.race([
+        status.then(() => true),
+        new Promise(resolve => setTimeout(() => resolve(false), 100))
+      ]);
+      
+      if (hasExited) {
+        const exitStatus = await status;
+        console.log("❌ Proxy exited immediately with code:", exitStatus.code);
+        
+        // Read stderr to see what went wrong
+        const stderrReader = proxyProcess.stderr.getReader();
+        const { value: stderrValue } = await stderrReader.read();
+        if (stderrValue) {
+          const stderrText = new TextDecoder().decode(stderrValue);
+          console.log("Stderr output:", stderrText);
+        }
+        stderrReader.releaseLock();
+        return false;
+      }
+    } catch (error) {
+      // Process is still running, which is good
+    }
+    
+    console.log("✅ Started production proxy with target server");
     
     // Send initialize message to proxy (which forwards to server)
     const initMessage = {
@@ -51,8 +78,26 @@ async function testWithOriginalWorkingProxy(targetServerPath: string, v1Content:
     
     const reader = proxyProcess.stdout.getReader();
     const { value: initValue } = await reader.read();
-    const initResponse = JSON.parse(new TextDecoder().decode(initValue!));
     reader.releaseLock();
+    
+    if (!initValue || initValue.length === 0) {
+      console.log("❌ No response received from proxy during initialize");
+      proxyProcess.kill("SIGTERM"); 
+      return false;
+    }
+    
+    const initText = new TextDecoder().decode(initValue);
+    console.log("Initialize response raw:", initText);
+    
+    let initResponse;
+    try {
+      initResponse = JSON.parse(initText.trim());
+    } catch (error) {
+      console.log("❌ Failed to parse initialize response:", error.message);
+      console.log("Raw response length:", initValue.length);
+      proxyProcess.kill("SIGTERM");
+      return false;
+    }
     
     if (initResponse.error) {
       console.log("❌ Initialize failed:", initResponse.error);

@@ -9,10 +9,8 @@
 import { debounce, type DebouncedFunction } from "std/async/debounce.ts";
 import { load } from "std/dotenv/mod.ts";
 
-// Load environment variables from .env file
-await load();
-
 // Check if we have command line arguments (for testing) or use environment variables (for production)
+// Note: We check command line args first before loading .env to avoid env validation errors in test mode
 let command: string;
 let commandArgs: string[] = [];
 let entryFile: string | null = null;
@@ -44,6 +42,10 @@ if (Deno.args.length > 0) {
 } else {
   // Environment variable mode (for production)
   console.error("🔧 Using environment variables mode");
+  
+  // Load environment variables from .env file (only in env mode)
+  await load();
+  
   const serverCommand = Deno.env.get("MCP_SERVER_COMMAND");
   const serverArgs = Deno.env.get("MCP_SERVER_ARGS");
   const watchFile = Deno.env.get("MCP_WATCH_FILE");
@@ -175,10 +177,7 @@ export class MCPProxy {
       const writer = this.serverProcess.stdin.getWriter();
 
       for (const msg of this.messageBuffer) {
-        const data = new TextEncoder().encode(
-          JSON.stringify(msg) + "\
-          ",
-        );
+        const data = new TextEncoder().encode(JSON.stringify(msg) + "\n");
         await writer.write(data);
       }
 
@@ -244,10 +243,7 @@ export class MCPProxy {
           buffer += decoder.decode(value, { stream: true });
 
           // Parse complete JSON-RPC messages
-          const lines = buffer.split(
-            "\
-            ",
-          );
+          const lines = buffer.split("\n");
           buffer = lines.pop() || "";
 
           for (const line of lines) {
@@ -272,10 +268,7 @@ export class MCPProxy {
                 } else if (this.serverProcess) {
                   // Forward to server
                   const writer = this.serverProcess.stdin.getWriter();
-                  await writer.write(new TextEncoder().encode(
-                    line + "\
-                    ",
-                  ));
+                  await writer.write(new TextEncoder().encode(line + "\n"));
                   writer.releaseLock();
                 }
               } catch (e) {
@@ -310,10 +303,7 @@ export class MCPProxy {
 
           // Also parse messages to handle responses
           buffer += text;
-          const lines = buffer.split(
-            "\
-            ",
-          );
+          const lines = buffer.split("\n");
           buffer = lines.pop() || "";
 
           for (const line of lines) {
@@ -369,10 +359,7 @@ export class MCPProxy {
 
       if (this.serverProcess) {
         const writer = this.serverProcess.stdin.getWriter();
-        writer.write(new TextEncoder().encode(
-          JSON.stringify(request) + "\
-          ",
-        ))
+        writer.write(new TextEncoder().encode(JSON.stringify(request) + "\n"))
           .then(() => writer.releaseLock())
           .catch((error) => {
             this.pendingRequests.delete(id);
@@ -439,10 +426,7 @@ export class MCPProxy {
   }
 
   readonly restart: DebouncedFunction<[]> = debounce(async () => {
-    console.error(
-      "\
-🔄 File change detected, restarting server...",
-    );
+    console.error("\n🔄 File change detected, restarting server...");
     this.restarting = true;
 
     // Kill the old server completely
@@ -470,20 +454,14 @@ export class MCPProxy {
     };
 
     try {
-      await Deno.stdout.write(new TextEncoder().encode(
-        JSON.stringify(notification) + "\
-        ",
-      ));
+      await Deno.stdout.write(new TextEncoder().encode(JSON.stringify(notification) + "\n"));
       console.error(`📢 Sent tool change notification with ${tools.length} tools`);
     } catch (error) {
       console.error("❌ Failed to send notification:", error);
     }
 
     this.restarting = false;
-    console.error(
-      "✅ Server restart complete\
-      ",
-    );
+    console.error("✅ Server restart complete\n");
   }, restartDelay);
 
   private async startWatcher() {
@@ -506,10 +484,7 @@ export class MCPProxy {
   }
 
   async shutdown() {
-    console.error(
-      "\
-🛑 Shutting down proxy...",
-    );
+    console.error("\n🛑 Shutting down proxy...");
     this.restarting = true;
     await this.killServer();
     Deno.exit(0);
