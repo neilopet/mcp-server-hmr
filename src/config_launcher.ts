@@ -1,4 +1,4 @@
-#!/usr/bin/env -S deno run --allow-env --allow-read --allow-run
+#!/usr/bin/env -S deno run --allow-env --allow-read --allow-run --allow-write
 /**
  * Config-based launcher for MCP Server HMR
  *
@@ -25,10 +25,151 @@ interface MCPServersConfig {
   mcpServers: Record<string, MCPServerConfig>;
 }
 
+// Check if a server uses stdio transport (not SSE or HTTP)
+function isStdioServer(serverConfig: MCPServerConfig): boolean {
+  // Check for explicit transport specification
+  if ('transport' in serverConfig) {
+    return (serverConfig as any).transport === 'stdio';
+  }
+  
+  // Check for SSE/HTTP indicators
+  const command = serverConfig.command.toLowerCase();
+  const args = (serverConfig.args || []).join(' ').toLowerCase();
+  const fullCommand = `${command} ${args}`;
+  
+  // Common SSE/HTTP server indicators
+  if (fullCommand.includes('--port') || 
+      fullCommand.includes('--http') || 
+      fullCommand.includes('--sse') ||
+      fullCommand.includes('server.listen') ||
+      fullCommand.includes('express') ||
+      fullCommand.includes('fastify')) {
+    return false;
+  }
+  
+  // Docker containers often use stdio
+  if (command === 'docker' && args.includes('-i')) {
+    return true;
+  }
+  
+  // Default to stdio for most servers
+  return true;
+}
+
+// Setup hot-reload for selected servers
+async function setupHotReload(
+  config: MCPServersConfig, 
+  configPath: string, 
+  serverName: string | boolean,
+  setupAll: boolean
+) {
+  console.log(`🔧 Setting up hot-reload proxy...`);
+  console.log(`📋 Config: ${configPath}`);
+  
+  // Create backup
+  const backupPath = configPath + '.backup-' + new Date().toISOString().replace(/[:.]/g, '-');
+  try {
+    await Deno.copyFile(configPath, backupPath);
+    console.log(`💾 Backup created: ${backupPath}`);
+  } catch (error) {
+    console.error(`❌ Failed to create backup: ${error.message}`);
+    Deno.exit(1);
+  }
+  
+  // Determine which servers to setup
+  let serversToSetup: string[] = [];
+  
+  if (setupAll) {
+    // Setup all stdio servers
+    serversToSetup = Object.entries(config.mcpServers)
+      .filter(([_, cfg]) => isStdioServer(cfg))
+      .map(([name]) => name);
+    
+    if (serversToSetup.length === 0) {
+      console.error(`❌ No stdio servers found to setup`);
+      Deno.exit(1);
+    }
+    
+    console.log(`\n📦 Found ${serversToSetup.length} stdio servers to setup:`);
+    serversToSetup.forEach(name => console.log(`   - ${name}`));
+  } else if (typeof serverName === 'string' && serverName) {
+    // Setup specific server
+    if (!config.mcpServers[serverName]) {
+      console.error(`❌ Server '${serverName}' not found in config`);
+      Deno.exit(1);
+    }
+    
+    if (!isStdioServer(config.mcpServers[serverName])) {
+      console.error(`❌ Server '${serverName}' appears to use HTTP/SSE transport, not stdio`);
+      console.error(`   Hot-reload proxy only supports stdio servers`);
+      Deno.exit(1);
+    }
+    
+    serversToSetup = [serverName];
+  } else {
+    console.error(`❌ Please specify a server name or use --all`);
+    Deno.exit(1);
+  }
+  
+  // Get the absolute path to our tools
+  const scriptDir = new URL(".", import.meta.url).pathname;
+  const mainPath = resolve(scriptDir, "main.ts");
+  const configLauncherPath = resolve(scriptDir, "config_launcher.ts");
+  
+  // Replace each server with hot-reload version
+  const newConfig = { ...config };
+  const modifiedServers: string[] = [];
+  
+  for (const name of serversToSetup) {
+    const original = config.mcpServers[name];
+    
+    // Store original config with -original suffix
+    const originalName = `${name}-original`;
+    newConfig.mcpServers[originalName] = { ...original };
+    
+    // Replace with hot-reload version
+    newConfig.mcpServers[name] = {
+      command: mainPath,
+      args: [original.command, ...(original.args || [])],
+      env: original.env,
+      cwd: original.cwd
+    };
+    
+    modifiedServers.push(name);
+  }
+  
+  // Write updated config
+  try {
+    const configText = JSON.stringify(newConfig, null, 2);
+    await Deno.writeTextFile(configPath, configText);
+    console.log(`\n✅ Updated config file: ${configPath}`);
+  } catch (error) {
+    console.error(`❌ Failed to write config: ${error.message}`);
+    Deno.exit(1);
+  }
+  
+  // Show summary
+  console.log(`\n🎉 Successfully configured ${modifiedServers.length} server(s) for hot-reload:`);
+  modifiedServers.forEach(name => {
+    console.log(`\n   📦 ${name}`);
+    console.log(`      Original: ${name}-original (preserved)`);
+    console.log(`      Hot-reload: ${name} (active)`);
+  });
+  
+  console.log(`\n💡 To restore original configuration:`);
+  console.log(`   cp "${backupPath}" "${configPath}"`);
+  
+  if (configPath.includes('claude_desktop_config.json')) {
+    console.log(`\n⚠️  Restart Claude Desktop to apply changes`);
+  } else if (configPath.includes('.mcp.json')) {
+    console.log(`\n⚠️  Restart Claude Code or reload the project`);
+  }
+}
+
 // Parse command line arguments
 const args = parse(Deno.args, {
-  string: ["server", "config", "s", "c"],
-  boolean: ["help", "h", "list", "l"],
+  string: ["server", "config", "s", "c", "setup"],
+  boolean: ["help", "h", "list", "l", "all"],
   alias: {
     server: "s",
     config: "c",
@@ -84,19 +225,22 @@ function findConfigFile(providedPath?: string): string | null {
 }
 
 // Show help
-if (args.help || (!args.server && !args.list)) {
+if (args.help || (!args.server && !args.list && !args.setup && !args.all)) {
   console.log(`MCP Server HMR - Config Launcher
 
 Usage:
   mcp-hmr --server <server-name> [--config <path>]
   mcp-hmr -s <server-name> [-c <path>]
   mcp-hmr --list [--config <path>]
+  mcp-hmr --setup [<server-name>] [--all] [--config <path>]
   mcp-hmr --help
 
 Options:
   -s, --server <name>    Name of the server to proxy from config
   -c, --config <path>    Path to config file (see below for defaults)
   -l, --list             List available servers in the config
+  --setup [name]         Configure server(s) to use hot-reload proxy
+  --all                  Setup all stdio servers (with --setup)
   -h, --help             Show this help message
 
 Default Config Search Order:
@@ -110,6 +254,8 @@ Examples:
   mcp-hmr --server channelape
   mcp-hmr -s my-server -c ~/mcp-config.json
   mcp-hmr --list
+  mcp-hmr --setup channelape    # Configure channelape to use hot-reload
+  mcp-hmr --setup --all         # Configure all stdio servers
 
 The config file should be in the standard MCP servers format:
 {
@@ -156,6 +302,12 @@ if (!config.mcpServers || typeof config.mcpServers !== "object") {
   console.error(`❌ Invalid config format: missing or invalid 'mcpServers' object`);
   console.error(`\nExpected format: { "mcpServers": { "name": { "command": "...", "args": [...] } } }`);
   Deno.exit(1);
+}
+
+// Setup mode - configure servers to use hot-reload proxy
+if (args.setup !== undefined || args.all) {
+  await setupHotReload(config, configPath, args.setup as string | boolean, args.all as boolean);
+  Deno.exit(0);
 }
 
 // List servers if requested

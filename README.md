@@ -71,6 +71,49 @@ Ideal for managing multiple MCP servers. The config launcher automatically searc
 
 # Use a specific config file
 ./src/config_launcher.ts -s my-server -c ~/my-config.json
+
+# Auto-configure servers for hot-reload
+./src/config_launcher.ts --setup channelape    # Setup specific server
+./src/config_launcher.ts --all                 # Setup all stdio servers
+```
+
+#### Auto-Setup Feature
+
+The `--setup` command automatically configures your MCP servers to use hot-reload:
+
+1. **Creates a backup** of your original config
+2. **Preserves original server** with `-original` suffix
+3. **Replaces active server** with hot-reload wrapped version
+4. **Filters out HTTP/SSE servers** (only stdio servers supported)
+
+Example transformation:
+```json
+// Before setup
+{
+  "mcpServers": {
+    "my-server": {
+      "command": "node",
+      "args": ["dist/index.js"],
+      "env": { "API_KEY": "key" }
+    }
+  }
+}
+
+// After setup
+{
+  "mcpServers": {
+    "my-server": {
+      "command": "/path/to/mcp-hmr/src/main.ts",
+      "args": ["node", "dist/index.js"],
+      "env": { "API_KEY": "key" }
+    },
+    "my-server-original": {
+      "command": "node",
+      "args": ["dist/index.js"],
+      "env": { "API_KEY": "key" }
+    }
+  }
+}
 ```
 
 #### Config File Format
