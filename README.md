@@ -252,23 +252,24 @@ watch --list
 watch --server my-server
 ```
 
-### Node.js Users - Build and Install
+### Node.js Users - NPM Wrapper
 
-If you don't have Deno installed, you can build and use the Node.js version:
+If you prefer npm/npx usage, build the Node.js wrapper:
 
 ```bash
-# Build Node.js version (requires Deno for building)
+# Build Node.js wrapper (requires Deno for building)
 deno task build:node
 
-# Or download pre-built release from GitHub
+# Install globally
 cd dist
-npm install
 npm link  # Makes 'watch' command global
 
 # Use it the same way
 watch --help
 watch node /path/to/mcp-server.js
 ```
+
+**Note:** The Node.js wrapper still requires Deno to be installed, as it calls Deno under the hood. This provides a familiar npm experience while leveraging Deno's superior subprocess and file watching capabilities.
 
 ### Manual Setup
 
@@ -303,29 +304,28 @@ Run `deno task <name>` for any of these:
 
 ## Node.js Compatibility
 
-This project is written in Deno/TypeScript but provides a Node.js compatible build:
+This project is written in Deno/TypeScript but provides a Node.js wrapper for npm users:
 
 ```bash
-# Build Node.js version
+# Build Node.js wrapper
 deno task build:node
 
 # The build creates:
-# dist/watch         - Executable command
-# dist/package.json  - Node dependencies
+# dist/watch         - Node.js wrapper script
+# dist/package.json  - NPM package manifest
 # dist/README.md     - Usage instructions
 
-# Install and use
+# Install globally
 cd dist
-npm install
-npm link  # Optional: make 'watch' global
-./watch --help
+npm link
+watch --help
 ```
 
-The Node.js build includes:
-- Full command-line compatibility
-- Deno API shims for Node.js
-- File watching via chokidar
-- All core functionality
+The Node.js wrapper:
+- Provides familiar npm/npx installation
+- Maintains full CLI compatibility
+- Requires Deno to be installed
+- Calls Deno under the hood for better performance
 
 ## How It Works
 

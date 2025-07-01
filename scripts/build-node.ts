@@ -6,7 +6,7 @@
 
 import { ensureDir } from "https://deno.land/std@0.224.0/fs/mod.ts";
 import { build, stop } from "https://deno.land/x/esbuild@v0.20.1/mod.js";
-import { denoPlugins } from "https://deno.land/x/esbuild_deno_loader@0.10.3/mod.ts";
+import { denoPlugins } from "https://deno.land/x/esbuild_deno_loader@0.9.0/mod.ts";
 
 console.log("🔨 Building Node.js compatible version...");
 
