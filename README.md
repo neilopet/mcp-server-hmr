@@ -13,16 +13,21 @@ Hot Module Replacement (HMR) for MCP (Model Context Protocol) servers - instant 
 
 ## Quick Start
 
-1. **Clone and setup**:
+1. **Clone and install**:
    ```bash
    git clone https://github.com/neilopet/mcp-server-hmr
    cd mcp-server-hmr
-   chmod +x src/main.ts src/config_launcher.ts
+   deno task setup  # Adds mcp-hmr to your PATH
    ```
 
-2. **Choose your usage method** (see below)
+2. **Reload your shell**:
+   ```bash
+   source ~/.bashrc  # or ~/.zshrc, ~/.bash_profile
+   ```
 
-3. **Connect your MCP client** to the proxy instead of directly to your server.
+3. **Choose your usage method** (see below)
+
+4. **Connect your MCP client** to the proxy instead of directly to your server.
 
 📚 **New to MCP?** Check out the [Quick Start Example](examples/quickstart.md) for a complete walkthrough!
 
@@ -33,20 +38,23 @@ Hot Module Replacement (HMR) for MCP (Model Context Protocol) servers - instant 
 Perfect for one-off usage and MCP Inspector integration:
 
 ```bash
-# Basic usage
-./src/main.ts node /path/to/your/mcp-server.js
+# Basic usage (after running deno task setup)
+mcp-hmr node /path/to/your/mcp-server.js
 
 # With MCP Inspector
 npx @modelcontextprotocol/inspector \
   -e API_KEY="your-key" \
-  "./src/main.ts" \
+  "mcp-hmr" \
   "node" "/path/to/your/mcp-server.js"
 
 # Python server example
-./src/main.ts python -m mcp_server --port 3000
+mcp-hmr python -m mcp_server
 
 # Deno server example  
-./src/main.ts deno run --allow-all server.ts
+mcp-hmr deno run --allow-all server.ts
+
+# Or use full paths if setup wasn't run
+./src/main.ts node /path/to/your/mcp-server.js
 ```
 
 ### Method 2: Config File (Best for Multiple Servers)
@@ -64,17 +72,17 @@ Ideal for managing multiple MCP servers. The config launcher automatically searc
 
 ```bash
 # Launch a server from any found config
-./src/config_launcher.ts --server my-server
+mcp-hmr --server my-server
 
 # List all available servers
-./src/config_launcher.ts --list
+mcp-hmr --list
 
 # Use a specific config file
-./src/config_launcher.ts -s my-server -c ~/my-config.json
+mcp-hmr -s my-server -c ~/my-config.json
 
 # Auto-configure servers for hot-reload
-./src/config_launcher.ts --setup channelape    # Setup specific server
-./src/config_launcher.ts --all                 # Setup all stdio servers
+mcp-hmr --setup channelape    # Setup specific server
+mcp-hmr --all                 # Setup all stdio servers
 ```
 
 #### Auto-Setup Feature
@@ -226,12 +234,40 @@ Create a config file for MCP Inspector:
 
 Then run: `npx @modelcontextprotocol/inspector --config config.json --server your-server`
 
+## Installation Options
+
+### Global Command Setup
+
+After cloning, run the setup task to add `mcp-hmr` to your PATH:
+
+```bash
+deno task setup
+source ~/.bashrc  # or ~/.zshrc, ~/.bash_profile
+```
+
+This allows you to use `mcp-hmr` from anywhere:
+```bash
+mcp-hmr --help
+mcp-hmr --list
+mcp-hmr --server my-server
+```
+
+### Manual Setup
+
+If you prefer not to modify your PATH, you can always use the full paths:
+```bash
+./src/main.ts                 # Direct hot-reload proxy
+./src/config_launcher.ts      # Config-based launcher
+./mcp-hmr                     # Wrapper script
+```
+
 ## Available Tasks
 
 Run `deno task <name>` for any of these:
 
 | Task              | Description                                      |
 | ----------------- | ------------------------------------------------ |
+| `setup`           | **Add mcp-hmr to your PATH for global access**  |
 | `dev`             | Run proxy in development mode with file watching |
 | `start`           | Run proxy in production mode                     |
 | `build`           | Cache dependencies and type-check the project    |
