@@ -1,32 +1,29 @@
 # Test Suite
 
-This directory contains comprehensive tests for the MCP Server HMR project.
+This directory contains comprehensive tests for the MCP Server HMR project using Jest and Node.js.
 
 ## Running Tests
 
 ```bash
-# Run all tests (includes clean and build)
-deno task test
-
-# Quick test during development (no clean/build)
-deno task test:quick
+# Run all tests (includes build)
+npm test
 
 # Watch mode for TDD
-deno task test:watch
+npm run test:watch
 
 # Generate coverage report
-deno task test:coverage
+npm run test:coverage
 
 # Run specific test suites
-deno task test:unit        # Unit and behavioral tests
-deno task test:integration # E2E integration tests
+npm run test:unit        # Unit and behavioral tests
+npm run test:integration # E2E integration tests
 ```
 
 ## Test Structure
 
 ### Behavioral Tests (`behavior/`)
 
-Platform-agnostic tests using mock implementations and the `test_helper.ts` pattern:
+Platform-agnostic tests using mock implementations and the `test_helper.js` pattern:
 
 - **proxy_restart.test.ts** - Server restart on file changes
 - **message_buffering.test.ts** - Message queuing during restart
@@ -36,22 +33,28 @@ Platform-agnostic tests using mock implementations and the `test_helper.ts` patt
 
 #### Test Helper Pattern
 
-All behavioral tests use `test_helper.ts` to eliminate code duplication:
+All behavioral tests use `test_helper.js` to eliminate code duplication:
 
 ```typescript
-import { setupProxyTest, simulateRestart, waitForSpawns } from "./test_helper.ts";
+import { setupProxyTest, simulateRestart, waitForSpawns } from "./test_helper.js";
+import { describe, it, expect } from '@jest/globals';
 
-const { proxy, procManager, fs, teardown } = setupProxyTest({
-  restartDelay: 100,
+describe('Test Suite', () => {
+  it('Feature - specific behavior', async () => {
+    const { proxy, procManager, fs, teardown } = setupProxyTest({
+      restartDelay: 100,
+    });
+
+    try {
+      await proxy.start();
+      await simulateRestart(procManager, fs);
+      // Test assertions...
+      expect(procManager.getSpawnCallCount()).toBe(2);
+    } finally {
+      await teardown();
+    }
+  });
 });
-
-try {
-  await proxy.start();
-  await simulateRestart(procManager, fs);
-  // Test assertions...
-} finally {
-  await teardown();
-}
 ```
 
 **Key Helper Functions:**
@@ -105,9 +108,11 @@ When adding behavioral tests:
 Example template:
 
 ```typescript
-Deno.test({
-  name: "Feature - specific behavior",
-  async fn() {
+import { describe, it, expect } from '@jest/globals';
+import { setupProxyTest, simulateRestart } from "./test_helper.js";
+
+describe('Test Suite', () => {
+  it('Feature - specific behavior', async () => {
     const { proxy, procManager, fs, teardown } = setupProxyTest();
 
     try {
@@ -118,13 +123,11 @@ Deno.test({
       await simulateRestart(procManager, fs);
 
       // Assert
-      assertEquals(procManager.getSpawnCallCount(), 2);
+      expect(procManager.getSpawnCallCount()).toBe(2);
     } finally {
       await teardown();
     }
-  },
-  sanitizeOps: false,
-  sanitizeResources: false,
+  });
 });
 ```
 
@@ -134,14 +137,17 @@ We maintain >80% coverage on core logic:
 
 - `src/proxy.ts` - MCPProxy class
 - `src/config_launcher.ts` - Config management
-- Platform implementations (Deno/Node)
+- Node.js platform implementations
 
-## Test Permissions
+## Test Configuration
 
-Tests require these Deno permissions:
+Tests are configured via `jest.config.js` with:
 
-- `--allow-env` - Environment variables
-- `--allow-read` - Read project files
-- `--allow-write` - Temporary test files
-- `--allow-run` - Process spawning
-- `--allow-net` - MCP client/server communication
+- TypeScript compilation
+- Module resolution for Node.js
+- Coverage reporting
+- Test timeout settings
+
+## Integration Testing
+
+The integration tests use real Node.js processes and file system operations to validate end-to-end functionality, including the complete hot-reload cycle with actual MCP servers.

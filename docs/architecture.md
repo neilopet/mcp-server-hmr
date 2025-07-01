@@ -255,7 +255,7 @@ Not all file system events trigger restarts:
 
 - `.js`, `.ts`, `.py` file modifications
 - Configuration file changes
-- Package manifest changes (`package.json`, `deno.jsonc`)
+- Package manifest changes (`package.json`, `tsconfig.json`)
 
 **Ignored Events:**
 

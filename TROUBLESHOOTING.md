@@ -44,6 +44,8 @@ MCP_WATCH_FILE="/absolute/path/to/your/server.js"
 ```bash
 # Test your server directly without the proxy
 node /path/to/your/server.js
+# or for other runtimes
+python -m your_server
 # or
 deno run --allow-all /path/to/your/server.ts
 ```
@@ -70,14 +72,18 @@ MCP_RESTART_DELAY=1000  # Milliseconds
 - Ensure your server implements the `tools/list` method
 - Check if tools are actually changing
 
-### 6. Permission Errors
+### 6. Installation Issues
 
-**Symptom**: "Requires read access" or similar Deno errors
+**Symptom**: "mcp-hmr: command not found" or installation errors
 
-**Solution**: Ensure all required permissions are granted:
+**Solution**: Ensure the package is properly installed:
 
 ```bash
-deno run --allow-env --allow-read --allow-run src/main.ts
+# For global installation
+npm install -g mcp-server-hmr
+
+# For development
+npm install && npm run build && npm link
 ```
 
 ### 7. Process Won't Die
@@ -107,16 +113,16 @@ For verbose logging, run with debug output:
 
 ```bash
 # Capture all output
-deno task dev 2>&1 | tee debug.log
+npm run dev 2>&1 | tee debug.log
 
 # With timestamps
-deno task dev 2>&1 | ts '[%Y-%m-%d %H:%M:%S]' | tee debug.log
+npm run dev 2>&1 | ts '[%Y-%m-%d %H:%M:%S]' | tee debug.log
 ```
 
 ## Getting Help
 
 1. Check the logs first - they're designed to be helpful!
-2. Run the test suite to verify your setup: `deno task test`
+2. Run the test suite to verify your setup: `npm test`
 3. File an issue with:
    - Your .env configuration (without secrets)
    - The full debug log
@@ -159,7 +165,7 @@ echo 'MCP_SERVER_COMMAND="node"' > .env
 echo 'MCP_SERVER_ARGS="'$(pwd)'/test-server.js"' >> .env
 
 # 3. Run
-deno task dev
+npm run dev
 ```
 
 You should see:
