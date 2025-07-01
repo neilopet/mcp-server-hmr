@@ -48,6 +48,7 @@ export async function startMCPProxy(serverPath: string): Promise<Deno.ChildProce
   const env = new Map(Object.entries(Deno.env.toObject()));
   env.set("MCP_SERVER_COMMAND", "node");
   env.set("MCP_SERVER_ARGS", serverPath);
+  env.set("MCP_WATCH_FILE", serverPath); // Add the required watch file env var
 
   const process = new Deno.Command("deno", {
     args: ["run", "--allow-env", "--allow-read", "--allow-run", "src/main.ts"],

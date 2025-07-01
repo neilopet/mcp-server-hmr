@@ -6,15 +6,16 @@ Based on our test suite and manual analysis, here's the coverage status for the 
 
 ### Source Files Coverage
 
-| File | Coverage Status | Notes |
-|------|----------------|-------|
-| **src/main.ts** | ✅ Partially Tested | Core functionality tested via e2e tests. Command-line args parsing tested indirectly. |
-| **src/config_launcher.ts** | ✅ Well Tested | New tests added for setup, list, and preservation of other servers. |
-| **src/mod.ts** | ❌ Not Tested | Simple export file, low priority. |
+| File                       | Coverage Status     | Notes                                                                                 |
+| -------------------------- | ------------------- | ------------------------------------------------------------------------------------- |
+| **src/main.ts**            | ✅ Partially Tested | Core functionality tested via e2e tests. Command-line args parsing tested indirectly. |
+| **src/config_launcher.ts** | ✅ Well Tested      | New tests added for setup, list, and preservation of other servers.                   |
+| **src/mod.ts**             | ❌ Not Tested       | Simple export file, low priority.                                                     |
 
 ### Test Coverage by Feature
 
 #### ✅ Well-Tested Features:
+
 1. **End-to-End Hot Reload** (e2e_reload_test.ts)
    - File change detection triggers restart
    - Server restart with proper cleanup
@@ -33,6 +34,7 @@ Based on our test suite and manual analysis, here's the coverage status for the 
    - Process cleanup on errors
 
 #### ⚠️ Partially Tested Features:
+
 1. **Debouncing** (debouncing_test.ts)
    - Tests exist but failing due to env var issues
    - Logic is sound when tests pass
@@ -50,6 +52,7 @@ Based on our test suite and manual analysis, here's the coverage status for the 
    - Sequence verified in e2e test
 
 #### ❌ Not Tested:
+
 1. **Watch file auto-detection** for different commands (python, deno)
 2. **Signal handling** (SIGTERM, SIGINT)
 3. **Timeout handling** for slow server startup/shutdown
@@ -83,12 +86,14 @@ The main issue affecting coverage is that most unit tests are failing due to env
 ### Code Quality Indicators
 
 ✅ **Strengths**:
+
 - Core hot-reload functionality is well-tested via e2e
 - Config launcher has good test coverage
 - Tests use real MCP protocol implementation
 - Good separation of concerns in test structure
 
 ⚠️ **Areas for Improvement**:
+
 - Unit test coverage needs fixing
 - Edge case coverage is limited
 - No performance or stress tests

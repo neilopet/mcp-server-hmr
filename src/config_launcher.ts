@@ -12,7 +12,8 @@
 
 import { parse } from "https://deno.land/std@0.224.0/flags/mod.ts";
 import { join, resolve } from "https://deno.land/std@0.224.0/path/mod.ts";
-import { existsSync } from "https://deno.land/std@0.224.0/fs/mod.ts";
+import type { ConfigLauncherDependencies, FileSystem } from "./interfaces.ts";
+import { DenoFileSystem } from "./deno/DenoFileSystem.ts";
 
 interface MCPServerConfig {
   command: string;
@@ -60,6 +61,7 @@ function isStdioServer(serverConfig: MCPServerConfig): boolean {
 
 // Setup hot-reload for selected servers
 async function setupHotReload(
+  fs: FileSystem,
   config: MCPServersConfig,
   configPath: string,
   serverName: string | boolean,
@@ -71,7 +73,7 @@ async function setupHotReload(
   // Create backup
   const backupPath = configPath + ".backup-" + new Date().toISOString().replace(/[:.]/g, "-");
   try {
-    await Deno.copyFile(configPath, backupPath);
+    await fs.copyFile(configPath, backupPath);
     console.log(`💾 Backup created: ${backupPath}`);
   } catch (error) {
     console.error(`❌ Failed to create backup: ${error.message}`);
@@ -143,13 +145,15 @@ async function setupHotReload(
   // Write updated config
   try {
     const configText = JSON.stringify(newConfig, null, 2);
-    await Deno.writeTextFile(configPath, configText);
+    await fs.writeFile(configPath, configText);
     console.log(`\n✅ Updated config file: ${configPath}`);
     console.log(`\n📝 Hot-reload configured for ${serversToSetup.length} server(s):`);
     for (const serverName of serversToSetup) {
       console.log(`   - ${serverName} → ${mainPath}`);
     }
-    console.log(`\n⚠️  Important: Restart your MCP client (Claude Desktop, etc.) to load the new configuration.`);
+    console.log(
+      `\n⚠️  Important: Restart your MCP client (Claude Desktop, etc.) to load the new configuration.`,
+    );
   } catch (error) {
     console.error(`❌ Failed to write config: ${error.message}`);
     Deno.exit(1);
@@ -186,11 +190,11 @@ const args = parse(Deno.args, {
 });
 
 // Helper function to find config file
-function findConfigFile(providedPath?: string): string | null {
+async function findConfigFile(fs: FileSystem, providedPath?: string): Promise<string | null> {
   // If path is provided, use it directly
   if (providedPath) {
     const resolvedPath = resolve(providedPath);
-    if (existsSync(resolvedPath)) {
+    if (await fs.exists(resolvedPath)) {
       return resolvedPath;
     }
     console.error(`❌ Config file not found: ${resolvedPath}`);
@@ -224,7 +228,7 @@ function findConfigFile(providedPath?: string): string | null {
 
   // Check each path
   for (const path of searchPaths) {
-    if (existsSync(path)) {
+    if (await fs.exists(path)) {
       console.log(`📋 Found config at: ${path}`);
       return path;
     }
@@ -279,8 +283,11 @@ The config file should be in the standard MCP servers format:
   Deno.exit(0);
 }
 
+// Create FileSystem instance
+const fs = new DenoFileSystem();
+
 // Find and load config file
-const configPath = findConfigFile(args.config as string);
+const configPath = await findConfigFile(fs, args.config as string);
 if (!configPath) {
   console.error(`\n❌ No config file found!`);
   console.error(`\nSearched in:`);
@@ -299,7 +306,7 @@ if (!configPath) {
 
 let config: MCPServersConfig;
 try {
-  const configText = await Deno.readTextFile(configPath);
+  const configText = await fs.readFile(configPath);
   config = JSON.parse(configText);
 } catch (error) {
   console.error(`❌ Failed to read config file: ${error.message}`);
@@ -317,7 +324,7 @@ if (!config.mcpServers || typeof config.mcpServers !== "object") {
 
 // Setup mode - configure servers to use hot-reload proxy
 if (args.setup !== undefined || args.all) {
-  await setupHotReload(config, configPath, args.setup as string | boolean, args.all as boolean);
+  await setupHotReload(fs, config, configPath, args.setup as string | boolean, args.all as boolean);
   Deno.exit(0);
 }
 

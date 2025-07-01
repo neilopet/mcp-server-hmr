@@ -16,6 +16,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive test suite with unit and e2e tests
 - Support for environment variable configuration
 - Cross-platform compatibility (Windows, macOS, Linux)
+- Dependency injection architecture for improved testability
+- Platform-agnostic interfaces for ProcessManager and FileSystem
+- Mock implementations for comprehensive behavioral testing
+- I/O stream abstraction for cross-platform compatibility
+- Test helper utilities (test_helper.ts) for DRY test patterns
+
+### Changed
+
+- Refactored MCPProxy to use dependency injection pattern
+- Replaced direct Deno API calls with interface abstractions
+- Enhanced test infrastructure with behavioral test suite
+- Improved process lifecycle management with configurable timing
+- Added stream abstraction for stdin/stdout/stderr handling
+- Refactored behavioral tests with test_helper.ts pattern (~80% code reduction)
+- Eliminated globalThis usage and setTimeout patterns in tests
+- Introduced deterministic event-driven test timing
+
+### Fixed
+
+- ReadableStream locked error during test execution
+- Process exit termination in test environments
+- Test timing issues with mock process management
+- Error message alignment in filesystem mocks
+- Global variable initialization order in behavioral tests
 
 ### Security
 

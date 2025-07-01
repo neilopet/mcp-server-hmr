@@ -33,21 +33,30 @@ MCP Hot-Reload acts as a transparent proxy between MCP clients (like Claude Desk
 
 ## Core Components
 
-### 1. Main Proxy (`src/main.ts`)
+### 1. Main Proxy (`src/proxy.ts`)
 
-The main entry point that orchestrates all components:
+The main proxy implementation uses dependency injection for platform independence:
 
 ```typescript
-// Simplified architecture
-class HotReloadProxy {
-  private serverProcess: McpServerProcess;
-  private fileWatcher: FileWatcher;
-  private messageBuffer: MessageBuffer;
-  private debouncer: Debouncer;
+// Dependency injection architecture
+interface ProxyDependencies {
+  procManager: ProcessManager;
+  fs: FileSystem;
+  stdin: ReadableStream<Uint8Array>;
+  stdout: WritableStream<Uint8Array>;
+  stderr: WritableStream<Uint8Array>;
+  exit: (code: number) => void;
+}
+
+class MCPProxy {
+  constructor(
+    private deps: ProxyDependencies,
+    private config: MCPProxyConfig,
+  ) {}
 
   async start() {
-    await this.serverProcess.start();
-    await this.fileWatcher.start();
+    await this.startServer();
+    await this.setupFileWatcher();
     this.setupMessageHandling();
   }
 }
@@ -59,7 +68,30 @@ class HotReloadProxy {
 - Handle stdin/stdout communication with MCP client
 - Manage the overall lifecycle
 
-### 2. Server Process Manager
+### 2. Platform Interfaces (`src/interfaces.ts`)
+
+Abstract interfaces enable cross-platform compatibility:
+
+```typescript
+interface ProcessManager {
+  spawn(command: string, args: string[], options?: SpawnOptions): ManagedProcess;
+}
+
+interface FileSystem {
+  watch(paths: string[]): AsyncIterable<FileEvent>;
+  readFile(path: string): Promise<string>;
+  writeFile(path: string, content: string): Promise<void>;
+  exists(path: string): Promise<boolean>;
+}
+```
+
+**Platform Implementations:**
+
+- **Deno**: `DenoProcessManager`, `DenoFileSystem`
+- **Node.js**: `NodeProcessManager`, `NodeFileSystem` (future)
+- **Mock**: `MockProcessManager`, `MockFileSystem` (testing)
+
+### 3. Server Process Manager
 
 Manages the lifecycle of the actual MCP server process:
 
@@ -82,7 +114,7 @@ class McpServerProcess {
 - Process health monitoring
 - Automatic cleanup on errors
 
-### 3. File Watcher (`FileSystemWatcher`)
+### 4. File Watcher (`FileSystemWatcher`)
 
 Monitors source files for changes using Deno's built-in file system APIs:
 
@@ -107,7 +139,7 @@ class FileWatcher {
 - `remove`: Files deleted
 - `rename`: Files moved/renamed
 
-### 4. Message Buffer
+### 5. Message Buffer
 
 Buffers incoming messages during server restarts to prevent loss:
 
@@ -129,7 +161,7 @@ class MessageBuffer {
 - Handle initialize requests specially
 - Drop messages on buffer overflow
 
-### 5. Debouncer
+### 6. Debouncer
 
 Prevents rapid successive restarts from file system noise:
 

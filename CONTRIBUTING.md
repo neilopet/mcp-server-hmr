@@ -55,17 +55,28 @@ deno task dev
 
 ```
 src/
-├── main.ts           # Main hot-reload proxy
+├── main.ts            # Main hot-reload proxy
+├── proxy.ts           # MCPProxy core implementation
 ├── config_launcher.ts # Config-based launcher
-└── mod.ts            # Module exports
+├── interfaces.ts      # Platform-agnostic interfaces
+├── deno/              # Deno-specific implementations
+│   ├── DenoProcessManager.ts
+│   └── DenoFileSystem.ts
+└── mod.ts             # Module exports
 
 tests/
-├── unit/             # Unit tests
-├── integration/      # Integration tests
-└── fixtures/         # Test MCP servers
+├── behavior/          # Platform-agnostic behavioral tests
+│   ├── test_helper.ts # Shared test utilities
+│   └── *.test.ts      # Behavioral test files
+├── mocks/             # Mock implementations
+│   ├── MockProcessManager.ts
+│   └── MockFileSystem.ts
+├── unit/              # Unit tests
+├── integration/       # Integration tests
+└── fixtures/          # Test MCP servers
 
-examples/             # Usage examples
-docs/                 # Documentation
+examples/              # Usage examples
+docs/                  # Documentation
 ```
 
 ## Making Changes
@@ -128,6 +139,40 @@ deno task test:coverage
 - Test edge cases and error conditions
 - Use descriptive test names
 - Include e2e tests for user-facing features
+
+**Behavioral Test Pattern:**
+
+For platform-agnostic behavioral tests, use the test helper pattern:
+
+```typescript
+import { setupProxyTest, simulateRestart } from "./test_helper.ts";
+
+Deno.test({
+  name: "Feature - specific behavior description",
+  async fn() {
+    const { proxy, procManager, fs, teardown } = setupProxyTest({
+      restartDelay: 100, // Configure test timing
+    });
+
+    try {
+      await proxy.start();
+      await simulateRestart(procManager, fs);
+
+      // Test assertions
+      assertEquals(procManager.getSpawnCallCount(), 2);
+    } finally {
+      await teardown(); // Always clean up
+    }
+  },
+});
+```
+
+This pattern provides:
+
+- Consistent test setup with mock implementations
+- Deterministic timing (no setTimeout)
+- Proper resource cleanup
+- ~80% less boilerplate code
 
 ### 4. Commit Guidelines
 
