@@ -12,7 +12,7 @@
 
 import { parse } from "https://deno.land/std@0.224.0/flags/mod.ts";
 import { join, resolve } from "https://deno.land/std@0.224.0/path/mod.ts";
-import type { FileSystem, ConfigLauncherDependencies } from "./interfaces.ts";
+import type { ConfigLauncherDependencies, FileSystem } from "./interfaces.ts";
 import { DenoFileSystem } from "./deno/DenoFileSystem.ts";
 
 interface MCPServerConfig {
@@ -151,7 +151,9 @@ async function setupHotReload(
     for (const serverName of serversToSetup) {
       console.log(`   - ${serverName} → ${mainPath}`);
     }
-    console.log(`\n⚠️  Important: Restart your MCP client (Claude Desktop, etc.) to load the new configuration.`);
+    console.log(
+      `\n⚠️  Important: Restart your MCP client (Claude Desktop, etc.) to load the new configuration.`,
+    );
   } catch (error) {
     console.error(`❌ Failed to write config: ${error.message}`);
     Deno.exit(1);

@@ -1,6 +1,6 @@
 /**
  * Mock implementation of ProcessManager for testing
- * 
+ *
  * Provides full control over process lifecycle events, allowing tests to:
  * - Track spawn/kill calls and arguments
  * - Simulate process stdout/stderr data
@@ -8,7 +8,7 @@
  * - Trigger events manually for predictable testing
  */
 
-import { ProcessManager, ManagedProcess, SpawnOptions, ExitStatus } from "../../src/interfaces.ts";
+import { ExitStatus, ManagedProcess, ProcessManager, SpawnOptions } from "../../src/interfaces.ts";
 
 /**
  * Mock implementation of ManagedProcess for testing
@@ -22,20 +22,20 @@ export class MockManagedProcess implements ManagedProcess {
   private _killed = false;
   private _exitCode: number | null = null;
   private _exitSignal: string | null = null;
-  
+
   // Controllers for streams
   private stdinController: WritableStreamDefaultController | null = null;
   private stdoutController: ReadableStreamDefaultController<Uint8Array> | null = null;
   private stderrController: ReadableStreamDefaultController<Uint8Array> | null = null;
   private statusResolver: ((status: ExitStatus) => void) | null = null;
-  
+
   // Event tracking
   public readonly killCalls: Array<{ signal?: string; timestamp: number }> = [];
   public readonly stdinWrites: Array<{ data: Uint8Array; timestamp: number }> = [];
 
   constructor(pid?: number) {
     this._pid = pid;
-    
+
     // Create stdin (writable)
     this._stdin = new WritableStream<Uint8Array>({
       write: (chunk) => {
@@ -46,21 +46,21 @@ export class MockManagedProcess implements ManagedProcess {
       },
       abort: () => {
         // stdin aborted
-      }
+      },
     });
 
     // Create stdout (readable)
     this._stdout = new ReadableStream<Uint8Array>({
       start: (controller) => {
         this.stdoutController = controller;
-      }
+      },
     });
 
-    // Create stderr (readable) 
+    // Create stderr (readable)
     this._stderr = new ReadableStream<Uint8Array>({
       start: (controller) => {
         this.stderrController = controller;
-      }
+      },
     });
 
     // Create status promise
@@ -96,13 +96,13 @@ export class MockManagedProcess implements ManagedProcess {
   }
 
   // Test control methods
-  
+
   /**
    * Simulate stdout data from the process
    */
   simulateStdout(data: string | Uint8Array): void {
     if (this.stdoutController) {
-      const bytes = typeof data === 'string' ? new TextEncoder().encode(data) : data;
+      const bytes = typeof data === "string" ? new TextEncoder().encode(data) : data;
       this.stdoutController.enqueue(bytes);
     }
   }
@@ -112,7 +112,7 @@ export class MockManagedProcess implements ManagedProcess {
    */
   simulateStderr(data: string | Uint8Array): void {
     if (this.stderrController) {
-      const bytes = typeof data === 'string' ? new TextEncoder().encode(data) : data;
+      const bytes = typeof data === "string" ? new TextEncoder().encode(data) : data;
       this.stderrController.enqueue(bytes);
     }
   }
@@ -123,7 +123,7 @@ export class MockManagedProcess implements ManagedProcess {
   simulateExit(code: number | null = 0, signal: string | null = null): void {
     this._exitCode = code;
     this._exitSignal = signal;
-    
+
     // Close streams
     if (this.stdoutController) {
       this.stdoutController.close();
@@ -180,7 +180,7 @@ export class MockProcessManager implements ProcessManager {
       timestamp: Date.now(),
       process: null as any, // Will be set below if successful
     };
-    
+
     if (this.shouldFailSpawn) {
       // Record the failed spawn attempt
       this.spawnCalls.push(spawnCall);
@@ -188,7 +188,7 @@ export class MockProcessManager implements ProcessManager {
     }
 
     const process = new MockManagedProcess(this.nextPid++);
-    
+
     // Update the spawn call with the successful process
     spawnCall.process = process;
 
@@ -231,7 +231,7 @@ export class MockProcessManager implements ProcessManager {
    * Get all spawned processes
    */
   getAllSpawnedProcesses(): MockManagedProcess[] {
-    return this.spawnCalls.map(call => call.process);
+    return this.spawnCalls.map((call) => call.process);
   }
 
   /**
@@ -255,13 +255,13 @@ export class MockProcessManager implements ProcessManager {
    * Check if a specific command was spawned
    */
   wasCommandSpawned(command: string): boolean {
-    return this.spawnCalls.some(call => call.command === command);
+    return this.spawnCalls.some((call) => call.command === command);
   }
 
   /**
    * Get spawn calls for a specific command
    */
   getSpawnCallsForCommand(command: string): typeof this.spawnCalls {
-    return this.spawnCalls.filter(call => call.command === command);
+    return this.spawnCalls.filter((call) => call.command === command);
   }
 }

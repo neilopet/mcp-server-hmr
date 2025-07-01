@@ -1,6 +1,6 @@
 /**
  * Mock implementation of FileSystem for testing
- * 
+ *
  * Provides full control over file system operations, allowing tests to:
  * - Use in-memory file storage (no actual file I/O)
  * - Manually trigger file watch events
@@ -9,7 +9,7 @@
  * - Simulate file system errors
  */
 
-import { FileSystem, FileEvent, FileEventType } from "../../src/interfaces.ts";
+import { FileEvent, FileEventType, FileSystem } from "../../src/interfaces.ts";
 
 /**
  * Represents an active file watcher
@@ -28,18 +28,18 @@ export class MockFileSystem implements FileSystem {
   // In-memory file storage
   private files = new Map<string, string>();
   private fileExists = new Set<string>();
-  
+
   // Active watchers
   private watchers = new Map<string, FileWatcher>();
   private nextWatcherId = 1;
-  
+
   // Operation tracking
   public readonly readCalls: Array<{ path: string; timestamp: number; result?: string }> = [];
   public readonly writeCalls: Array<{ path: string; content: string; timestamp: number }> = [];
   public readonly existsCalls: Array<{ path: string; timestamp: number; result: boolean }> = [];
   public readonly copyCalls: Array<{ src: string; dest: string; timestamp: number }> = [];
   public readonly watchCalls: Array<{ paths: string[]; timestamp: number; watcherId: string }> = [];
-  
+
   // Configuration
   private readDelay = 0;
   private writeDelay = 0;
@@ -53,7 +53,7 @@ export class MockFileSystem implements FileSystem {
 
   async *watch(paths: string[]): AsyncIterable<FileEvent> {
     const watcherId = `watcher-${this.nextWatcherId++}`;
-    
+
     // Track watch call
     this.watchCalls.push({
       paths: [...paths], // Copy array
@@ -79,7 +79,7 @@ export class MockFileSystem implements FileSystem {
           watcher.active = false;
           this.watchers.delete(watcherId);
         }
-      }
+      },
     });
 
     // Convert stream to async iterable
@@ -97,7 +97,7 @@ export class MockFileSystem implements FileSystem {
 
   async readFile(path: string): Promise<string> {
     if (this.readDelay > 0) {
-      await new Promise(resolve => setTimeout(resolve, this.readDelay));
+      await new Promise((resolve) => setTimeout(resolve, this.readDelay));
     }
 
     const call = { path, timestamp: Date.now() };
@@ -119,7 +119,7 @@ export class MockFileSystem implements FileSystem {
 
   async writeFile(path: string, content: string): Promise<void> {
     if (this.writeDelay > 0) {
-      await new Promise(resolve => setTimeout(resolve, this.writeDelay));
+      await new Promise((resolve) => setTimeout(resolve, this.writeDelay));
     }
 
     const call = { path, content, timestamp: Date.now() };
@@ -135,7 +135,7 @@ export class MockFileSystem implements FileSystem {
 
   async exists(path: string): Promise<boolean> {
     if (this.existsDelay > 0) {
-      await new Promise(resolve => setTimeout(resolve, this.existsDelay));
+      await new Promise((resolve) => setTimeout(resolve, this.existsDelay));
     }
 
     const call = { path, timestamp: Date.now() };
@@ -152,7 +152,7 @@ export class MockFileSystem implements FileSystem {
 
   async copyFile(src: string, dest: string): Promise<void> {
     if (this.copyDelay > 0) {
-      await new Promise(resolve => setTimeout(resolve, this.copyDelay));
+      await new Promise((resolve) => setTimeout(resolve, this.copyDelay));
     }
 
     const call = { src, dest, timestamp: Date.now() };
@@ -208,7 +208,7 @@ export class MockFileSystem implements FileSystem {
    */
   triggerFileEvent(path: string, type: FileEventType): void {
     const event: FileEvent = { path, type };
-    
+
     for (const watcher of this.watchers.values()) {
       if (watcher.active && this.isPathWatched(path, watcher.paths)) {
         watcher.controller.enqueue(event);
@@ -233,7 +233,7 @@ export class MockFileSystem implements FileSystem {
    * Get count of active watchers
    */
   getActiveWatcherCount(): number {
-    return Array.from(this.watchers.values()).filter(w => w.active).length;
+    return Array.from(this.watchers.values()).filter((w) => w.active).length;
   }
 
   /**
@@ -308,11 +308,11 @@ export class MockFileSystem implements FileSystem {
    * Check if a path is being watched by the given paths
    */
   private isPathWatched(filePath: string, watchedPaths: string[]): boolean {
-    return watchedPaths.some(watchedPath => {
+    return watchedPaths.some((watchedPath) => {
       // Simple path matching - exact match or starts with directory path
-      return filePath === watchedPath || 
-             filePath.startsWith(watchedPath + '/') ||
-             watchedPath.endsWith('/') && filePath.startsWith(watchedPath);
+      return filePath === watchedPath ||
+        filePath.startsWith(watchedPath + "/") ||
+        watchedPath.endsWith("/") && filePath.startsWith(watchedPath);
     });
   }
 }

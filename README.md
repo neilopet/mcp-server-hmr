@@ -12,6 +12,7 @@ A development proxy for MCP (Model Context Protocol) servers that enables hot-re
 MCP Hot-Reload is a **transparent proxy** that sits between your MCP client (Claude Desktop, MCP Inspector, etc.) and your MCP server. Once configured, you can modify your server code and the changes take effect immediately - no more restarting Claude Desktop or other clients after every code change.
 
 **Key benefits:**
+
 - **Non-disruptive development** - Your MCP client stays connected while your server reloads
 - **Zero message loss** - Requests are buffered during server restart
 - **One-time setup** - Configure once, develop freely
@@ -25,18 +26,18 @@ MCP Hot-Reload is a **transparent proxy** that sits between your MCP client (Cla
    cd mcp-server-hmr
    deno task setup
    ```
-   
+
    The setup command will display the full path to the proxy executable, which you'll need for step 3.
 
 2. **Configure automatic hot-reload for your MCP server**:
    ```bash
    # If you have servers in Claude Desktop config:
    watch --setup my-server
-   
+
    # Or set up all stdio servers at once:
    watch --setup --all
    ```
-   
+
    This modifies your MCP client configuration to use the hot-reload proxy.
 
 3. **Restart your MCP client** (Claude Desktop, etc.) to load the new configuration.
@@ -185,6 +186,16 @@ MCP Client → Hot-Reload Proxy → Your MCP Server
 3. **Message Buffering**: Queues incoming requests during restart
 4. **Seamless Handoff**: Replays buffered messages to the new server
 5. **Client Transparency**: Client stays connected throughout
+
+### Architecture
+
+The hot-reload proxy uses **dependency injection** for improved testability and future Node.js compatibility:
+
+- **Platform-agnostic interfaces**: `ProcessManager` and `FileSystem` abstract platform-specific operations
+- **Deno implementations**: `DenoProcessManager` and `DenoFileSystem` provide current Deno runtime support
+- **Mock implementations**: Enable comprehensive behavioral testing without external dependencies
+- **I/O stream abstraction**: Handles stdin/stdout/stderr through configurable streams
+- **Process lifecycle management**: Configurable timing for graceful shutdowns and startup delays
 
 ## Usage with Claude Desktop
 
@@ -384,7 +395,7 @@ MCP_RESTART_DELAY=1000
 
 ## Testing
 
-The project includes a comprehensive test suite that validates the actual hot-reload proxy functionality:
+The project includes a comprehensive test suite with both behavioral and integration tests:
 
 ```bash
 # Run all tests
@@ -403,102 +414,17 @@ deno task test:integration # E2E and complex scenario tests
 
 ### Test Architecture
 
-The test suite is built using the **Model Context Protocol (MCP) Client and Server SDK** from `@modelcontextprotocol/typescript-sdk`. This ensures we test the actual hot-reload functionality, not just Deno APIs.
+The test suite uses **dependency injection with mock implementations** for reliable, fast behavioral testing alongside integration tests with real MCP communication. Tests achieve ~80% code reduction through the `test_helper.ts` pattern.
 
-#### MCP Test Components
+📖 **[Full Testing Documentation →](docs/testing.md)**
 
-**MCP Server Examples Used:**
+Key features:
 
-- **Simple Stdio Server Pattern**: Based on the stdio transport examples from the MCP TypeScript SDK
-- **Built as JavaScript**: All test fixtures are pre-built JavaScript files committed to the codebase
-- **Minimal Implementation**: Focus on essential MCP protocol methods (initialize, tools/list, tools/call)
-
-**Test Fixtures:**
-
-- `tests/fixtures/mcp_server_v1.js` - Returns "Result A" from test_tool
-- `tests/fixtures/mcp_server_v2.js` - Returns "Result B" from test_tool
-- `tests/fixtures/mcp_client.js` - MCP client for end-to-end testing
-
-#### Test Categories
-
-**Unit Tests** (`deno task test:unit`):
-
-- `file_change_detection_test.ts` - Verifies file watching triggers server restart
-- `restart_sequence_test.ts` - Validates correct restart order (detect → kill → start → buffer → notify)
-- `message_buffering_test.ts` - Tests message queuing and replay during restart
-
-**Integration Tests** (`deno task test:integration`):
-
-- `e2e_reload_test.ts` - Full end-to-end reload functionality test
-- `error_handling_test.ts` - Server startup failures and crash recovery
-- `debouncing_test.ts` - Multiple rapid file changes trigger only one restart
-
-### E2E Test Detailed Explanation
-
-The **`e2e_reload_test.ts`** is the most important test as it validates the core value proposition of the hot-reload proxy:
-
-#### How the E2E Test Works
-
-1. **Setup Phase**:
-   - Starts the hot-reload proxy with `mcp_server_v1.js` (returns "Result A")
-   - Creates an MCP client that connects through the proxy
-   - Initializes the MCP connection and verifies initial state
-
-2. **Initial State Verification**:
-   ```typescript
-   const initialResult = await client.callTool("test_tool", { input: "test" });
-   assertEquals(initialResult.content[0].text, "Result A");
-   ```
-
-3. **Trigger Reload**:
-   - Swaps the server file content from v1 to v2 (changes result from "Result A" to "Result B")
-   - File change triggers the hot-reload sequence
-   - Proxy detects change, kills old server, starts new server, buffers messages
-
-4. **Post-Reload Verification**:
-   ```typescript
-   const reloadedResult = await client.callTool("test_tool", { input: "test" });
-   assertEquals(reloadedResult.content[0].text, "Result B");
-   ```
-
-5. **Restore and Final Verification**:
-   - Restores original v1 content
-   - Verifies result returns to "Result A"
-   - Ensures tools remain available throughout the process
-
-#### What the E2E Test Validates
-
-- **File Change Detection**: Hot-reload proxy detects when server files are modified
-- **Transparent Restart**: Client connection remains active during server restart
-- **Message Buffering**: No lost messages during the restart process
-- **Tool Result Changes**: Actual functionality changes are picked up after reload
-- **Connection Persistence**: MCP client can continue making requests after reload
-- **Bidirectional Functionality**: Can reload back and forth between different server versions
-
-This test proves the hot-reload proxy delivers on its core promise: **instant reloading with transparent connection management and no lost functionality**.
-
-### MCP Protocol Implementation
-
-The test servers implement the essential MCP protocol methods:
-
-```javascript
-// Initialize handshake
-if (message.method === "initialize") {
-  return { protocolVersion: "2024-11-05", capabilities: { tools: {} } };
-}
-
-// Tool discovery
-if (message.method === "tools/list") {
-  return { tools: [{ name: "test_tool", description: "..." }] };
-}
-
-// Tool execution - THIS IS WHAT CHANGES BETWEEN V1 AND V2
-if (message.method === "tools/call" && toolName === "test_tool") {
-  return { content: [{ type: "text", text: "Result A" }] }; // or "Result B"
-}
-```
-
-This minimal implementation focuses on the functionality that matters for hot-reload testing while staying true to the MCP protocol specification.
+- Platform-agnostic behavioral tests using interfaces
+- Deterministic timing without setTimeout patterns
+- Comprehensive mock implementations
+- Real MCP protocol integration tests
+- 80% coverage on core logic
 
 ## Troubleshooting
 

@@ -1,6 +1,6 @@
 # Test Suite
 
-This directory contains tests for the MCP Server HMR project.
+This directory contains comprehensive tests for the MCP Server HMR project.
 
 ## Running Tests
 
@@ -16,72 +16,132 @@ deno task test:watch
 
 # Generate coverage report
 deno task test:coverage
+
+# Run specific test suites
+deno task test:unit        # Unit and behavioral tests
+deno task test:integration # E2E integration tests
 ```
 
 ## Test Structure
 
-### `simple_test.ts`
+### Behavioral Tests (`behavior/`)
 
-Basic smoke tests that verify:
+Platform-agnostic tests using mock implementations and the `test_helper.ts` pattern:
 
-- Environment access works
-- File system permissions are correct
-- Process spawning works
-- Project structure is intact
-- Configuration files are valid
+- **proxy_restart.test.ts** - Server restart on file changes
+- **message_buffering.test.ts** - Message queuing during restart
+- **initialization_replay.test.ts** - MCP handshake preservation
+- **error_handling.test.ts** - Fault tolerance and recovery
+- **config_transformation.test.ts** - Config launcher functionality
 
-### `core_functionality_test.ts`
+#### Test Helper Pattern
 
-Tests core features that the MCP proxy relies on:
+All behavioral tests use `test_helper.ts` to eliminate code duplication:
 
-- Debounce functionality (for file change buffering)
-- File watching API availability
-- Process management capabilities
+```typescript
+import { setupProxyTest, simulateRestart, waitForSpawns } from "./test_helper.ts";
+
+const { proxy, procManager, fs, teardown } = setupProxyTest({
+  restartDelay: 100,
+});
+
+try {
+  await proxy.start();
+  await simulateRestart(procManager, fs);
+  // Test assertions...
+} finally {
+  await teardown();
+}
+```
+
+**Key Helper Functions:**
+
+- `setupProxyTest(config?)` - Creates test environment with mocks
+- `waitForSpawns(procManager, count)` - Deterministic process waiting
+- `simulateRestart(procManager, fs)` - Controlled restart sequence
+- `waitForStable(ms)` - Replaces setTimeout patterns
+
+### Integration Tests (`integration/`)
+
+End-to-end tests with real MCP client/server communication:
+
+- **e2e_reload_test.ts** - Full hot-reload flow validation
+- **error_handling_test.ts** - Server failure recovery
+- **debouncing_test.ts** - File change debouncing
+
+### Unit Tests
+
+Core functionality tests:
+
+- **file_change_detection_test.ts** - File watching triggers
+- **restart_sequence_test.ts** - Restart order validation
+- **message_buffering_test.ts** - Message queue behavior
+
+### Mock Implementations (`mocks/`)
+
+Test doubles implementing platform interfaces:
+
+- **MockProcessManager.ts** - Process spawning/management
+- **MockFileSystem.ts** - File operations and watching
 
 ## Test Philosophy
 
-These tests focus on:
+Our test strategy prioritizes:
 
-1. **Environment validation** - Ensuring the runtime has required permissions
-2. **Core API availability** - Verifying Deno APIs we depend on work
-3. **Project integrity** - Checking configuration and structure
+1. **Behavioral Testing** - Test through interfaces, not implementations
+2. **Deterministic Timing** - Event-driven waiting, not fixed timeouts
+3. **Resource Safety** - Proper cleanup in all test paths
+4. **DRY Principles** - Shared helpers for common patterns
 
-## Why Simple Tests?
+## Writing New Tests
 
-The original comprehensive test suite was overly complex and had issues with:
+When adding behavioral tests:
 
-- Race conditions in file watching
-- Process cleanup problems
-- Resource leaks
-- Interference with the main application's stdin handling
+1. Use `setupProxyTest()` for consistent setup
+2. Use helper functions instead of setTimeout
+3. Always call `teardown()` in finally blocks
+4. Test behavior, not implementation details
 
-Instead, we focus on testing:
+Example template:
 
-- The building blocks our application uses
-- Project configuration and structure
-- Basic functionality verification
+```typescript
+Deno.test({
+  name: "Feature - specific behavior",
+  async fn() {
+    const { proxy, procManager, fs, teardown } = setupProxyTest();
 
-For integration testing, developers should:
+    try {
+      // Arrange
+      await proxy.start();
 
-1. Use the provided examples in `examples/quickstart.md`
-2. Test with real MCP servers in development
-3. Use the detailed logging to verify behavior
+      // Act
+      await simulateRestart(procManager, fs);
 
-## Adding Tests
+      // Assert
+      assertEquals(procManager.getSpawnCallCount(), 2);
+    } finally {
+      await teardown();
+    }
+  },
+  sanitizeOps: false,
+  sanitizeResources: false,
+});
+```
 
-When adding new tests:
+## Test Coverage
 
-1. Keep them simple and focused
-2. Clean up resources (files, processes)
-3. Avoid tests that interfere with stdin/stdout
-4. Use `{ sanitizeResources: false, sanitizeOps: false }` if needed for complex tests
-5. Test the APIs and building blocks, not the full integration
+We maintain >80% coverage on core logic:
+
+- `src/proxy.ts` - MCPProxy class
+- `src/config_launcher.ts` - Config management
+- Platform implementations (Deno/Node)
 
 ## Test Permissions
 
-Tests require these permissions:
+Tests require these Deno permissions:
 
-- `--allow-env` - Read environment variables
+- `--allow-env` - Environment variables
 - `--allow-read` - Read project files
-- `--allow-write` - Create temporary test files
-- `--allow-run` - Spawn test processes
+- `--allow-write` - Temporary test files
+- `--allow-run` - Process spawning
+- `--allow-net` - MCP client/server communication

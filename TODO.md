@@ -1,360 +1,363 @@
 # MCP Server HMR - Implementation Roadmap
 
-## Research Phase (Priority: Critical)
-
-### RESEARCH-1: MCP Protocol Schema Analysis
-- **Goal**: Understand exact message format and JSON-RPC requirements
-- **Source**: https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/refs/heads/main/schema/2025-06-18/schema.ts
-- **Key Questions**:
-  - What are the exact message types and formats?
-  - How are request/response pairs matched?
-  - What's the initialization handshake sequence?
-  - Are there any special message types that affect buffering?
-
-### RESEARCH-2: MCP Architecture Documentation
-- **Goal**: Understand client/server roles and connection lifecycle
-- **Source**: https://modelcontextprotocol.io/specification/2025-06-18/architecture
-- **Key Questions**:
-  - What's the expected connection lifecycle?
-  - How do clients handle server disconnections?
-  - What state must be preserved during restart?
-  - Are there any protocol-level keepalive mechanisms?
-
-### RESEARCH-3: MCP Transport Specification
-- **Goal**: Focus on stdio transport implementation details
-- **Source**: https://modelcontextprotocol.io/specification/2025-06-18/basic/transports
-- **Key Questions**:
-  - How are messages framed over stdio?
-  - Is it newline-delimited JSON?
-  - How are errors propagated?
-  - What happens with partial messages?
-
-### RESEARCH-4: Current Implementation's Buffering Strategy
-- **Goal**: Understand how the Deno version handles message queuing
-- **Source**: /Users/neilopet/Code/claude-live-reload/src/main.ts
-- **Key Areas**:
-  - How are messages buffered during restart?
-  - How is the initialization sequence replayed?
-  - What prevents message loss or duplication?
-  - How are partial messages handled?
-
-### RESEARCH-5: Node.js Stdio Stream Handling
-- **Goal**: Understand best practices for child process stdio
-- **Key Topics**:
-  - child_process.spawn() stdio options
-  - Proper use of pipe() vs manual reading
-  - Backpressure handling
-  - Clean process shutdown patterns
-
-### RESEARCH-6: JSON-RPC Message Parsing in Node.js
-- **Goal**: Determine best approach for message framing
-- **Options to Evaluate**:
-  - readline module for newline-delimited JSON
-  - Manual buffering with Buffer.concat()
-  - Transform streams for parsing
-  - Existing JSON-RPC libraries compatibility
-
-## Branch Management
-
-### BRANCH-1: Create mcp-server-hmr-deno branch
-- **Purpose**: Preserve current Deno implementation before refactoring
-- **Actions**:
-  - Create branch from current main
-  - Document that this is the Deno reference implementation
-  - No further development on this branch
-
-## Phase 1: Interface Extraction (Deno Refactoring)
-
-### Parallel Execution Groups:
-
-#### Group 1A (Prerequisites):
-- Create mcp-server-hmr-deno branch to preserve current implementation
-
-#### Group 1B (Interface Definitions - Run in Parallel):
-- **Task 1**: Define ProcessManager interface in src/interfaces.ts
-- **Task 2**: Define ManagedProcess interface in src/interfaces.ts  
-- **Task 3**: Define FileSystem interface in src/interfaces.ts
-
-#### Group 1C (Deno Implementations - After Group 1B):
-- **Task 4**: Create DenoProcessManager.ts (wraps Deno.Command)
-- **Task 5**: Create DenoFileSystem.ts (wraps Deno file APIs)
-
-#### Group 1D (Core Refactoring - After Group 1C):
-- **Task 6**: Refactor MCPProxy constructor for dependency injection
-- **Task 7**: Update MCPProxy.startServer() to use ProcessManager
-- **Task 8**: Update MCPProxy file watching to use FileSystem
-- **Task 9**: Update main.ts to wire everything together
-- **Task 10**: Refactor config_launcher.ts (can run parallel to MCPProxy tasks)
-
-#### Group 1E (Verification):
-- **Task 11**: Run existing tests to verify no behavioral changes
-
-## Phase 2: Behavioral Test Suite
-
-### Parallel Execution Groups:
-
-#### Group 2A (Test Infrastructure):
-- **Task 12**: Create tests/behavior/ directory structure
-
-#### Group 2B (Mock Implementations - After Group 2A):
-- **Task 13**: Create MockProcessManager.ts (run in parallel)
-- **Task 14**: Create MockFileSystem.ts (run in parallel)
-
-#### Group 2C (Behavioral Tests - After Group 2B):
-- **Task 15**: Write proxy_restart.test.ts (run in parallel)
-- **Task 16**: Write message_buffering.test.ts (run in parallel)
-- **Task 17**: Write initialization_replay.test.ts (run in parallel)
-- **Task 18**: Write error_handling.test.ts (run in parallel)
-- **Task 19**: Write config_transformation.test.ts (run in parallel)
-
-#### Group 2D (Coverage Verification):
-- **Task 20**: Generate coverage report showing >80% coverage
-
-## Phase 3A: Complete Deno Implementation
-
-### 3.1: Documentation
-- Add JSDoc comments to all interfaces
-- Document error handling contracts
-- Create architecture diagram
-
-### 3.2: Verification & Commit
-- Run all behavioral tests
-- Verify no regression
-- Commit to main with detailed message
-
-## Phase 3B: Node.js Rewrite
-
-### Parallel Execution Groups:
-
-#### Group 3A (Branch & Setup):
-- **Task 24**: Create mcp-server-hmr-node branch from main
-
-#### Group 3B (Project Configuration - After Group 3A):
-- **Task 25**: Initialize Node.js project structure (run in parallel)
-- **Task 26**: Configure tsconfig.json for Node.js (run in parallel)
-
-#### Group 3C (Foundation):
-- **Task 27**: Copy src/interfaces.ts and tests/behavior/ from Deno
-
-#### Group 3D (Node.js Implementations - After Group 3C):
-- **Task 28**: Create NodeProcessManager.ts (run in parallel)
-- **Task 29**: Implement NodeProcessManager stream handling (run in parallel) 
-- **Task 30**: Create NodeFileSystem.ts (run in parallel)
-
-#### Group 3E (Core Logic - After Group 3D):
-- **Task 31**: Port MCPProxy class to Node.js idioms
-- **Task 32**: Create CLI with commander.js (can run parallel to MCPProxy)
-
-#### Group 3F (Testing):
-- **Task 33**: Configure Jest and run behavioral tests
-
-## Phase 4: Package & Distribution
-
-### 4.1: npm Package Configuration
-- Configure package.json exports
-- Set up TypeScript build
-- Create CLI entry point
-
-### 4.2: Testing & Examples
-- Test via npm link
-- Create programmatic usage examples
-- Document migration from Deno version
-
-## Phase 5: Release
-
-### 5.1: Documentation
-- Comprehensive README
-- Migration guide
-- API documentation
-
-### 5.2: Publishing
-- Publish to npm as mcp-server-hmr
-- Archive Deno version with notice
-
-## Phase 6: Blue-Green Deployment Enhancement
-
-### 6.1: Architecture Refactoring
-- **Goal**: Implement zero-downtime server switching using blue-green pattern
-- **Current State**: Sequential restart with ~3 second downtime
-- **Target State**: Overlapping server lifecycle with atomic switch
-
-### 6.2: Core Implementation Tasks
-1. **Refactor MCPProxy to support dual server instances**:
-   - Add `activeServer` and `pendingServer` properties
-   - Track which server instance each request was routed to
-   - Implement request/response correlation map
-
-2. **Implement parallel server startup**:
-   - Start new server while old server still running
-   - Initialize new server in background
-   - Wait for successful initialization before switching
-
-3. **Build atomic routing switch mechanism**:
-   - Queue messages during switch moment
-   - Atomically update `activeServer` reference
-   - Ensure no message reordering during switch
-
-4. **Implement connection draining**:
-   - Track in-flight requests to old server
-   - Continue routing responses from old server
-   - Implement drain timeout (default 30s)
-
-5. **Graceful old server shutdown**:
-   - Wait for all pending requests to complete
-   - Send shutdown notification if server supports it
-   - Multi-stage kill sequence after drain
-
-### 6.3: Message Routing Logic
-- **Request Routing**: 
-  - Before switch: Route to old server
-  - During switch: Buffer briefly
-  - After switch: Route to new server
-  
-- **Response Routing**:
-  - Match response ID to request tracking map
-  - Route response from correct server instance
-  - Clean up tracking map after response
-
-### 6.4: Error Handling
-- New server fails to start: Keep old server active
-- New server fails initialization: Rollback and retry
-- Old server crashes during drain: Fast-track switch
-- Both servers down: Enter recovery mode
-
-### 6.5: Testing Strategy
-- Test overlapping server lifecycles
-- Test request/response correlation during switch
-- Test drain timeout scenarios
-- Test rollback on initialization failure
-- Verify zero message loss
-
-### 6.6: Monitoring & Metrics
-- Track switch duration
-- Monitor drain effectiveness
-- Count dropped messages (should be 0)
-- Measure initialization time
-
----
-
-## Research Findings
-
-### MCP Protocol Specifications
-
-1. **Message Format**: Standard JSON-RPC 2.0 with newline-delimited JSON (NDJSON)
-   - Each message is a complete JSON object on a single line
-   - Messages separated by `\n` characters
-   - UTF-8 encoding required
-   - No embedded newlines allowed in messages
-
-2. **Request/Response Correlation**: Uses `id` field for matching
-   - Requests with `id` expect responses with matching `id`
-   - Notifications (no `id`) don't expect responses
-   - Responses can arrive out of order
-
-3. **Initialization Handshake**:
-   - Client sends `initialize` request with capabilities
-   - Server responds with its capabilities
-   - Client sends `initialized` notification
-   - This sequence must be replayed after server restart
-
-4. **Critical State to Preserve**:
-   - Negotiated protocol version
-   - Agreed-upon capabilities
-   - Client/server info
-   - Active request IDs
-
-### Current Deno Implementation Analysis
-
-1. **Buffering Strategy**:
-   - Uses `messageBuffer: Message[]` to store parsed messages during restart
-   - Controlled by `restarting` boolean flag
-   - Captures and stores `initializeParams` for replay
-   - Messages buffered in order and replayed sequentially
-
-2. **Restart Sequence**:
-   - Set `restarting = true`
-   - Kill old server (SIGTERM)
-   - Wait 1 second for process cleanup
-   - Start new server
-   - Replay initialization
-   - Replay buffered messages
-   - Wait 2 seconds for server readiness
-   - Get tools list and send notification
-   - Set `restarting = false`
-
-3. **Stream Management**:
-   - Three separate async functions for stdin/stdout/stderr
-   - Line-based buffering for partial messages
-   - Proper writer lock acquisition/release
-
-### Node.js Implementation Recommendations
-
-1. **Stream Architecture**:
-   - Use Transform streams for NDJSON parsing/stringifying
-   - Implement proper backpressure handling
-   - Use AbortController for lifecycle management
-   - Separate concerns with dedicated classes
-
-2. **Process Management**:
-   - Multi-stage graceful shutdown (IPC → SIGTERM → SIGKILL)
-   - Verify process termination with signal 0
-   - Handle Windows vs Unix signal differences
-   - Use detached: false to keep child attached
-
-3. **Message Buffering**:
-   - Implement ring buffer with size limits
-   - Track dropped messages
-   - Async drain with backpressure support
-   - Separate buffer for initialization replay
-
-4. **Error Handling**:
-   - Parse errors with line context
-   - Request timeouts (30s recommended)
-   - Process crash recovery
-   - Graceful degradation
-
-## Updated Interface Definitions
-
-Based on research, the interfaces should use Node.js native types:
-
-```typescript
-interface ManagedProcess {
-  readonly pid?: number;
-  readonly stdin: Writable;    // Node.js Writable stream
-  readonly stdout: Readable;   // Node.js Readable stream  
-  readonly stderr: Readable;   // Node.js Readable stream
-  readonly status: Promise<{code: number | null, signal: string | null}>;
-  kill(signal?: NodeJS.Signals | number): boolean;
-}
-
-interface ProcessManager {
-  spawn(
-    command: string, 
-    args: string[], 
-    options?: {
-      env?: Record<string, string>;
-      cwd?: string;
+## ✅ COMPLETED: Deno Implementation with Dependency Injection
+
+### Research Phase ✅
+
+- ✅ **RESEARCH-1**: MCP Protocol Schema Analysis - NDJSON with JSON-RPC 2.0
+- ✅ **RESEARCH-2**: MCP Architecture Documentation - Client/server lifecycle understood
+- ✅ **RESEARCH-3**: MCP Transport Specification - Stdio transport with newline framing
+- ✅ **RESEARCH-4**: Current Buffering Strategy - Message buffer with initialization replay
+- ✅ **RESEARCH-5**: Node.js Stdio Stream Handling - Child process patterns analyzed
+- ✅ **RESEARCH-6**: JSON-RPC Message Parsing - Transform streams identified as optimal
+
+### Phase 1: Interface Extraction ✅
+
+- ✅ **Group 1A**: Created branch preservation strategy
+- ✅ **Group 1B**: Defined ProcessManager, ManagedProcess, and FileSystem interfaces
+- ✅ **Group 1C**: Implemented DenoProcessManager and DenoFileSystem
+- ✅ **Group 1D**: Refactored MCPProxy with dependency injection
+- ✅ **Group 1E**: Verified zero behavioral changes
+
+### Phase 2: Behavioral Test Suite ✅
+
+- ✅ **Group 2A**: Created tests/behavior/ infrastructure
+- ✅ **Group 2B**: Implemented MockProcessManager and MockFileSystem
+- ✅ **Group 2C**: Created comprehensive behavioral test suite
+- ✅ **Group 2D**: Achieved >80% coverage on core logic
+
+### Phase 3A: Deno Implementation Completion ✅
+
+- ✅ **Documentation**: Added comprehensive JSDoc to all interfaces
+- ✅ **Architecture**: Implemented dependency injection with I/O stream abstraction
+- ✅ **Test Refactoring**: Created test_helper.ts pattern (~80% code reduction)
+- ✅ **Documentation Updates**: Updated all docs to reflect new architecture
+- ✅ **Verification**: All behavioral + integration tests passing
+
+## 🚧 IN PROGRESS: Deployment and Node.js Implementation
+
+### SEQUENTIAL-1: Deploy Deno Implementation
+
+- 🔲 **SEQUENTIAL-1.1**: Run `deno task test` to verify all tests pass
+- 🔲 **SEQUENTIAL-1.2**: Run `deno task lint` and `deno task format`
+- 🔲 **SEQUENTIAL-1.3**: Stage all changes with `git add -A`
+- 🔲 **SEQUENTIAL-1.4**: Create commit: `test: refactor behavioral tests with test_helper pattern (~80% code reduction)`
+- 🔲 **SEQUENTIAL-1.5**: Push to remote with `git push origin main`
+
+### SEQUENTIAL-2: Create Node.js Branch
+
+- 🔲 **SEQUENTIAL-2.1**: Create branch `mcp-server-hmr-node` from main
+
+## 📋 PENDING: Node.js Implementation (Parallel Tracks)
+
+### PARALLEL-A: Node.js Project Setup
+
+Can start immediately after SEQUENTIAL-2:
+
+- 🔲 **PARALLEL-A.1**: Create package.json with ESM configuration
+  ```json
+  {
+    "name": "mcp-server-hmr",
+    "version": "0.1.0",
+    "type": "module",
+    "engines": { "node": ">=18.0.0" }
+  }
+  ```
+- 🔲 **PARALLEL-A.2**: Add runtime dependencies
+  ```json
+  "dependencies": {
+    "chokidar": "^3.5.3",
+    "commander": "^11.1.0"
+  }
+  ```
+- 🔲 **PARALLEL-A.3**: Add dev dependencies
+  ```json
+  "devDependencies": {
+    "typescript": "^5.3.0",
+    "@types/node": "^20.10.0",
+    "jest": "^29.7.0",
+    "@jest/globals": "^29.7.0",
+    "ts-jest": "^29.1.1"
+  }
+  ```
+- 🔲 **PARALLEL-A.4**: Add npm scripts
+  ```json
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "lint": "tsc --noEmit",
+    "dev": "node --watch dist/cli.js"
+  }
+  ```
+- 🔲 **PARALLEL-A.5**: Create tsconfig.json for Node.js ESM
+  ```json
+  {
+    "compilerOptions": {
+      "target": "ES2022",
+      "module": "NodeNext",
+      "moduleResolution": "NodeNext",
+      "outDir": "./dist",
+      "rootDir": "./src",
+      "strict": true,
+      "esModuleInterop": true,
+      "skipLibCheck": true,
+      "forceConsistentCasingInFileNames": true,
+      "declaration": true,
+      "declarationMap": true
     }
-  ): ManagedProcess;
-}
-```
+  }
+  ```
+- 🔲 **PARALLEL-A.6**: Run `npm install` and verify setup
+
+### PARALLEL-B: Copy Core Files
+
+Can start immediately after SEQUENTIAL-2:
+
+- 🔲 **PARALLEL-B.1**: Copy src/interfaces.ts preserving all type definitions
+- 🔲 **PARALLEL-B.2**: Create tests/behavior/ directory structure
+- 🔲 **PARALLEL-B.3**: Copy behavioral tests, convert assertions:
+  - `assertEquals(a, b)` → `expect(a).toBe(b)`
+  - `assertExists(a)` → `expect(a).toBeTruthy()`
+  - `assertRejects(fn)` → `expect(fn).rejects.toThrow()`
+- 🔲 **PARALLEL-B.4**: Copy test_helper.ts, update imports only
+- 🔲 **PARALLEL-B.5**: Copy mocks directory unchanged
+
+### PARALLEL-C: Node.js Implementations
+
+Depends on PARALLEL-B.1 completion:
+
+- 🔲 **PARALLEL-C.1**: Create src/node/NodeProcessManager.ts
+  ```typescript
+  import { ChildProcess, spawn } from "child_process";
+  import { Readable, Writable } from "stream";
+  import { ManagedProcess, ProcessManager } from "../interfaces.js";
+  ```
+- 🔲 **PARALLEL-C.2**: Implement spawn() method
+  - Convert Node.js streams to Web Streams API
+  - Handle ChildProcess wrapper as ManagedProcess
+- 🔲 **PARALLEL-C.3**: Implement kill() with signal handling
+  - SIGTERM with 10s timeout
+  - SIGKILL fallback
+  - Windows process tree termination
+- 🔲 **PARALLEL-C.4**: Implement stream converters
+  ```typescript
+  function toWebReadableStream(nodeStream: Readable): ReadableStream<Uint8Array>;
+  function toWebWritableStream(nodeStream: Writable): WritableStream<Uint8Array>;
+  ```
+- 🔲 **PARALLEL-C.5**: Add error handling and cleanup
+  - ENOENT for missing commands
+  - Zombie process prevention
+  - Status promise implementation
+
+- 🔲 **PARALLEL-C.6**: Create src/node/NodeFileSystem.ts
+  ```typescript
+  import { watch } from "chokidar";
+  import { access, readFile, writeFile } from "fs/promises";
+  import { FileEvent, FileSystem } from "../interfaces.js";
+  ```
+- 🔲 **PARALLEL-C.7**: Implement watch() with chokidar
+  - Map events: add/change → modify, unlink → remove
+  - Handle recursive directory watching
+- 🔲 **PARALLEL-C.8**: Create async generator for events
+  ```typescript
+  async *watch(paths: string[]): AsyncIterable<FileEvent> {
+    const watcher = chokidar.watch(paths);
+    // Yield FileEvent objects
+  }
+  ```
+- 🔲 **PARALLEL-C.9**: Implement file operations
+  - readFile/writeFile with UTF-8
+  - Proper error handling
+- 🔲 **PARALLEL-C.10**: Implement exists() and path utilities
+  - Cross-platform path normalization
+  - access() for existence check
+
+### PARALLEL-D: Jest Configuration
+
+Depends on PARALLEL-B completion:
+
+- 🔲 **PARALLEL-D.1**: Create jest.config.js
+  ```javascript
+  export default {
+    preset: "ts-jest",
+    testEnvironment: "node",
+    extensionsToTreatAsEsm: [".ts"],
+    moduleNameMapper: {
+      "^(\\.{1,2}/.*)\\.js$": "$1",
+    },
+  };
+  ```
+- 🔲 **PARALLEL-D.2**: Configure ESM support
+  ```javascript
+  transform: {
+    '^.+\\.ts$': ['ts-jest', { useESM: true }]
+  },
+  testMatch: ['**/tests/behavior/**/*.test.ts']
+  ```
+- 🔲 **PARALLEL-D.3**: Create test setup file
+- 🔲 **PARALLEL-D.4**: Update test syntax for Jest
+  ```typescript
+  // Deno.test() → describe()/it()
+  describe("Proxy restart", () => {
+    it("should restart on file change", async () => {
+      // test code
+    });
+  });
+  ```
+- 🔲 **PARALLEL-D.5**: Run tests with Node.js implementations
+
+## 📋 SEQUENTIAL: Core Implementation
+
+### SEQUENTIAL-3: Port MCPProxy
+
+Depends on PARALLEL-C completion:
+
+- 🔲 **SEQUENTIAL-3.1**: Create src/proxy.ts with Node.js streams
+  ```typescript
+  import { pipeline, Transform } from "stream";
+  import { MCPProxyConfig, ProxyDependencies } from "./interfaces.js";
+  ```
+- 🔲 **SEQUENTIAL-3.2**: Implement NDJSON Transform stream
+  ```typescript
+  class NDJSONParser extends Transform {
+    _transform(chunk, encoding, callback) {
+      // Parse newline-delimited JSON
+    }
+  }
+  ```
+- 🔲 **SEQUENTIAL-3.3**: Port message buffering logic
+- 🔲 **SEQUENTIAL-3.4**: Port initialization capture/replay
+- 🔲 **SEQUENTIAL-3.5**: Add comprehensive error handling
+
+### SEQUENTIAL-4: CLI Implementation
+
+- 🔲 **SEQUENTIAL-4.1**: Create src/cli.ts with commander
+- 🔲 **SEQUENTIAL-4.2**: Implement `--server` command
+- 🔲 **SEQUENTIAL-4.3**: Implement `--list` command
+- 🔲 **SEQUENTIAL-4.4**: Implement `--setup` command
+- 🔲 **SEQUENTIAL-4.5**: Add shebang and executable setup
+
+### SEQUENTIAL-5: NPM Package Configuration
+
+- 🔲 **SEQUENTIAL-5.1**: Set main: 'dist/index.js'
+- 🔲 **SEQUENTIAL-5.2**: Set types: 'dist/index.d.ts'
+- 🔲 **SEQUENTIAL-5.3**: Configure bin field
+  ```json
+  "bin": {
+    "mcp-hmr": "dist/cli.js",
+    "watch": "dist/cli.js"
+  }
+  ```
+- 🔲 **SEQUENTIAL-5.4**: Configure files field
+- 🔲 **SEQUENTIAL-5.5**: Add prepublishOnly script
+
+### SEQUENTIAL-6: Library Entry Point
+
+- 🔲 **SEQUENTIAL-6.1**: Create src/index.ts
+- 🔲 **SEQUENTIAL-6.2**: Export implementations
+- 🔲 **SEQUENTIAL-6.3**: Export interfaces
+- 🔲 **SEQUENTIAL-6.4**: Add usage examples
+- 🔲 **SEQUENTIAL-6.5**: Build and verify
+
+### SEQUENTIAL-7: Testing & Validation
+
+- 🔲 **SEQUENTIAL-7.1**: npm link for local testing
+- 🔲 **SEQUENTIAL-7.2**: Test CLI globally
+- 🔲 **SEQUENTIAL-7.3**: Test library import
+- 🔲 **SEQUENTIAL-7.4**: E2E integration test
+- 🔲 **SEQUENTIAL-7.5**: Verify package contents
+
+## 🔮 OPTIONAL: Enhancements
+
+### Optional Fixes
+
+- 🔲 **OPTIONAL-FIX-6.1**: Add waitForSpawn() to MockProcessManager
+- 🔲 **OPTIONAL-FIX-6.2**: Update test_helper to use waitForSpawn()
+- 🔲 **OPTIONAL-FIX-6.3**: Add event emitter pattern
+
+### Optional Examples
+
+- 🔲 **OPTIONAL-EXAMPLE-1**: Programmatic usage example
+- 🔲 **OPTIONAL-EXAMPLE-2**: npx auto-update example
+- 🔲 **OPTIONAL-EXAMPLE-3**: Custom ProcessManager example
+
+### Optional Documentation
+
+- 🔲 **OPTIONAL-README-1**: Comprehensive Node.js README
+- 🔲 **OPTIONAL-README-2**: Migration guide from Deno
+- 🔲 **OPTIONAL-README-3**: API documentation
+
+### Optional Publishing
+
+- 🔲 **OPTIONAL-PUBLISH-1**: npm publish dry run
+- 🔲 **OPTIONAL-PUBLISH-2**: Set npm credentials
+- 🔲 **OPTIONAL-PUBLISH-3**: Publish to npm registry
 
 ## Implementation Notes
 
-### Phase 1 Considerations:
-- Keep interfaces using Deno types initially for compatibility
-- Focus on structural refactoring without changing stream types
-- Document the planned Node.js type conversions
+### Critical Success Factors
 
-### Phase 3B Critical Path:
-1. Implement Transform streams for NDJSON parsing first
-2. Build message buffer with ring buffer pattern
-3. Use multi-stage shutdown for process management
-4. Implement comprehensive error handling from day one
+1. **Stream Handling**: Must properly convert between Node.js and Web Streams
+2. **Process Management**: Multi-stage shutdown crucial for reliability
+3. **Message Integrity**: Zero message loss during restart
+4. **Test Parity**: All behavioral tests must pass unchanged
 
-### Testing Strategy:
-- Mock streams should simulate backpressure
-- Test partial message handling
-- Test buffer overflow scenarios
-- Test process crash recovery
-- Verify no message loss during restart
+### Known Challenges
+
+1. **ESM in Node.js**: Requires .js extensions in imports
+2. **Stream Backpressure**: Must handle properly to avoid memory issues
+3. **Windows Support**: Different signal handling required
+4. **Jest + TypeScript + ESM**: Complex configuration needed
+
+### Dependencies Between Tracks
+
+```
+SEQUENTIAL-1 (Deploy)
+    ↓
+SEQUENTIAL-2 (Branch)
+    ↓
+┌─────────────┬─────────────┐
+│ PARALLEL-A  │ PARALLEL-B  │
+│ (Setup)     │ (Copy)      │
+└─────────────┴──────┬──────┘
+                     ↓
+         ┌───────────┴───────────┐
+         │ PARALLEL-C │ PARALLEL-D│
+         │ (Impl)     │ (Jest)   │
+         └───────────┬───────────┘
+                     ↓
+              SEQUENTIAL-3-7
+              (Core → Test)
+```
+
+### Estimated Timeline
+
+- **SEQUENTIAL-1**: 30 minutes
+- **PARALLEL tracks**: 2-3 hours (can be done by multiple developers)
+- **SEQUENTIAL-3-7**: 4-6 hours
+- **Total**: ~1 day with parallel execution
+
+---
+
+## Phase 6: Future Enhancement - Blue-Green Deployment
+
+### Overview
+
+Implement zero-downtime server switching using blue-green deployment pattern. This would eliminate the ~3 second downtime during restarts.
+
+### Key Components
+
+1. **Dual Server Management**: Support two server instances simultaneously
+2. **Request Correlation**: Track which server handles each request
+3. **Atomic Switching**: Switch active server with zero message loss
+4. **Connection Draining**: Gracefully complete in-flight requests
+5. **Rollback Support**: Revert if new server fails initialization
+
+### Implementation Strategy
+
+- Refactor MCPProxy to support `activeServer` and `pendingServer`
+- Implement request ID → server instance mapping
+- Add connection draining with configurable timeout
+- Support graceful degradation on failures
+
+This enhancement would be implemented after the Node.js version is stable and published.

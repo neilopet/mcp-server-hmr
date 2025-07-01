@@ -1,6 +1,6 @@
 /**
  * Core interfaces for MCP Hot-Reload Proxy
- * 
+ *
  * These interfaces provide platform abstraction for process management,
  * file system operations, and event handling. They enable dependency
  * injection and cross-platform compatibility between Deno and Node.js.
@@ -28,26 +28,26 @@ export interface ExitStatus {
 
 /**
  * Represents a managed child process with stream access
- * 
+ *
  * This interface abstracts the differences between Deno's ChildProcess
  * and Node.js's ChildProcess, providing a consistent API for both.
  */
 export interface ManagedProcess {
   /** Process ID (undefined if process failed to start) */
   readonly pid?: number;
-  
+
   /** Writable stream for sending data to process stdin */
   readonly stdin: WritableStream<Uint8Array>;
-  
+
   /** Readable stream for receiving data from process stdout */
   readonly stdout: ReadableStream<Uint8Array>;
-  
+
   /** Readable stream for receiving data from process stderr */
   readonly stderr: ReadableStream<Uint8Array>;
-  
+
   /** Promise that resolves when the process exits */
   readonly status: Promise<ExitStatus>;
-  
+
   /**
    * Terminate the process with the specified signal
    * @param signal - Signal to send (default: "SIGTERM")
@@ -58,7 +58,7 @@ export interface ManagedProcess {
 
 /**
  * Interface for managing child processes
- * 
+ *
  * Abstracts process creation and management across platforms.
  * Implementations must handle platform-specific details like
  * signal handling and stream management.
@@ -66,7 +66,7 @@ export interface ManagedProcess {
 export interface ProcessManager {
   /**
    * Spawn a new child process
-   * 
+   *
    * @param command - Command to execute
    * @param args - Command arguments
    * @param options - Spawn options (env, cwd)
@@ -93,7 +93,7 @@ export interface FileEvent {
 
 /**
  * Interface for file system operations
- * 
+ *
  * Provides abstraction for file I/O and file watching functionality.
  * Implementations must handle platform-specific file watching
  * mechanisms and provide proper error handling.
@@ -101,43 +101,43 @@ export interface FileEvent {
 export interface FileSystem {
   /**
    * Watch file system paths for changes
-   * 
+   *
    * @param paths - Array of paths to watch (files or directories)
    * @returns AsyncIterable that yields FileEvent objects
    * @throws Error if watching fails (permissions, invalid paths, etc.)
    */
   watch(paths: string[]): AsyncIterable<FileEvent>;
-  
+
   /**
    * Read file contents as UTF-8 string
-   * 
+   *
    * @param path - Absolute path to file
    * @returns Promise resolving to file contents
    * @throws Error if file cannot be read
    */
   readFile(path: string): Promise<string>;
-  
+
   /**
    * Write string contents to file
-   * 
+   *
    * @param path - Absolute path to file
    * @param content - UTF-8 string content to write
    * @returns Promise that resolves when write completes
    * @throws Error if file cannot be written
    */
   writeFile(path: string, content: string): Promise<void>;
-  
+
   /**
    * Check if a file or directory exists
-   * 
+   *
    * @param path - Absolute path to check
    * @returns Promise resolving to true if path exists, false otherwise
    */
   exists(path: string): Promise<boolean>;
-  
+
   /**
    * Copy a file from source to destination
-   * 
+   *
    * @param src - Source file path
    * @param dest - Destination file path
    * @returns Promise that resolves when copy completes
@@ -160,6 +160,8 @@ export interface ProxyDependencies {
   stdout: WritableStream<Uint8Array>;
   /** Standard error stream for logging and diagnostics */
   stderr: WritableStream<Uint8Array>;
+  /** Process exit function for graceful termination */
+  exit: (code: number) => void;
 }
 
 /**
@@ -168,16 +170,18 @@ export interface ProxyDependencies {
 export interface ConfigLauncherDependencies {
   /** File system interface for config file operations */
   fs: FileSystem;
+  /** Process exit function for graceful termination */
+  exit: (code: number) => void;
 }
 
 /**
  * Type guard to check if an object implements ProcessManager
  */
 export function isProcessManager(obj: unknown): obj is ProcessManager {
-  return obj !== null && 
-         typeof obj === "object" && 
-         "spawn" in obj && 
-         typeof (obj as ProcessManager).spawn === "function";
+  return obj !== null &&
+    typeof obj === "object" &&
+    "spawn" in obj &&
+    typeof (obj as ProcessManager).spawn === "function";
 }
 
 /**
@@ -185,11 +189,11 @@ export function isProcessManager(obj: unknown): obj is ProcessManager {
  */
 export function isFileSystem(obj: unknown): obj is FileSystem {
   return obj !== null &&
-         typeof obj === "object" &&
-         "watch" in obj &&
-         "readFile" in obj &&
-         "writeFile" in obj &&
-         typeof (obj as FileSystem).watch === "function" &&
-         typeof (obj as FileSystem).readFile === "function" &&
-         typeof (obj as FileSystem).writeFile === "function";
+    typeof obj === "object" &&
+    "watch" in obj &&
+    "readFile" in obj &&
+    "writeFile" in obj &&
+    typeof (obj as FileSystem).watch === "function" &&
+    typeof (obj as FileSystem).readFile === "function" &&
+    typeof (obj as FileSystem).writeFile === "function";
 }

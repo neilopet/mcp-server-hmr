@@ -1,12 +1,12 @@
 /**
  * Deno implementation of ProcessManager interface
- * 
+ *
  * Wraps Deno.Command to provide the ProcessManager interface,
  * handling platform-specific details like signal translation
  * and stream management.
  */
 
-import { ProcessManager, ManagedProcess, SpawnOptions, ExitStatus } from "../interfaces.ts";
+import { ExitStatus, ManagedProcess, ProcessManager, SpawnOptions } from "../interfaces.ts";
 
 /**
  * Wraps a Deno ChildProcess to implement the ManagedProcess interface
@@ -45,7 +45,7 @@ class DenoManagedProcess implements ManagedProcess {
     try {
       // Default to SIGTERM if no signal specified
       const sig = signal || "SIGTERM";
-      
+
       // Normalize signal name - Deno expects full signal names like "SIGTERM"
       let denoSignal: string;
       if (sig.startsWith("SIG")) {
@@ -55,7 +55,7 @@ class DenoManagedProcess implements ManagedProcess {
         // Add SIG prefix (e.g., "TERM" -> "SIGTERM")
         denoSignal = "SIG" + sig;
       }
-      
+
       this.child.kill(denoSignal as Deno.Signal);
       return true;
     } catch (error) {
@@ -68,7 +68,7 @@ class DenoManagedProcess implements ManagedProcess {
 
 /**
  * Deno implementation of ProcessManager
- * 
+ *
  * Uses Deno.Command to spawn child processes with proper stdio configuration
  * for MCP server communication.
  */
@@ -79,7 +79,7 @@ export class DenoProcessManager implements ProcessManager {
       const denoOptions: Deno.CommandOptions = {
         args,
         stdin: "piped",
-        stdout: "piped", 
+        stdout: "piped",
         stderr: "piped",
       };
 

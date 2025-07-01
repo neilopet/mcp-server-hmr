@@ -1,13 +1,18 @@
 /**
  * MCP Proxy Class - Hot-reloadable MCP server proxy
- * 
+ *
  * Provides message buffering, server lifecycle management, and hot-reload capabilities
  * for MCP (Model Context Protocol) servers. Uses dependency injection for cross-platform
  * compatibility between Deno and Node.js environments.
  */
 
 import { debounce, type DebouncedFunction } from "std/async/debounce.ts";
-import type { ProcessManager, FileSystem, ManagedProcess, ProxyDependencies } from "./interfaces.ts";
+import type {
+  FileSystem,
+  ManagedProcess,
+  ProcessManager,
+  ProxyDependencies,
+} from "./interfaces.ts";
 
 interface Message {
   jsonrpc: string;
@@ -36,7 +41,7 @@ export interface MCPProxyConfig {
 
 /**
  * MCPProxy - A hot-reloadable proxy for MCP servers
- * 
+ *
  * Features:
  * - Message buffering during server restarts
  * - Initialize parameter capture and replay
@@ -55,7 +60,7 @@ export class MCPProxy {
   private initializeParams: unknown = null;
   private pendingRequests = new Map<number, (response: Message) => void>();
   private stdinForwardingStarted = false;
-  
+
   // Dependency injection
   private procManager: ProcessManager;
   private fs: FileSystem;
@@ -63,6 +68,7 @@ export class MCPProxy {
   private stdin: ReadableStream<Uint8Array>;
   private stdout: WritableStream<Uint8Array>;
   private stderr: WritableStream<Uint8Array>;
+  private exit: (code: number) => void;
 
   constructor(dependencies: ProxyDependencies, config: MCPProxyConfig) {
     this.procManager = dependencies.procManager;
@@ -70,8 +76,9 @@ export class MCPProxy {
     this.stdin = dependencies.stdin;
     this.stdout = dependencies.stdout;
     this.stderr = dependencies.stderr;
+    this.exit = dependencies.exit;
     this.config = config;
-    
+
     // Initialize restart function with config
     this.restart = debounce(async () => {
       console.error("\n🔄 File change detected, restarting server...");
@@ -253,7 +260,7 @@ export class MCPProxy {
       return; // Already started, don't start again
     }
     this.stdinForwardingStarted = true;
-    
+
     (async () => {
       const reader = this.stdin.getReader();
       const decoder = new TextDecoder();

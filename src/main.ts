@@ -97,7 +97,6 @@ if (entryFile) {
   console.error(`⚠️  No entry file detected - hot-reload disabled`);
 }
 
-
 // Create and start proxy with Deno implementations
 const proxy = new MCPProxy({
   procManager: new DenoProcessManager(),
@@ -105,13 +104,14 @@ const proxy = new MCPProxy({
   stdin: Deno.stdin.readable,
   stdout: Deno.stdout.writable,
   stderr: Deno.stderr.writable,
+  exit: (code: number) => Deno.exit(code),
 }, {
   command,
   commandArgs,
   entryFile,
   restartDelay,
   env: Deno.env.toObject(),
-  killDelay: 1000,  // Production timing
+  killDelay: 1000, // Production timing
   readyDelay: 2000, // Production timing
 });
 

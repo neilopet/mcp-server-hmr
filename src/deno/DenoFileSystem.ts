@@ -1,11 +1,11 @@
 /**
  * Deno implementation of FileSystem interface
- * 
+ *
  * Wraps Deno file system APIs to provide the FileSystem interface,
  * handling platform-specific details like file watching and error handling.
  */
 
-import { FileSystem, FileEvent, FileEventType } from "../interfaces.ts";
+import { FileEvent, FileEventType, FileSystem } from "../interfaces.ts";
 
 /**
  * Maps Deno FsEvent kinds to our FileEventType
@@ -26,18 +26,18 @@ function mapEventKind(kind: Deno.FsEvent["kind"]): FileEventType {
 
 /**
  * Deno implementation of FileSystem interface
- * 
+ *
  * Uses Deno.watchFs for file watching and Deno file APIs for I/O operations.
  */
 export class DenoFileSystem implements FileSystem {
   /**
    * Watch file system paths for changes using Deno.watchFs
    */
-  async* watch(paths: string[]): AsyncIterable<FileEvent> {
+  async *watch(paths: string[]): AsyncIterable<FileEvent> {
     try {
       // Deno.watchFs can accept multiple paths directly
       const watcher = Deno.watchFs(paths, { recursive: true });
-      
+
       for await (const event of watcher) {
         // Convert each path in the event to a FileEvent
         for (const path of event.paths) {
@@ -45,7 +45,7 @@ export class DenoFileSystem implements FileSystem {
             type: mapEventKind(event.kind),
             path: path,
           };
-          
+
           yield fileEvent;
         }
       }
@@ -90,7 +90,7 @@ export class DenoFileSystem implements FileSystem {
       }
     }
   }
-  
+
   /**
    * Check if a file or directory exists using Deno.stat
    */
@@ -106,7 +106,7 @@ export class DenoFileSystem implements FileSystem {
       throw new Error(`Failed to check if path exists '${path}': ${error.message}`);
     }
   }
-  
+
   /**
    * Copy a file from source to destination using Deno.copyFile
    */

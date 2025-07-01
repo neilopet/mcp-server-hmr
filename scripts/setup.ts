@@ -112,7 +112,7 @@ async function main() {
   await setupPath();
 
   const watchPath = resolve(PROJECT_DIR, "watch");
-  
+
   console.log("\n🎉 Setup complete!");
   console.log("\n📍 Full path to watch command:");
   console.log(`   ${watchPath}`);
