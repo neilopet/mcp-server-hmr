@@ -21,7 +21,6 @@ Thumbs.db
 *.swo
 
 # Build artifacts
-dist/
 build/
 
 # Deno cache

@@ -236,7 +236,7 @@ Then run: `npx @modelcontextprotocol/inspector --config config.json --server you
 
 ## Installation Options
 
-### Deno Users - Global Command Setup
+### Global Command Setup
 
 After cloning, run the setup task to add `watch` to your PATH:
 
@@ -251,25 +251,6 @@ watch --help
 watch --list
 watch --server my-server
 ```
-
-### Node.js Users - NPM Wrapper
-
-If you prefer npm/npx usage, build the Node.js wrapper:
-
-```bash
-# Build Node.js wrapper (requires Deno for building)
-deno task build:node
-
-# Install globally
-cd dist
-npm link  # Makes 'watch' command global
-
-# Use it the same way
-watch --help
-watch node /path/to/mcp-server.js
-```
-
-**Note:** The Node.js wrapper still requires Deno to be installed, as it calls Deno under the hood. This provides a familiar npm experience while leveraging Deno's superior subprocess and file watching capabilities.
 
 ### Manual Setup
 
@@ -287,7 +268,6 @@ Run `deno task <name>` for any of these:
 | Task              | Description                                      |
 | ----------------- | ------------------------------------------------ |
 | `setup`           | **Add 'watch' command to your PATH**            |
-| `build:node`      | **Build Node.js compatible version**             |
 | `dev`             | Run proxy in development mode with file watching |
 | `start`           | Run proxy in production mode                     |
 | `build`           | Cache dependencies and type-check the project    |
@@ -302,30 +282,10 @@ Run `deno task <name>` for any of these:
 | `test:integration`| Clean, build, then run integration tests only    |
 | `test:quick`      | Run tests without clean/build (fast iteration)   |
 
-## Node.js Compatibility
+## Requirements
 
-This project is written in Deno/TypeScript but provides a Node.js wrapper for npm users:
-
-```bash
-# Build Node.js wrapper
-deno task build:node
-
-# The build creates:
-# dist/watch         - Node.js wrapper script
-# dist/package.json  - NPM package manifest
-# dist/README.md     - Usage instructions
-
-# Install globally
-cd dist
-npm link
-watch --help
-```
-
-The Node.js wrapper:
-- Provides familiar npm/npx installation
-- Maintains full CLI compatibility
-- Requires Deno to be installed
-- Calls Deno under the hood for better performance
+- [Deno](https://deno.land/) 1.30 or higher
+- macOS, Linux, or Windows
 
 ## How It Works
 
