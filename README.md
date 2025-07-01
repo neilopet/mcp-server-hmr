@@ -51,35 +51,46 @@ npx @modelcontextprotocol/inspector \
 
 ### Method 2: Config File (Best for Multiple Servers)
 
-Ideal for managing multiple MCP servers:
+Ideal for managing multiple MCP servers. The config launcher automatically searches for configs in this order:
 
-1. Copy `mcpServers.example.json` to `mcpServers.json`
-2. Configure your servers:
-   ```json
-   {
-     "mcpServers": {
-       "my-server": {
-         "command": "node",
-         "args": ["dist/index.js"],
-         "cwd": "/path/to/project",
-         "env": {
-           "API_KEY": "your-key"
-         }
-       }
-     }
-   }
-   ```
-3. Launch with hot-reload:
-   ```bash
-   # Launch a specific server
-   ./src/config_launcher.ts --server my-server
+1. **Claude Code project config** (`.mcp.json` in current directory)
+2. **Claude Desktop config** (platform-specific):
+   - macOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+   - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+   - Linux: `~/.config/Claude/claude_desktop_config.json`
+3. **Current directory** (`./mcpServers.json`)
 
-   # List available servers
-   ./src/config_launcher.ts --list
+#### Basic Usage
 
-   # Use custom config file
-   ./src/config_launcher.ts -s my-server -c ~/my-mcp-config.json
-   ```
+```bash
+# Launch a server from any found config
+./src/config_launcher.ts --server my-server
+
+# List all available servers
+./src/config_launcher.ts --list
+
+# Use a specific config file
+./src/config_launcher.ts -s my-server -c ~/my-config.json
+```
+
+#### Config File Format
+
+All config files use the same format:
+
+```json
+{
+  "mcpServers": {
+    "my-server": {
+      "command": "node",
+      "args": ["dist/index.js"],
+      "cwd": "/path/to/project",
+      "env": {
+        "API_KEY": "your-key"
+      }
+    }
+  }
+}
+```
 
 ### Method 3: Environment Variables (Simple Single Server)
 

@@ -34,11 +34,54 @@ const args = parse(Deno.args, {
     config: "c",
     help: "h",
     list: "l"
-  },
-  default: {
-    config: "./mcpServers.json"
   }
 });
+
+// Helper function to find config file
+function findConfigFile(providedPath?: string): string | null {
+  // If path is provided, use it directly
+  if (providedPath) {
+    const resolvedPath = resolve(providedPath);
+    if (existsSync(resolvedPath)) {
+      return resolvedPath;
+    }
+    console.error(`❌ Config file not found: ${resolvedPath}`);
+    return null;
+  }
+
+  // Search in default locations
+  const searchPaths = [];
+  
+  // 1. Claude Code project config
+  const projectMcpPath = resolve(".mcp.json");
+  searchPaths.push(projectMcpPath);
+  
+  // 2. Claude Desktop config (platform-specific)
+  const home = Deno.env.get("HOME") || Deno.env.get("USERPROFILE") || "";
+  if (Deno.build.os === "darwin") {
+    searchPaths.push(resolve(home, "Library/Application Support/Claude/claude_desktop_config.json"));
+  } else if (Deno.build.os === "windows") {
+    const appData = Deno.env.get("APPDATA");
+    if (appData) {
+      searchPaths.push(resolve(appData, "Claude/claude_desktop_config.json"));
+    }
+  } else if (Deno.build.os === "linux") {
+    searchPaths.push(resolve(home, ".config/Claude/claude_desktop_config.json"));
+  }
+  
+  // 3. Current directory mcpServers.json
+  searchPaths.push(resolve("./mcpServers.json"));
+  
+  // Check each path
+  for (const path of searchPaths) {
+    if (existsSync(path)) {
+      console.log(`📋 Found config at: ${path}`);
+      return path;
+    }
+  }
+  
+  return null;
+}
 
 // Show help
 if (args.help || (!args.server && !args.list)) {
@@ -51,10 +94,17 @@ Usage:
   mcp-hmr --help
 
 Options:
-  -s, --server <name>    Name of the server to proxy from mcpServers.json
-  -c, --config <path>    Path to config file (default: ./mcpServers.json)
+  -s, --server <name>    Name of the server to proxy from config
+  -c, --config <path>    Path to config file (see below for defaults)
   -l, --list             List available servers in the config
   -h, --help             Show this help message
+
+Default Config Search Order:
+  1. .mcp.json (Claude Code project config)
+  2. ~/Library/Application Support/Claude/claude_desktop_config.json (macOS)
+     %APPDATA%\Claude\claude_desktop_config.json (Windows)
+     ~/.config/Claude/claude_desktop_config.json (Linux)
+  3. ./mcpServers.json (current directory)
 
 Examples:
   mcp-hmr --server channelape
@@ -74,11 +124,21 @@ The config file should be in the standard MCP servers format:
   Deno.exit(0);
 }
 
-// Load config file
-const configPath = resolve(args.config as string);
-if (!existsSync(configPath)) {
-  console.error(`❌ Config file not found: ${configPath}`);
-  console.error(`\nTry creating a mcpServers.json file or specify a different path with --config`);
+// Find and load config file
+const configPath = findConfigFile(args.config as string);
+if (!configPath) {
+  console.error(`\n❌ No config file found!`);
+  console.error(`\nSearched in:`);
+  console.error(`  1. .mcp.json (Claude Code project config)`);
+  if (Deno.build.os === "darwin") {
+    console.error(`  2. ~/Library/Application Support/Claude/claude_desktop_config.json`);
+  } else if (Deno.build.os === "windows") {
+    console.error(`  2. %APPDATA%\\Claude\\claude_desktop_config.json`);
+  } else {
+    console.error(`  2. ~/.config/Claude/claude_desktop_config.json`);
+  }
+  console.error(`  3. ./mcpServers.json`);
+  console.error(`\nYou can specify a custom path with --config <path>`);
   Deno.exit(1);
 }
 
@@ -175,6 +235,16 @@ if (watchFile) {
 // Log what we're about to do
 console.log(`🚀 Starting MCP Server HMR for '${serverName}'`);
 console.log(`📋 Config: ${configPath}`);
+
+// Show source of config
+if (configPath.endsWith('.mcp.json')) {
+  console.log(`📍 Source: Claude Code project config`);
+} else if (configPath.includes('Claude/claude_desktop_config.json')) {
+  console.log(`📍 Source: Claude Desktop config`);
+} else {
+  console.log(`📍 Source: Custom config file`);
+}
+
 console.log(`📟 Command: ${serverConfig.command} ${(serverConfig.args || []).join(" ")}`);
 if (serverConfig.cwd) console.log(`📁 Working Directory: ${serverConfig.cwd}`);
 if (watchFile) console.log(`👀 Watching: ${watchFile}`);
