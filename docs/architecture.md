@@ -87,8 +87,7 @@ interface FileSystem {
 
 **Platform Implementations:**
 
-- **Deno**: `DenoProcessManager`, `DenoFileSystem`
-- **Node.js**: `NodeProcessManager`, `NodeFileSystem` (future)
+- **Node.js**: `NodeProcessManager`, `NodeFileSystem`
 - **Mock**: `MockProcessManager`, `MockFileSystem` (testing)
 
 ### 3. Server Process Manager
@@ -97,7 +96,7 @@ Manages the lifecycle of the actual MCP server process:
 
 ```typescript
 class McpServerProcess {
-  private process: Deno.ChildProcess | null = null;
+  private process: ChildProcess | null = null;
   private startupTimeout: number = 30000;
   private shutdownTimeout: number = 10000;
 
@@ -116,18 +115,17 @@ class McpServerProcess {
 
 ### 4. File Watcher (`FileSystemWatcher`)
 
-Monitors source files for changes using Deno's built-in file system APIs:
+Monitors source files for changes using Node.js built-in file system APIs:
 
 ```typescript
 class FileWatcher {
-  private watcher: Deno.FsWatcher | null = null;
+  private watcher: fs.FSWatcher | null = null;
   private watchPath: string;
 
   async start() {
-    this.watcher = Deno.watchFs(this.watchPath);
-    for await (const event of this.watcher) {
-      this.handleFileEvent(event);
-    }
+    this.watcher = fs.watch(this.watchPath, (eventType, filename) => {
+      this.handleFileEvent({ type: eventType, path: filename });
+    });
   }
 }
 ```
@@ -284,12 +282,10 @@ save config.json  → timer resets (2s)
 
 1. **Spawn Process**
    ```typescript
-   const process = new Deno.Command(command, {
-     args: args,
-     stdin: "piped",
-     stdout: "piped",
-     stderr: "inherit",
-   }).spawn();
+   const process = spawn(command, args, {
+     stdio: ['pipe', 'pipe', 'inherit'],
+     env: environment
+   });
    ```
 
 2. **Wait for Ready Signal**

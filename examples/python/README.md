@@ -34,7 +34,7 @@ This example shows how to use MCP Hot-Reload with a Python-based MCP server.
 4. **Start the hot-reload proxy:**
    ```bash
    cd ../../../
-   deno task start
+   npm start
    ```
 
 ## Testing Hot-Reload
@@ -82,19 +82,8 @@ Try these changes to see hot-reload in action:
 {
   "mcpServers": {
     "python-example": {
-      "command": "deno",
-      "args": [
-        "run",
-        "--allow-env",
-        "--allow-read",
-        "--allow-run",
-        "/path/to/claude-live-reload/src/main.ts"
-      ],
-      "env": {
-        "MCP_SERVER_COMMAND": "python",
-        "MCP_SERVER_ARGS": "/path/to/claude-live-reload/examples/python/server.py",
-        "MCP_WATCH_FILE": "/path/to/claude-live-reload/examples/python/server.py"
-      }
+      "command": "mcp-hmr",
+      "args": ["python", "/path/to/claude-live-reload/examples/python/server.py"]
     }
   }
 }

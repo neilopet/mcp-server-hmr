@@ -82,7 +82,7 @@ MCP_SERVER_ARGS="/path/to/my-mcp-server.js"
 
 ```bash
 cd mcp-server-hmr
-deno task dev
+npm run dev
 ```
 
 You should see:
@@ -123,18 +123,8 @@ Update your Claude Desktop config:
 {
   "mcpServers": {
     "my-server": {
-      "command": "deno",
-      "args": [
-        "run",
-        "--allow-env",
-        "--allow-read",
-        "--allow-run",
-        "/path/to/mcp-server-hmr/src/main.ts"
-      ],
-      "env": {
-        "MCP_SERVER_COMMAND": "node",
-        "MCP_SERVER_ARGS": "/path/to/my-mcp-server.js"
-      }
+      "command": "mcp-hmr",
+      "args": ["node", "/path/to/my-mcp-server.js"]
     }
   }
 }

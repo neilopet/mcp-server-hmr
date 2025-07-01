@@ -14,7 +14,7 @@ This document provides comprehensive information about the MCP Hot-Reload test s
 
 ## Test Architecture
 
-The test suite uses **dependency injection with mock implementations** to provide reliable, fast behavioral testing alongside integration tests using the **Model Context Protocol (MCP) Client and Server SDK**.
+The test suite uses **dependency injection with mock implementations** to provide reliable, fast behavioral testing alongside integration tests using Jest and real MCP client/server communication.
 
 ### Key Principles
 
@@ -139,12 +139,11 @@ await waitForStable(100); // Replaces setTimeout patterns
 ### Behavioral Test Template
 
 ```typescript
-import { setupProxyTest, simulateRestart } from "./test_helper.ts";
-import { assertEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
+import { setupProxyTest, simulateRestart } from "./test_helper.js";
+import { describe, it, expect } from '@jest/globals';
 
-Deno.test({
-  name: "Feature - specific behavior description",
-  async fn() {
+describe('Test Suite', () => {
+  it('Feature - specific behavior description', async () => {
     const { proxy, procManager, fs, teardown } = setupProxyTest({
       restartDelay: 100, // Configure test timing
     });
@@ -158,14 +157,12 @@ Deno.test({
       await simulateRestart(procManager, fs);
 
       // Assert
-      assertEquals(procManager.getSpawnCallCount(), 2);
-      assertEquals(initialProcess.killCalls.length, 1);
+      expect(procManager.getSpawnCallCount()).toBe(2);
+      expect(initialProcess.killCalls.length).toBe(1);
     } finally {
       await teardown(); // Always clean up
     }
-  },
-  sanitizeOps: false,
-  sanitizeResources: false,
+  });
 });
 ```
 
@@ -217,27 +214,26 @@ await proxy.start();
 ### All Tests
 
 ```bash
-deno task test
+npm test
 ```
 
 ### Specific Test Suites
 
 ```bash
-deno task test:unit        # Unit and behavioral tests
-deno task test:integration # E2E integration tests
+npm run test:unit        # Unit and behavioral tests
+npm run test:integration # E2E integration tests
 ```
 
 ### Development Mode
 
 ```bash
-deno task test:watch       # Watch mode for TDD
-deno task test:quick       # Skip clean/build steps
+npm run test:watch       # Watch mode for TDD
 ```
 
 ### Coverage Report
 
 ```bash
-deno task test:coverage
+npm run test:coverage
 ```
 
 ## Test Coverage
@@ -246,13 +242,13 @@ We maintain >80% coverage on core logic:
 
 - `src/proxy.ts` - MCPProxy class
 - `src/config_launcher.ts` - Config management
-- Platform implementations (Deno/Node)
+- Platform implementations (Node.js)
 
 ### Viewing Coverage
 
 ```bash
-deno task test:coverage
-# Open coverage/html/index.html in browser
+npm run test:coverage
+# Open coverage/lcov-report/index.html in browser
 ```
 
 ## MCP Protocol Testing

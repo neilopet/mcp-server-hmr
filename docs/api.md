@@ -16,17 +16,17 @@ MCP Hot-Reload provides both programmatic APIs and command-line interfaces for h
 
 ```bash
 # Start with environment variables
-deno task start
+npm start
 
 # Start with explicit configuration
-deno run --allow-env --allow-read --allow-run src/main.ts
+mcp-hmr node my-server.js
 ```
 
 ### Configuration Launcher
 
 ```bash
 # Use configuration file
-deno run --allow-env --allow-read --allow-run src/config_launcher.ts config.json
+mcp-hmr --config config.json --server my-server
 ```
 
 Example `config.json`:
@@ -62,7 +62,7 @@ Example `config.json`:
 
 ## Programmatic API
 
-### Main Module (`src/mod.ts`)
+### Main Module (`src/index.ts`)
 
 ```typescript
 import { createHotReloadProxy } from "@neilopet/mcp-server-hmr";
@@ -281,20 +281,8 @@ MCP_LOG_LEVEL=error
 {
   "mcpServers": {
     "my-dev-server": {
-      "command": "deno",
-      "args": [
-        "run",
-        "--allow-env",
-        "--allow-read",
-        "--allow-run",
-        "/path/to/claude-live-reload/src/main.ts"
-      ],
-      "env": {
-        "MCP_SERVER_COMMAND": "node",
-        "MCP_SERVER_ARGS": "/path/to/my-server.js",
-        "MCP_WATCH_FILE": "/path/to/my-server.js",
-        "MCP_LOG_LEVEL": "info"
-      }
+      "command": "mcp-hmr",
+      "args": ["node", "/path/to/my-server.js"]
     }
   }
 }
@@ -303,24 +291,26 @@ MCP_LOG_LEVEL=error
 ### Docker Integration
 
 ```dockerfile
-FROM denoland/deno:alpine
+FROM node:18-alpine
 
 COPY . /app
 WORKDIR /app
+
+RUN npm install -g mcp-server-hmr
 
 ENV MCP_SERVER_COMMAND=node
 ENV MCP_SERVER_ARGS=server.js
 ENV MCP_WATCH_FILE=server.js
 
-CMD ["deno", "task", "start"]
+CMD ["npm", "start"]
 ```
 
 ### CI/CD Testing
 
 ```bash
 # Test configuration without starting
-deno run --allow-env --allow-read src/config_launcher.ts --validate-only config.json
+mcp-hmr --config config.json --validate-only
 
 # Test server startup without hot-reload
-MCP_DEBOUNCE_MS=0 deno task start
+MCP_DEBOUNCE_MS=0 npm start
 ```

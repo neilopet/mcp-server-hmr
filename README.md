@@ -1,9 +1,9 @@
 # MCP Hot-Reload
 
-[![Deno](https://img.shields.io/badge/deno-1.40+-black?logo=deno&logoColor=white)](https://deno.land/)
+[![Node.js](https://img.shields.io/badge/node.js-18+-green?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](./tests/)
-[![Code Style](https://img.shields.io/badge/code%20style-deno%20fmt-blue.svg)](https://deno.land/manual/tools/formatter)
+[![Code Style](https://img.shields.io/badge/code%20style-prettier-blue.svg)](https://prettier.io/)
 
 A development proxy for MCP (Model Context Protocol) servers that enables hot-reload functionality. Make changes to your MCP server code and see them instantly without restarting your MCP client.
 
@@ -20,22 +20,20 @@ MCP Hot-Reload is a **transparent proxy** that sits between your MCP client (Cla
 
 ## Quick Start
 
-1. **Clone and set up the repository**:
+1. **Install globally**:
    ```bash
-   git clone https://github.com/neilopet/mcp-server-hmr
-   cd mcp-server-hmr
-   deno task setup
+   npm install -g mcp-server-hmr
    ```
 
-   The setup command will display the full path to the proxy executable, which you'll need for step 3.
+   This installs the `mcp-hmr` and `mcp-watch` commands globally on your system.
 
 2. **Configure automatic hot-reload for your MCP server**:
    ```bash
    # If you have servers in Claude Desktop config:
-   watch --setup my-server
+   mcp-hmr --setup my-server
 
    # Or set up all stdio servers at once:
-   watch --setup --all
+   mcp-hmr --setup --all
    ```
 
    This modifies your MCP client configuration to use the hot-reload proxy.
@@ -54,20 +52,20 @@ Run your MCP server through the hot-reload proxy:
 
 ```bash
 # Node.js server
-watch node /path/to/your/mcp-server.js
+mcp-hmr node /path/to/your/mcp-server.js
 
 # Python server
-watch python -m mcp_server
+mcp-hmr python -m mcp_server
 
 # Deno server
-watch deno run --allow-all server.ts
+mcp-hmr deno run --allow-all server.ts
 
 # With environment variables
-watch -e API_KEY="your-key" node server.js
+mcp-hmr -e API_KEY="your-key" node server.js
 
 # Use with MCP Inspector
 npx @modelcontextprotocol/inspector \
-  "watch" \
+  "mcp-hmr" \
   "node" "/path/to/your/mcp-server.js"
 ```
 
@@ -86,17 +84,17 @@ Ideal for managing multiple MCP servers. The config launcher automatically searc
 
 ```bash
 # Launch a server from any found config
-watch --server my-server
+mcp-hmr --server my-server
 
 # List all available servers
-watch --list
+mcp-hmr --list
 
 # Use a specific config file
-watch -s my-server -c ~/my-config.json
+mcp-hmr -s my-server -c ~/my-config.json
 
 # Auto-configure servers for hot-reload
-watch --setup my-server     # Setup specific server
-watch --all                 # Setup all stdio servers
+mcp-hmr --setup my-server     # Setup specific server
+mcp-hmr --setup --all         # Setup all stdio servers
 ```
 
 #### Auto-Setup Feature
@@ -126,7 +124,7 @@ Example transformation:
 {
   "mcpServers": {
     "my-server": {
-      "command": "/path/to/mcp-server-hmr/src/main.ts",
+      "command": "mcp-hmr",
       "args": ["node", "dist/index.js"],
       "env": { "API_KEY": "key" }
     },
@@ -170,7 +168,7 @@ For single-server setups without modifying client configs:
    MCP_WATCH_FILE="/path/to/watch.js"  # Optional, auto-detected if not set
    MCP_RESTART_DELAY="300"             # Optional, milliseconds
    ```
-3. Run: `deno task start`
+3. Run: `npm start`
 
 ## How It Works
 
@@ -189,10 +187,10 @@ MCP Client → Hot-Reload Proxy → Your MCP Server
 
 ### Architecture
 
-The hot-reload proxy uses **dependency injection** for improved testability and future Node.js compatibility:
+The hot-reload proxy uses **dependency injection** for improved testability and cross-platform compatibility:
 
 - **Platform-agnostic interfaces**: `ProcessManager` and `FileSystem` abstract platform-specific operations
-- **Deno implementations**: `DenoProcessManager` and `DenoFileSystem` provide current Deno runtime support
+- **Node.js implementations**: `NodeProcessManager` and `NodeFileSystem` provide Node.js runtime support
 - **Mock implementations**: Enable comprehensive behavioral testing without external dependencies
 - **I/O stream abstraction**: Handles stdin/stdout/stderr through configurable streams
 - **Process lifecycle management**: Configurable timing for graceful shutdowns and startup delays
@@ -207,7 +205,7 @@ Edit your Claude Desktop configuration (`~/Library/Application Support/Claude/cl
 {
   "mcpServers": {
     "my-server-hmr": {
-      "command": "/path/to/mcp-server-hmr/src/config_launcher.ts",
+      "command": "mcp-hmr",
       "args": ["--server", "my-server", "--config", "/path/to/mcpServers.json"]
     }
   }
@@ -220,7 +218,7 @@ Edit your Claude Desktop configuration (`~/Library/Application Support/Claude/cl
 {
   "mcpServers": {
     "my-server-hmr": {
-      "command": "/path/to/mcp-server-hmr/src/main.ts",
+      "command": "mcp-hmr",
       "args": ["node", "/path/to/your/mcp-server.js"],
       "env": {
         "API_KEY": "your-key"
@@ -236,9 +234,8 @@ Edit your Claude Desktop configuration (`~/Library/Application Support/Claude/cl
 {
   "mcpServers": {
     "your-server": {
-      "command": "deno",
-      "args": ["task", "start"],
-      "cwd": "/path/to/mcp-server-hmr",
+      "command": "mcp-hmr",
+      "args": [],
       "env": {
         "MCP_SERVER_COMMAND": "node",
         "MCP_SERVER_ARGS": "/path/to/your/server.js"
@@ -256,7 +253,7 @@ Create a config file for MCP Inspector:
 {
   "mcpServers": {
     "your-server": {
-      "command": "/path/to/mcp-server-hmr/src/main.ts",
+      "command": "mcp-hmr",
       "args": [],
       "env": {
         "MCP_SERVER_COMMAND": "node",
@@ -273,55 +270,54 @@ Then run: `npx @modelcontextprotocol/inspector --config config.json --server you
 
 ### Global Command Setup
 
-After cloning, run the setup task to add `watch` to your PATH:
+After installing globally with npm, the commands are automatically available:
 
 ```bash
-deno task setup
-source ~/.bashrc  # or ~/.zshrc, ~/.bash_profile
+npm install -g mcp-server-hmr
 ```
 
-This allows you to use `watch` from anywhere:
+This allows you to use `mcp-hmr` and `mcp-watch` from anywhere:
 
 ```bash
-watch --help
-watch --list
-watch --server my-server
+mcp-hmr --help
+mcp-hmr --list
+mcp-hmr --server my-server
 ```
 
-### Manual Setup
+### Development Setup
 
-If you prefer not to modify your PATH, you can always use the full paths:
+For development, you can clone the repository and use npm link:
 
 ```bash
-./src/main.ts                 # Direct hot-reload proxy
-./src/config_launcher.ts      # Config-based launcher
-./watch                       # Wrapper script
+git clone https://github.com/neilopet/mcp-server-hmr
+cd mcp-server-hmr
+npm install
+npm run build
+npm link
 ```
 
-## Available Tasks
+## Available Scripts
 
-Run `deno task <name>` for any of these:
+Run `npm run <name>` for any of these:
 
-| Task               | Description                                      |
+| Script             | Description                                      |
 | ------------------ | ------------------------------------------------ |
-| `setup`            | **Add 'watch' command to your PATH**             |
-| `dev`              | Run proxy in development mode with file watching |
 | `start`            | Run proxy in production mode                     |
-| `build`            | Cache dependencies and type-check the project    |
-| `clean`            | Remove generated files and refresh cache         |
-| `lint`             | Check code style                                 |
-| `format`           | Format code                                      |
-| `check`            | Type check the code                              |
-| `test`             | Clean, build, then run all tests                 |
-| `test:watch`       | Run tests in watch mode (no clean/build)         |
-| `test:coverage`    | Clean, build, then generate coverage report      |
-| `test:unit`        | Clean, build, then run unit tests only           |
-| `test:integration` | Clean, build, then run integration tests only    |
-| `test:quick`       | Run tests without clean/build (fast iteration)   |
+| `dev`              | Run proxy in development mode with file watching |
+| `build`            | Compile TypeScript to JavaScript                |
+| `clean`            | Remove generated files                           |
+| `lint`             | Check code style with ESLint                    |
+| `format`           | Format code with Prettier                       |
+| `typecheck`        | Type check the code with TypeScript             |
+| `test`             | Build then run all tests                        |
+| `test:watch`       | Run tests in watch mode                         |
+| `test:coverage`    | Generate coverage report                         |
+| `test:unit`        | Run unit tests only                             |
+| `test:integration` | Run integration tests only                      |
 
 ## Requirements
 
-- [Deno](https://deno.land/) 1.30 or higher
+- [Node.js](https://nodejs.org/) 18 or higher
 - macOS, Linux, or Windows
 
 ## How It Works
@@ -350,13 +346,13 @@ All logs are written to **stderr** (not stdout) to avoid interfering with MCP pr
 
 ```bash
 # View logs in real-time
-deno task dev 2>&1 | tee mcp-hmr.log
+npm run dev 2>&1 | tee mcp-hmr.log
 
 # Save logs to file
-deno task start 2>debug.log
+npm start 2>debug.log
 
 # View logs with timestamps
-deno task dev 2>&1 | ts '[%Y-%m-%d %H:%M:%S]'
+npm run dev 2>&1 | ts '[%Y-%m-%d %H:%M:%S]'
 ```
 
 ### Log Messages
@@ -399,17 +395,17 @@ The project includes a comprehensive test suite with both behavioral and integra
 
 ```bash
 # Run all tests
-deno task test
+npm test
 
 # Run tests in watch mode during development
-deno task test:watch
+npm run test:watch
 
 # Generate coverage report
-deno task test:coverage
+npm run test:coverage
 
 # Run specific test suites
-deno task test:unit        # Core functionality tests
-deno task test:integration # E2E and complex scenario tests
+npm run test:unit        # Core functionality tests
+npm run test:integration # E2E and complex scenario tests
 ```
 
 ### Test Architecture
@@ -432,29 +428,29 @@ Having issues? Check the [Troubleshooting Guide](TROUBLESHOOTING.md) for solutio
 
 ## Security
 
-This tool requires several Deno permissions:
+This tool requires standard Node.js permissions:
 
-- `--allow-env`: Read environment variables for configuration
-- `--allow-read`: Read files to watch for changes
-- `--allow-run`: Execute your MCP server process
-- `--allow-net`: Forward network connections (if your server uses them)
+- **File system access**: Read files to watch for changes
+- **Process execution**: Execute your MCP server process
+- **Environment variables**: Read configuration from environment
+- **Network access**: Forward network connections (if your server uses them)
 
-These permissions are defined in `deno.jsonc` and are necessary for the proxy to function.
+These are standard Node.js capabilities and don't require special permission flags.
 
 ---
 
 ### For AI Assistants
 
-This is a **Deno project**. Do not use Node.js, npm, or yarn commands.
+This is a **Node.js project**. Use npm commands.
 
-- **Configuration**: All tasks and dependencies are in `deno.jsonc`
-- **Run the project**: `deno task dev`
-- **Run tests**: `deno task test`
-- **Format code**: `deno task format`
-- **Entry point**: `src/main.ts`
+- **Configuration**: Dependencies and scripts are in `package.json`
+- **Run the project**: `npm run dev`
+- **Run tests**: `npm test`
+- **Format code**: `npm run format`
+- **Entry point**: `dist/cli.js` (compiled from `src/cli.ts`)
 - **Environment**: Copy `.env.example` to `.env` and configure
 
-**Dependencies**: Managed via import maps in `deno.jsonc`. No `package.json` or `node_modules`.
+**Dependencies**: Managed via npm in `package.json` with `node_modules`.
 
 ---
 
@@ -463,7 +459,7 @@ This is a **Deno project**. Do not use Node.js, npm, or yarn commands.
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Run `deno task format` and `deno task lint`
+4. Run `npm run format` and `npm run lint`
 5. Submit a pull request
 
 ## License

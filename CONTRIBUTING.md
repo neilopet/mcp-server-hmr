@@ -12,7 +12,7 @@ We welcome contributions from everyone, regardless of experience level. This gui
 - If not, [create a new issue](https://github.com/neilopet/claude-live-reload/issues/new) with:
   - Steps to reproduce
   - Expected vs actual behavior
-  - Your environment (OS, Deno version)
+  - Your environment (OS, Node.js version)
   - MCP server configuration (if applicable)
 
 ### 💡 Have an Idea?
@@ -33,7 +33,8 @@ We welcome contributions from everyone, regardless of experience level. This gui
 
 ### Prerequisites
 
-- Deno 1.40+ ([install guide](https://deno.land/manual/getting_started/installation))
+- Node.js 18+ ([install guide](https://nodejs.org/))
+- npm (comes with Node.js)
 - Git
 - A test MCP server for development (we provide examples)
 
@@ -44,25 +45,33 @@ We welcome contributions from everyone, regardless of experience level. This gui
 git clone https://github.com/YOUR_USERNAME/claude-live-reload.git
 cd claude-live-reload
 
-# 2. Run tests to verify setup
-deno task test
+# 2. Install dependencies
+npm install
 
-# 3. Start development
-deno task dev
+# 3. Build the project
+npm run build
+
+# 4. Run tests to verify setup
+npm test
+
+# 5. Start development
+npm run dev
 ```
 
 ### Project Structure
 
 ```
 src/
-├── main.ts            # Main hot-reload proxy
+├── cli.ts             # Main CLI entry point
 ├── proxy.ts           # MCPProxy core implementation
 ├── config_launcher.ts # Config-based launcher
 ├── interfaces.ts      # Platform-agnostic interfaces
-├── deno/              # Deno-specific implementations
-│   ├── DenoProcessManager.ts
-│   └── DenoFileSystem.ts
-└── mod.ts             # Module exports
+├── node/              # Node.js-specific implementations
+│   ├── NodeProcessManager.ts
+│   └── NodeFileSystem.ts
+└── index.ts           # Module exports
+
+dist/                  # Compiled JavaScript output
 
 tests/
 ├── behavior/          # Platform-agnostic behavioral tests
@@ -92,20 +101,23 @@ git checkout -b docs/update-examples
 
 ### 2. Code Standards
 
-We use Deno's built-in tooling for code quality:
+We use standard Node.js tooling for code quality:
 
 ```bash
 # Format your code
-deno fmt
+npm run format
 
 # Lint your code
-deno lint
+npm run lint
 
 # Type check
-deno check src/mod.ts src/main.ts
+npm run typecheck
+
+# Build the project
+npm run build
 
 # Run all quality checks
-deno task prebuild
+npm run build && npm run lint
 ```
 
 **Code Style Guidelines:**
@@ -114,7 +126,7 @@ deno task prebuild
 - Write descriptive variable and function names
 - Add JSDoc comments for public APIs
 - Keep functions focused and testable
-- Follow Deno conventions
+- Follow Node.js and TypeScript conventions
 
 ### 3. Testing Requirements
 
@@ -122,14 +134,14 @@ All changes must include appropriate tests:
 
 ```bash
 # Run all tests
-deno task test
+npm test
 
 # Run specific test categories
-deno task test:unit        # Unit tests only
-deno task test:integration # Integration tests only
+npm run test:unit        # Unit tests only
+npm run test:integration # Integration tests only
 
 # Run tests with coverage
-deno task test:coverage
+npm run test:coverage
 ```
 
 **Testing Guidelines:**
@@ -145,11 +157,11 @@ deno task test:coverage
 For platform-agnostic behavioral tests, use the test helper pattern:
 
 ```typescript
-import { setupProxyTest, simulateRestart } from "./test_helper.ts";
+import { setupProxyTest, simulateRestart } from "./test_helper.js";
+import { describe, it, expect } from '@jest/globals';
 
-Deno.test({
-  name: "Feature - specific behavior description",
-  async fn() {
+describe('Test Suite', () => {
+  it('Feature - specific behavior description', async () => {
     const { proxy, procManager, fs, teardown } = setupProxyTest({
       restartDelay: 100, // Configure test timing
     });
@@ -159,11 +171,11 @@ Deno.test({
       await simulateRestart(procManager, fs);
 
       // Test assertions
-      assertEquals(procManager.getSpawnCallCount(), 2);
+      expect(procManager.getSpawnCallCount()).toBe(2);
     } finally {
       await teardown(); // Always clean up
     }
-  },
+  });
 });
 ```
 
@@ -207,7 +219,7 @@ git commit -m "test: add e2e tests for config launcher"
    MCP_SERVER_ARGS=tests/fixtures/mcp_server_v1.js
    MCP_WATCH_FILE=tests/fixtures/mcp_server_v1.js
    ```
-3. Run: `deno task start` to test manually
+3. Run: `npm start` to test manually
 
 ### Debugging
 
@@ -225,9 +237,10 @@ git commit -m "test: add e2e tests for config launcher"
 
 ### 1. Before Submitting
 
-- [ ] Tests pass (`deno task test`)
-- [ ] Code is formatted (`deno fmt`)
-- [ ] Code is linted (`deno lint`)
+- [ ] Tests pass (`npm test`)
+- [ ] Code is formatted (`npm run format`)
+- [ ] Code is linted (`npm run lint`)
+- [ ] Code compiles (`npm run build`)
 - [ ] Documentation is updated
 - [ ] CHANGELOG.md is updated (if applicable)
 

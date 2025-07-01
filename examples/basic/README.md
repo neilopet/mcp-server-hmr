@@ -18,7 +18,7 @@ This example demonstrates the simplest possible setup for MCP Hot-Reload with a 
 2. **Start the hot-reload proxy:**
    ```bash
    cd ../../../
-   deno task start
+   npm start
    ```
 
 3. **Test hot-reload:**
@@ -53,19 +53,8 @@ Add this to your Claude Desktop configuration:
 {
   "mcpServers": {
     "basic-example": {
-      "command": "deno",
-      "args": [
-        "run",
-        "--allow-env",
-        "--allow-read",
-        "--allow-run",
-        "/path/to/claude-live-reload/src/main.ts"
-      ],
-      "env": {
-        "MCP_SERVER_COMMAND": "node",
-        "MCP_SERVER_ARGS": "/path/to/claude-live-reload/examples/basic/server.js",
-        "MCP_WATCH_FILE": "/path/to/claude-live-reload/examples/basic/server.js"
-      }
+      "command": "mcp-hmr",
+      "args": ["node", "/path/to/claude-live-reload/examples/basic/server.js"]
     }
   }
 }
