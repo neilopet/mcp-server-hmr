@@ -7,7 +7,7 @@
  * that new servers have the same capabilities and configuration as the original.
  */
 
-import { describe, it, expect } from '@jest/globals';
+import { describe, it, expect } from "@jest/globals";
 import { setupProxyTest, simulateRestart, waitForStable } from "./test_helper.js";
 
 interface MCPInitializeParams {
@@ -25,9 +25,8 @@ interface MCPInitializeParams {
   };
 }
 
-describe('Test Suite', () => {
-  it('Initialization replay - captures and replays initialize params', async () => {
-  
+describe("Test Suite", () => {
+  it("Initialization replay - captures and replays initialize params", async () => {
     const watchFile = "/test/server.js";
     const { proxy, procManager, fs, teardown } = setupProxyTest({
       entryFile: watchFile,
@@ -41,7 +40,7 @@ describe('Test Suite', () => {
 
       const initialProcess = procManager.getLastSpawnedProcess();
       expect(initialProcess).toBeTruthy(); // Should spawn initial process
-      if (!initialProcess) throw new Error('Initial process should exist');
+      if (!initialProcess) throw new Error("Initial process should exist");
 
       // Simulate the proxy capturing initialization params
       // In the real implementation, this would come from the MCP client
@@ -84,7 +83,7 @@ describe('Test Suite', () => {
       expect(procManager.getSpawnCallCount()).toBe(2); // Should spawn new server
       const newProcess = procManager.getLastSpawnedProcess();
       expect(newProcess).toBeTruthy(); // Should have new process
-      if (!newProcess) throw new Error('New process should exist');
+      if (!newProcess) throw new Error("New process should exist");
       expect(newProcess.pid).not.toBe(initialPid); // Should be different process
 
       // The new process should receive initialization replay
@@ -111,12 +110,10 @@ describe('Test Suite', () => {
       await teardown();
     }
   });
-  
 });
 
-describe('Test Suite', () => {
-  it('Initialization replay - handles missing initialize params gracefully', async () => {
-  
+describe("Test Suite", () => {
+  it("Initialization replay - handles missing initialize params gracefully", async () => {
     const watchFile = "/test/server.js";
     const { proxy, procManager, fs, teardown } = setupProxyTest({
       entryFile: watchFile,
@@ -130,7 +127,7 @@ describe('Test Suite', () => {
 
       const initialProcess = procManager.getLastSpawnedProcess();
       expect(initialProcess).toBeTruthy(); // Should spawn initial process
-      if (!initialProcess) throw new Error('Initial process should exist');
+      if (!initialProcess) throw new Error("Initial process should exist");
 
       // Don't send any initialize message to initial process
       // This simulates a restart happening before client initialization
@@ -142,7 +139,7 @@ describe('Test Suite', () => {
       expect(procManager.getSpawnCallCount()).toBe(2); // Should spawn new server even without captured params
       const newProcess = procManager.getLastSpawnedProcess();
       expect(newProcess).toBeTruthy(); // Should have new process
-      if (!newProcess) throw new Error('New process should exist');
+      if (!newProcess) throw new Error("New process should exist");
 
       // The proxy should handle missing initialize params gracefully
       // New server should start but won't receive replayed initialization
@@ -150,12 +147,10 @@ describe('Test Suite', () => {
       await teardown();
     }
   });
-  
 });
 
-describe('Test Suite', () => {
-  it('Initialization replay - preserves client capabilities across restarts', async () => {
-  
+describe("Test Suite", () => {
+  it("Initialization replay - preserves client capabilities across restarts", async () => {
     const watchFile = "/test/server.js";
     const { proxy, procManager, fs, teardown } = setupProxyTest({
       entryFile: watchFile,
@@ -169,7 +164,7 @@ describe('Test Suite', () => {
 
       const initialProcess = procManager.getLastSpawnedProcess();
       expect(initialProcess).toBeTruthy(); // Should spawn initial process
-      if (!initialProcess) throw new Error('Initial process should exist');
+      if (!initialProcess) throw new Error("Initial process should exist");
 
       // Simulate initialization with specific capabilities
       const initResponse = {
@@ -196,7 +191,7 @@ describe('Test Suite', () => {
       expect(procManager.getSpawnCallCount()).toBe(2); // Should spawn new server
       const newProcess = procManager.getLastSpawnedProcess();
       expect(newProcess).toBeTruthy(); // Should have new process
-      if (!newProcess) throw new Error('New process should exist');
+      if (!newProcess) throw new Error("New process should exist");
 
       // The new server should receive the same capabilities
       // This ensures consistent client-server negotiation across restarts
@@ -225,12 +220,10 @@ describe('Test Suite', () => {
       await teardown();
     }
   });
-  
 });
 
-describe('Test Suite', () => {
-  it('Initialization replay - handles initialization timeout gracefully', async () => {
-  
+describe("Test Suite", () => {
+  it("Initialization replay - handles initialization timeout gracefully", async () => {
     const watchFile = "/test/server.js";
     const { proxy, procManager, fs, teardown } = setupProxyTest({
       entryFile: watchFile,
@@ -244,7 +237,7 @@ describe('Test Suite', () => {
 
       const initialProcess = procManager.getLastSpawnedProcess();
       expect(initialProcess).toBeTruthy(); // Should spawn initial process
-      if (!initialProcess) throw new Error('Initial process should exist');
+      if (!initialProcess) throw new Error("Initial process should exist");
 
       // Simulate initial server being ready
       initialProcess.simulateStdout('{"jsonrpc":"2.0","id":1,"result":{}}\n');
@@ -254,7 +247,7 @@ describe('Test Suite', () => {
 
       const newProcess = procManager.getLastSpawnedProcess();
       expect(newProcess).toBeTruthy(); // Should have new process
-      if (!newProcess) throw new Error('New process should exist');
+      if (!newProcess) throw new Error("New process should exist");
 
       // Don't simulate new server responding to initialization
       // This tests timeout handling in the proxy
@@ -268,5 +261,4 @@ describe('Test Suite', () => {
       await teardown();
     }
   });
-  
 });

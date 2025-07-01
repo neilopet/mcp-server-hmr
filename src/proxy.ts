@@ -19,10 +19,7 @@ type DebouncedFunction<T extends (...args: any[]) => any> = T & {
   flush(): void;
 };
 
-function debounce<T extends (...args: any[]) => any>(
-  fn: T,
-  delay: number
-): DebouncedFunction<T> {
+function debounce<T extends (...args: any[]) => any>(fn: T, delay: number): DebouncedFunction<T> {
   let timeoutId: NodeJS.Timeout | undefined;
   let latestArgs: Parameters<T>;
 
@@ -290,7 +287,7 @@ export class MCPProxy {
       process.kill(pid, 0);
       // If we get here, process still exists
       console.error(`⚠️  Process ${pid} still running, forcing kill...`);
-      process.kill(pid, 'SIGKILL');
+      process.kill(pid, "SIGKILL");
     } catch {
       // Process doesn't exist, which is what we want
     }
@@ -335,7 +332,7 @@ export class MCPProxy {
                   console.error(
                     `📦 Buffered message during restart: ${
                       message.method || `response ${message.id}`
-                    }`,
+                    }`
                   );
                 } else if (this.managedProcess) {
                   // Forward to server
@@ -435,7 +432,8 @@ export class MCPProxy {
 
       if (this.managedProcess) {
         const writer = this.managedProcess.stdin.getWriter();
-        writer.write(new TextEncoder().encode(JSON.stringify(request) + "\n"))
+        writer
+          .write(new TextEncoder().encode(JSON.stringify(request) + "\n"))
           .then(() => writer.releaseLock())
           .catch((error) => {
             this.pendingRequests.delete(id);

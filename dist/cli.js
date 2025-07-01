@@ -193,7 +193,7 @@ program
     .option("--all", "Setup all stdio servers (with --setup)")
     .helpOption("-h, --help", "Show this help message");
 // Custom help text
-program.addHelpText('after', `
+program.addHelpText("after", `
 Default Config Search Order:
   1. .mcp.json (Claude Code project config)
   2. ~/Library/Application Support/Claude/claude_desktop_config.json (macOS)
@@ -323,7 +323,8 @@ program.action(async (options) => {
                     }
                 }
             } // For Python servers
-            else if ((serverConfig.command === "python" || serverConfig.command === "python3") && firstArg) {
+            else if ((serverConfig.command === "python" || serverConfig.command === "python3") &&
+                firstArg) {
                 watchFile = resolve(serverConfig.cwd || ".", firstArg);
             }
         }

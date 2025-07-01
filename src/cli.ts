@@ -89,7 +89,7 @@ async function findConfigFile(fs: FileSystem, providedPath?: string): Promise<st
   const home = process.env.HOME || process.env.USERPROFILE || "";
   if (process.platform === "darwin") {
     searchPaths.push(
-      resolve(home, "Library/Application Support/Claude/claude_desktop_config.json"),
+      resolve(home, "Library/Application Support/Claude/claude_desktop_config.json")
     );
   } else if (process.platform === "win32") {
     const appData = process.env.APPDATA;
@@ -120,7 +120,7 @@ async function setupHotReload(
   config: MCPServersConfig,
   configPath: string,
   serverName: string | boolean,
-  setupAll: boolean,
+  setupAll: boolean
 ) {
   console.log(`🔧 Setting up hot-reload proxy...`);
   console.log(`📋 Config: ${configPath}`);
@@ -172,7 +172,7 @@ async function setupHotReload(
 
   // Get the absolute path to our tools
   const cliPath = resolve(__dirname, "../dist/cli.js");
-  
+
   // Replace each server with hot-reload version
   const newConfig = { ...config };
   const modifiedServers: string[] = [];
@@ -205,7 +205,7 @@ async function setupHotReload(
       console.log(`   - ${serverName} → ${cliPath}`);
     }
     console.log(
-      `\n⚠️  Important: Restart your MCP client (Claude Desktop, etc.) to load the new configuration.`,
+      `\n⚠️  Important: Restart your MCP client (Claude Desktop, etc.) to load the new configuration.`
     );
   } catch (error) {
     console.error(`❌ Failed to write config: ${(error as Error).message}`);
@@ -247,7 +247,9 @@ program
   .helpOption("-h, --help", "Show this help message");
 
 // Custom help text
-program.addHelpText('after', `
+program.addHelpText(
+  "after",
+  `
 Default Config Search Order:
   1. .mcp.json (Claude Code project config)
   2. ~/Library/Application Support/Claude/claude_desktop_config.json (macOS)
@@ -272,7 +274,8 @@ The config file should be in the standard MCP servers format:
     }
   }
 }
-`);
+`
+);
 
 // Main action
 program.action(async (options) => {
@@ -310,7 +313,7 @@ program.action(async (options) => {
   if (!config.mcpServers || typeof config.mcpServers !== "object") {
     console.error(`❌ Invalid config format: missing or invalid 'mcpServers' object`);
     console.error(
-      `\nExpected format: { "mcpServers": { "name": { "command": "...", "args": [...] } } }`,
+      `\nExpected format: { "mcpServers": { "name": { "command": "...", "args": [...] } } }`
     );
     process.exit(1);
   }
@@ -385,7 +388,10 @@ program.action(async (options) => {
           }
         }
       } // For Python servers
-      else if ((serverConfig.command === "python" || serverConfig.command === "python3") && firstArg) {
+      else if (
+        (serverConfig.command === "python" || serverConfig.command === "python3") &&
+        firstArg
+      ) {
         watchFile = resolve(serverConfig.cwd || ".", firstArg);
       }
     }
@@ -415,7 +421,7 @@ program.action(async (options) => {
     // Import MCPProxy and start it
     const { MCPProxy } = await import("./proxy.js");
     const { NodeProcessManager } = await import("./node/NodeProcessManager.js");
-    
+
     const procManager = new NodeProcessManager();
     const proxyDependencies = {
       procManager,

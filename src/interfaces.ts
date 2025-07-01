@@ -178,22 +178,26 @@ export interface ConfigLauncherDependencies {
  * Type guard to check if an object implements ProcessManager
  */
 export function isProcessManager(obj: unknown): obj is ProcessManager {
-  return obj !== null &&
+  return (
+    obj !== null &&
     typeof obj === "object" &&
     "spawn" in obj &&
-    typeof (obj as ProcessManager).spawn === "function";
+    typeof (obj as ProcessManager).spawn === "function"
+  );
 }
 
 /**
  * Type guard to check if an object implements FileSystem
  */
 export function isFileSystem(obj: unknown): obj is FileSystem {
-  return obj !== null &&
+  return (
+    obj !== null &&
     typeof obj === "object" &&
     "watch" in obj &&
     "readFile" in obj &&
     "writeFile" in obj &&
     typeof (obj as FileSystem).watch === "function" &&
     typeof (obj as FileSystem).readFile === "function" &&
-    typeof (obj as FileSystem).writeFile === "function";
+    typeof (obj as FileSystem).writeFile === "function"
+  );
 }

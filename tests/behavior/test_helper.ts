@@ -60,22 +60,27 @@ export function setupProxyTest(config: TestProxyConfig = {}): TestContext {
   const { readable: stderrReadable, writable: stderrWritable } = new TransformStream<Uint8Array>();
 
   // Create proxy with dependency injection
-  const proxy = new MCPProxy({
-    procManager,
-    fs,
-    stdin: stdinReadable,
-    stdout: stdoutWritable,
-    stderr: stderrWritable,
-    exit: (code: number) => {/* Mock exit - don't actually exit during tests */},
-  }, {
-    command: testConfig.command,
-    commandArgs: testConfig.commandArgs,
-    entryFile: testConfig.entryFile,
-    restartDelay: testConfig.restartDelay,
-    killDelay: testConfig.killDelay,
-    readyDelay: testConfig.readyDelay,
-    env: testConfig.env,
-  });
+  const proxy = new MCPProxy(
+    {
+      procManager,
+      fs,
+      stdin: stdinReadable,
+      stdout: stdoutWritable,
+      stderr: stderrWritable,
+      exit: (code: number) => {
+        /* Mock exit - don't actually exit during tests */
+      },
+    },
+    {
+      command: testConfig.command,
+      commandArgs: testConfig.commandArgs,
+      entryFile: testConfig.entryFile,
+      restartDelay: testConfig.restartDelay,
+      killDelay: testConfig.killDelay,
+      readyDelay: testConfig.readyDelay,
+      env: testConfig.env,
+    }
+  );
 
   // Get stream interfaces for test control
   const stdinWriter = stdinWritable.getWriter();
@@ -117,7 +122,7 @@ export function setupProxyTest(config: TestProxyConfig = {}): TestContext {
 export async function waitForSpawns(
   procManager: MockProcessManager,
   expectedCount: number,
-  timeoutMs: number = 1000,
+  timeoutMs: number = 1000
 ): Promise<void> {
   const startTime = Date.now();
 
@@ -129,7 +134,7 @@ export async function waitForSpawns(
   }
 
   throw new Error(
-    `Timeout waiting for ${expectedCount} spawns. Got ${procManager.getSpawnCallCount()}`,
+    `Timeout waiting for ${expectedCount} spawns. Got ${procManager.getSpawnCallCount()}`
   );
 }
 
@@ -147,7 +152,7 @@ export async function waitForStable(ms: number = 100): Promise<void> {
 export async function simulateRestart(
   procManager: MockProcessManager,
   fs: MockFileSystem,
-  triggerFile?: string,
+  triggerFile?: string
 ): Promise<void> {
   const fileToTrigger = triggerFile || "/test/server.js";
 

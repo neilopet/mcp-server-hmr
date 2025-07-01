@@ -8,15 +8,14 @@
  * This test uses mock implementations to verify behavior without actual process spawning.
  */
 
-import { describe, it, expect } from '@jest/globals';
+import { describe, it, expect } from "@jest/globals";
 import { MCPProxy } from "../../src/proxy.js";
 import { MockManagedProcess, MockProcessManager } from "../mocks/MockProcessManager.js";
 import { MockFileSystem } from "../mocks/MockFileSystem.js";
 import { setupProxyTest, simulateRestart, waitForSpawns } from "./test_helper.js";
 
-describe('Test Suite', () => {
-  it('Proxy restart - file change triggers server restart sequence', async () => {
-  
+describe("Test Suite", () => {
+  it("Proxy restart - file change triggers server restart sequence", async () => {
     const { proxy, procManager, fs, teardown } = setupProxyTest({
       restartDelay: 100,
     });
@@ -30,11 +29,11 @@ describe('Test Suite', () => {
       expect(procManager.getSpawnCallCount()).toBe(1); // Should spawn initial server
       const initialProcess = procManager.getLastSpawnedProcess();
       expect(initialProcess).toBeTruthy(); // Should have spawned process
-      if (!initialProcess) throw new Error('Initial process should exist');
+      if (!initialProcess) throw new Error("Initial process should exist");
 
       // Simulate initial server starting successfully
       initialProcess.simulateStdout(
-        '{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05"}}\n',
+        '{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05"}}\n'
       );
 
       // Record the initial process for comparison
@@ -56,7 +55,7 @@ describe('Test Suite', () => {
       // Verify new process is different
       const newProcess = procManager.getLastSpawnedProcess();
       expect(newProcess).toBeTruthy(); // Should have new process
-      if (!newProcess) throw new Error('New process should exist');
+      if (!newProcess) throw new Error("New process should exist");
       expect(newProcess.pid).not.toBe(initialPid); // New process should have different PID
 
       // Verify watch is still active
@@ -74,12 +73,10 @@ describe('Test Suite', () => {
       await teardown();
     }
   });
-  
 });
 
-describe('Test Suite', () => {
-  it('Proxy restart - multiple rapid file changes are debounced', async () => {
-  
+describe("Test Suite", () => {
+  it("Proxy restart - multiple rapid file changes are debounced", async () => {
     const mockProcessManager = new MockProcessManager();
     const mockFileSystem = new MockFileSystem();
 
@@ -96,21 +93,26 @@ describe('Test Suite', () => {
     const { readable: stdoutRead, writable: mockStdout } = new TransformStream();
     const { readable: stderrRead, writable: mockStderr } = new TransformStream();
 
-    const proxy = new MCPProxy({
-      procManager: mockProcessManager,
-      fs: mockFileSystem,
-      stdin: mockStdin,
-      stdout: mockStdout,
-      stderr: mockStderr,
-      exit: (code: number) => {/* Mock exit - don't actually exit during tests */},
-    }, {
-      command: globalThis.command!,
-      commandArgs: globalThis.commandArgs!,
-      entryFile: globalThis.entryFile!,
-      restartDelay: globalThis.restartDelay!,
-      killDelay: 50, // Fast test timing
-      readyDelay: 50, // Fast test timing
-    });
+    const proxy = new MCPProxy(
+      {
+        procManager: mockProcessManager,
+        fs: mockFileSystem,
+        stdin: mockStdin,
+        stdout: mockStdout,
+        stderr: mockStderr,
+        exit: (code: number) => {
+          /* Mock exit - don't actually exit during tests */
+        },
+      },
+      {
+        command: globalThis.command!,
+        commandArgs: globalThis.commandArgs!,
+        entryFile: globalThis.entryFile!,
+        restartDelay: globalThis.restartDelay!,
+        killDelay: 50, // Fast test timing
+        readyDelay: 50, // Fast test timing
+      }
+    );
 
     try {
       // Start proxy
@@ -122,8 +124,8 @@ describe('Test Suite', () => {
 
       const initialProcess = mockProcessManager.getLastSpawnedProcess();
       expect(initialProcess).toBeTruthy();
-      if (!initialProcess) throw new Error('Initial process should exist'); // Should have initial process
-      if (!initialProcess) throw new Error('Initial process should exist');
+      if (!initialProcess) throw new Error("Initial process should exist"); // Should have initial process
+      if (!initialProcess) throw new Error("Initial process should exist");
 
       // Simulate rapid file changes (should be debounced)
       mockFileSystem.triggerFileEvent(watchFile, "modify");
@@ -152,12 +154,10 @@ describe('Test Suite', () => {
       delete globalThis.restartDelay;
     }
   });
-  
 });
 
-describe('Test Suite', () => {
-  it('Proxy restart - handles process that fails to start', async () => {
-  
+describe("Test Suite", () => {
+  it("Proxy restart - handles process that fails to start", async () => {
     const mockProcessManager = new MockProcessManager();
     const mockFileSystem = new MockFileSystem();
 
@@ -174,21 +174,26 @@ describe('Test Suite', () => {
     const { readable: stdoutRead, writable: mockStdout } = new TransformStream();
     const { readable: stderrRead, writable: mockStderr } = new TransformStream();
 
-    const proxy = new MCPProxy({
-      procManager: mockProcessManager,
-      fs: mockFileSystem,
-      stdin: mockStdin,
-      stdout: mockStdout,
-      stderr: mockStderr,
-      exit: (code: number) => {/* Mock exit - don't actually exit during tests */},
-    }, {
-      command: globalThis.command!,
-      commandArgs: globalThis.commandArgs!,
-      entryFile: globalThis.entryFile!,
-      restartDelay: globalThis.restartDelay!,
-      killDelay: 50, // Fast test timing
-      readyDelay: 50, // Fast test timing
-    });
+    const proxy = new MCPProxy(
+      {
+        procManager: mockProcessManager,
+        fs: mockFileSystem,
+        stdin: mockStdin,
+        stdout: mockStdout,
+        stderr: mockStderr,
+        exit: (code: number) => {
+          /* Mock exit - don't actually exit during tests */
+        },
+      },
+      {
+        command: globalThis.command!,
+        commandArgs: globalThis.commandArgs!,
+        entryFile: globalThis.entryFile!,
+        restartDelay: globalThis.restartDelay!,
+        killDelay: 50, // Fast test timing
+        readyDelay: 50, // Fast test timing
+      }
+    );
 
     try {
       // Start proxy
@@ -197,7 +202,7 @@ describe('Test Suite', () => {
 
       const initialProcess = mockProcessManager.getLastSpawnedProcess();
       expect(initialProcess).toBeTruthy();
-      if (!initialProcess) throw new Error('Initial process should exist'); // Should spawn initial process
+      if (!initialProcess) throw new Error("Initial process should exist"); // Should spawn initial process
 
       // Simulate initial process starting
       initialProcess.simulateStdout('{"jsonrpc":"2.0","id":1,"result":{}}\n');
@@ -219,7 +224,7 @@ describe('Test Suite', () => {
 
       const newProcess = mockProcessManager.getLastSpawnedProcess();
       expect(newProcess).toBeTruthy();
-      if (!newProcess) throw new Error('New process should exist'); // Should have new process
+      if (!newProcess) throw new Error("New process should exist"); // Should have new process
 
       // Simulate new process failing quickly
       newProcess.simulateExit(1, null);
@@ -238,5 +243,4 @@ describe('Test Suite', () => {
       delete globalThis.restartDelay;
     }
   });
-  
 });

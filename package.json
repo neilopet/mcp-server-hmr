@@ -43,6 +43,7 @@
   "scripts": {
     "start": "node dist/cli.js",
     "build": "tsc",
+    "postbuild": "npm run make-executable",
     "clean": "rm -rf dist",
     "dev": "npm run build && node --watch dist/cli.js",
     "test": "jest",
@@ -53,6 +54,8 @@
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",
-    "prepublishOnly": "npm run clean && npm run build && npm test"
+    "make-executable": "chmod +x dist/cli.js 2>/dev/null || true",
+    "prepublishOnly": "npm run clean && npm run build && npm test",
+    "postinstall": "node scripts/postinstall.js"
   }
 }

@@ -7,7 +7,7 @@
  * MCP protocol continuity during hot-reload.
  */
 
-import { describe, it, expect } from '@jest/globals';
+import { describe, it, expect } from "@jest/globals";
 import { MCPProxy } from "../../src/proxy.js";
 import { MockManagedProcess, MockProcessManager } from "../mocks/MockProcessManager.js";
 import { MockFileSystem } from "../mocks/MockFileSystem.js";
@@ -22,9 +22,8 @@ interface MCPMessage {
   error?: unknown;
 }
 
-describe('Test Suite', () => {
-  it('Message buffering - messages during restart are buffered and replayed', async () => {
-  
+describe("Test Suite", () => {
+  it("Message buffering - messages during restart are buffered and replayed", async () => {
     const { proxy, procManager, fs, teardown } = setupProxyTest({
       restartDelay: 100,
     });
@@ -36,11 +35,11 @@ describe('Test Suite', () => {
 
       const initialProcess = procManager.getLastSpawnedProcess();
       expect(initialProcess).toBeTruthy(); // Should spawn initial process
-      if (!initialProcess) throw new Error('Initial process should exist');
+      if (!initialProcess) throw new Error("Initial process should exist");
 
       // Simulate initial process ready
       initialProcess.simulateStdout(
-        '{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05"}}\n',
+        '{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05"}}\n'
       );
 
       // Create a test message to send during restart
@@ -61,11 +60,11 @@ describe('Test Suite', () => {
       expect(procManager.getSpawnCallCount()).toBe(2); // Should spawn new server
       const newProcess = procManager.getLastSpawnedProcess();
       expect(newProcess).toBeTruthy(); // Should have new process
-      if (!newProcess) throw new Error('New process should exist');
+      if (!newProcess) throw new Error("New process should exist");
 
       // Simulate new process ready for messages
       newProcess.simulateStdout(
-        '{"jsonrpc":"2.0","id":2,"result":{"protocolVersion":"2024-11-05"}}\n',
+        '{"jsonrpc":"2.0","id":2,"result":{"protocolVersion":"2024-11-05"}}\n'
       );
 
       // The actual message buffering is tested by the integration tests
@@ -75,12 +74,10 @@ describe('Test Suite', () => {
       await teardown();
     }
   });
-  
 });
 
-describe('Test Suite', () => {
-  it('Message buffering - initialization params are captured and replayed', async () => {
-  
+describe("Test Suite", () => {
+  it("Message buffering - initialization params are captured and replayed", async () => {
     const { proxy, procManager, fs, teardown } = setupProxyTest({
       restartDelay: 100,
     });
@@ -92,7 +89,7 @@ describe('Test Suite', () => {
 
       const initialProcess = procManager.getLastSpawnedProcess();
       expect(initialProcess).toBeTruthy(); // Should spawn initial process
-      if (!initialProcess) throw new Error('Initial process should exist');
+      if (!initialProcess) throw new Error("Initial process should exist");
 
       // The initialize params capture is tested in the actual MCPProxy
       // Here we verify that the mechanism exists for capturing and replaying
@@ -117,7 +114,7 @@ describe('Test Suite', () => {
       expect(procManager.getSpawnCallCount()).toBe(2); // Should spawn new server
       const newProcess = procManager.getLastSpawnedProcess();
       expect(newProcess).toBeTruthy(); // Should have new process
-      if (!newProcess) throw new Error('New process should exist');
+      if (!newProcess) throw new Error("New process should exist");
 
       // The new process should receive initialization replay
       // This is verified in the integration tests with actual message flow
@@ -125,12 +122,10 @@ describe('Test Suite', () => {
       await teardown();
     }
   });
-  
 });
 
-describe('Test Suite', () => {
-  it('Message buffering - buffer overflow protection', async () => {
-  
+describe("Test Suite", () => {
+  it("Message buffering - buffer overflow protection", async () => {
     const { proxy, procManager, fs, teardown } = setupProxyTest({
       restartDelay: 100,
     });
@@ -142,7 +137,7 @@ describe('Test Suite', () => {
 
       const initialProcess = procManager.getLastSpawnedProcess();
       expect(initialProcess).toBeTruthy(); // Should spawn initial process
-      if (!initialProcess) throw new Error('Initial process should exist');
+      if (!initialProcess) throw new Error("Initial process should exist");
 
       // Simulate initial process ready
       initialProcess.simulateStdout('{"jsonrpc":"2.0","id":1,"result":{}}\n');
@@ -160,12 +155,10 @@ describe('Test Suite', () => {
       await teardown();
     }
   });
-  
 });
 
-describe('Test Suite', () => {
-  it('Message buffering - preserves message order during restart', async () => {
-  
+describe("Test Suite", () => {
+  it("Message buffering - preserves message order during restart", async () => {
     const { proxy, procManager, fs, teardown } = setupProxyTest({
       restartDelay: 100,
     });
@@ -177,7 +170,7 @@ describe('Test Suite', () => {
 
       const initialProcess = procManager.getLastSpawnedProcess();
       expect(initialProcess).toBeTruthy(); // Should spawn initial process
-      if (!initialProcess) throw new Error('Initial process should exist');
+      if (!initialProcess) throw new Error("Initial process should exist");
 
       // This test ensures that message ordering is preserved
       // Messages should be replayed in the same order they were received
@@ -195,5 +188,4 @@ describe('Test Suite', () => {
       await teardown();
     }
   });
-  
 });

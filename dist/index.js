@@ -138,10 +138,10 @@ export async function createMCPProxy(config) {
         fs,
         stdin: new ReadableStream({
             start(controller) {
-                process.stdin.on('data', (chunk) => {
+                process.stdin.on("data", (chunk) => {
                     controller.enqueue(new Uint8Array(chunk));
                 });
-                process.stdin.on('end', () => controller.close());
+                process.stdin.on("end", () => controller.close());
             },
         }),
         stdout: new WritableStream({

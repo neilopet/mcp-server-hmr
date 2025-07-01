@@ -5,26 +5,26 @@
  * handling platform-specific details like signal translation, stream
  * conversion to Web Streams API, and process cleanup.
  */
-import { spawn } from 'child_process';
+import { spawn } from "child_process";
 /**
  * Helper function to convert Node.js Readable stream to Web ReadableStream
  */
 function toWebReadableStream(nodeStream) {
     return new ReadableStream({
         start(controller) {
-            nodeStream.on('data', (chunk) => {
+            nodeStream.on("data", (chunk) => {
                 controller.enqueue(new Uint8Array(chunk));
             });
-            nodeStream.on('end', () => {
+            nodeStream.on("end", () => {
                 controller.close();
             });
-            nodeStream.on('error', (error) => {
+            nodeStream.on("error", (error) => {
                 controller.error(error);
             });
         },
         cancel() {
             nodeStream.destroy();
-        }
+        },
     });
 }
 /**
@@ -58,7 +58,7 @@ function toWebWritableStream(nodeStream) {
         },
         abort(reason) {
             nodeStream.destroy(reason);
-        }
+        },
     });
 }
 /**
@@ -71,10 +71,10 @@ class NodeManagedProcess {
         this.child = child;
         // Create the status promise immediately
         this._status = new Promise((resolve) => {
-            this.child.on('exit', (code, signal) => {
+            this.child.on("exit", (code, signal) => {
                 resolve({
                     code: code,
-                    signal: signal
+                    signal: signal,
                 });
             });
         });
@@ -84,19 +84,19 @@ class NodeManagedProcess {
     }
     get stdin() {
         if (!this.child.stdin) {
-            throw new Error('Process stdin is not available');
+            throw new Error("Process stdin is not available");
         }
         return toWebWritableStream(this.child.stdin);
     }
     get stdout() {
         if (!this.child.stdout) {
-            throw new Error('Process stdout is not available');
+            throw new Error("Process stdout is not available");
         }
         return toWebReadableStream(this.child.stdout);
     }
     get stderr() {
         if (!this.child.stderr) {
-            throw new Error('Process stderr is not available');
+            throw new Error("Process stderr is not available");
         }
         return toWebReadableStream(this.child.stderr);
     }
@@ -106,13 +106,13 @@ class NodeManagedProcess {
     kill(signal) {
         try {
             // Default to SIGTERM if no signal specified
-            const sig = signal || 'SIGTERM';
+            const sig = signal || "SIGTERM";
             // Node.js kill method returns boolean indicating success
             // Cast to NodeJS.Signals for type compatibility
             const result = this.child.kill(sig);
             // For Windows compatibility, if SIGTERM fails, try SIGKILL
-            if (!result && process.platform === 'win32' && sig === 'SIGTERM') {
-                return this.child.kill('SIGKILL');
+            if (!result && process.platform === "win32" && sig === "SIGTERM") {
+                return this.child.kill("SIGKILL");
             }
             return result;
         }
@@ -134,7 +134,7 @@ export class NodeProcessManager {
         try {
             // Build Node.js spawn options
             const nodeOptions = {
-                stdio: ['pipe', 'pipe', 'pipe'],
+                stdio: ["pipe", "pipe", "pipe"],
             };
             // Add environment variables if provided
             if (options?.env) {
@@ -147,9 +147,9 @@ export class NodeProcessManager {
             // Create the child process
             const child = spawn(command, args, nodeOptions);
             // Handle spawn errors
-            child.on('error', (error) => {
+            child.on("error", (error) => {
                 // Check for common spawn errors
-                if (error.code === 'ENOENT') {
+                if (error.code === "ENOENT") {
                     throw new Error(`Command not found: ${command}`);
                 }
                 else {

@@ -9,7 +9,7 @@
  * - Supports both single server and --all modes
  */
 
-import { describe, it, expect } from '@jest/globals';
+import { describe, it, expect } from "@jest/globals";
 import { MockFileSystem } from "../mocks/MockFileSystem.js";
 import { setupProxyTest } from "./test_helper.js";
 
@@ -36,7 +36,7 @@ async function setupHotReloadWithMocks(
   fs: MockFileSystem,
   configPath: string,
   serverName: string,
-  setupAll: boolean = false,
+  setupAll: boolean = false
 ): Promise<void> {
   // Read existing config
   const configText = await fs.readFile(configPath);
@@ -77,9 +77,8 @@ async function setupHotReloadWithMocks(
   await fs.writeFile(configPath, JSON.stringify(newConfig, null, 2));
 }
 
-describe('Test Suite', () => {
-  it('Config transformation - modifies single server while preserving others', async () => {
-  
+describe("Test Suite", () => {
+  it("Config transformation - modifies single server while preserving others", async () => {
     const mockFileSystem = new MockFileSystem();
 
     // Setup initial config with multiple servers
@@ -135,14 +134,12 @@ describe('Test Suite', () => {
     expect(modifiedConfig.mcpServers["server-b-original"].command).toBe("python"); // Original should be unchanged
 
     // Environment and cwd should be preserved
-    expect(modifiedConfig.mcpServers["server-b"].cwd).toBe( "/path/to/b"); //  "Should preserve cwd";
+    expect(modifiedConfig.mcpServers["server-b"].cwd).toBe("/path/to/b"); //  "Should preserve cwd";
   });
-  
 });
 
-describe('Test Suite', () => {
-  it('Config transformation - setup all servers mode', async () => {
-  
+describe("Test Suite", () => {
+  it("Config transformation - setup all servers mode", async () => {
     const mockFileSystem = new MockFileSystem();
 
     const initialConfig: MCPServersConfig = {
@@ -180,14 +177,12 @@ describe('Test Suite', () => {
     }
 
     // Should have 6 total servers (3 modified + 3 originals)
-    expect(Object.keys(modifiedConfig.mcpServers).length).toBe( 6); //  "Should have 6 total servers";
+    expect(Object.keys(modifiedConfig.mcpServers).length).toBe(6); //  "Should have 6 total servers";
   });
-  
 });
 
-describe('Test Suite', () => {
-  it('Config transformation - handles missing server gracefully', async () => {
-  
+describe("Test Suite", () => {
+  it("Config transformation - handles missing server gracefully", async () => {
     const mockFileSystem = new MockFileSystem();
 
     const initialConfig: MCPServersConfig = {
@@ -216,12 +211,10 @@ describe('Test Suite', () => {
     const config = JSON.parse(configContent);
     expect(config.mcpServers["existing-server"].command).toBe("node"); // Original config should be unchanged
   });
-  
 });
 
-describe('Test Suite', () => {
-  it('Config transformation - preserves complex server configurations', async () => {
-  
+describe("Test Suite", () => {
+  it("Config transformation - preserves complex server configurations", async () => {
     const mockFileSystem = new MockFileSystem();
 
     const initialConfig: MCPServersConfig = {
@@ -251,31 +244,29 @@ describe('Test Suite', () => {
     const original = modifiedConfig.mcpServers["complex-server-original"];
 
     // Should preserve all environment variables
-    expect(modified.env?.NODE_ENV).toBe( "production"); //  "Should preserve NODE_ENV";
-    expect(modified.env?.API_KEY).toBe( "secret-key"); //  "Should preserve API_KEY";
+    expect(modified.env?.NODE_ENV).toBe("production"); //  "Should preserve NODE_ENV";
+    expect(modified.env?.API_KEY).toBe("secret-key"); //  "Should preserve API_KEY";
     expect(modified.env?.DATABASE_URL).toBe("postgres://localhost/db"); // Should preserve DATABASE_URL
 
     // Should preserve cwd
-    expect(modified.cwd).toBe( "/app/server"); //  "Should preserve cwd";
+    expect(modified.cwd).toBe("/app/server"); //  "Should preserve cwd";
 
     // Should wrap all original arguments
-    expect(modified.args?.[0]).toBe( "node"); //  "Should wrap original command";
-    expect(modified.args?.[1]).toBe( "--max-old-space-size=8192"); //  "Should preserve node flags";
-    expect(modified.args?.[2]).toBe( "server.js"); //  "Should preserve script name";
-    expect(modified.args?.[3]).toBe( "--port"); //  "Should preserve app args";
-    expect(modified.args?.[4]).toBe( "3000"); //  "Should preserve app values";
+    expect(modified.args?.[0]).toBe("node"); //  "Should wrap original command";
+    expect(modified.args?.[1]).toBe("--max-old-space-size=8192"); //  "Should preserve node flags";
+    expect(modified.args?.[2]).toBe("server.js"); //  "Should preserve script name";
+    expect(modified.args?.[3]).toBe("--port"); //  "Should preserve app args";
+    expect(modified.args?.[4]).toBe("3000"); //  "Should preserve app values";
 
     // Original should be completely preserved
-    expect(original.command).toBe( "node"); //  "Original command should be preserved";
-    expect(original.args?.length).toBe( 4); //  "Original args should be preserved";
-    expect(original.env?.API_KEY).toBe( "secret-key"); //  "Original env should be preserved";
+    expect(original.command).toBe("node"); //  "Original command should be preserved";
+    expect(original.args?.length).toBe(4); //  "Original args should be preserved";
+    expect(original.env?.API_KEY).toBe("secret-key"); //  "Original env should be preserved";
   });
-  
 });
 
-describe('Test Suite', () => {
-  it('Config transformation - handles file system errors gracefully', async () => {
-  
+describe("Test Suite", () => {
+  it("Config transformation - handles file system errors gracefully", async () => {
     const mockFileSystem = new MockFileSystem();
 
     const configPath = "/test/config.json";
@@ -325,17 +316,15 @@ describe('Test Suite', () => {
       expect((error as Error).message.includes("Write failed")).toBeTruthy(); //  "Should include write error message";
     }
   });
-  
 });
 
-describe('Test Suite', () => {
-  it('Config transformation - validates operation tracking', async () => {
-  
+describe("Test Suite", () => {
+  it("Config transformation - validates operation tracking", async () => {
     const mockFileSystem = new MockFileSystem();
 
     const initialConfig: MCPServersConfig = {
       mcpServers: {
-        "server": {
+        server: {
           command: "node",
           args: ["app.js"],
         },
@@ -349,20 +338,19 @@ describe('Test Suite', () => {
 
     // Verify operation tracking
     const operations = mockFileSystem.getOperationCounts();
-    expect(operations.reads).toBe( 1); //  "Should track config read";
-    expect(operations.copies).toBe( 1); //  "Should track backup copy";
-    expect(operations.writes).toBe( 1); //  "Should track config write";
+    expect(operations.reads).toBe(1); //  "Should track config read";
+    expect(operations.copies).toBe(1); //  "Should track backup copy";
+    expect(operations.writes).toBe(1); //  "Should track config write";
 
     // Verify specific operations
-    expect(mockFileSystem.readCalls.length).toBe( 1); //  "Should have one read call";
-    expect(mockFileSystem.readCalls[0].path).toBe( configPath); //  "Should read config file";
+    expect(mockFileSystem.readCalls.length).toBe(1); //  "Should have one read call";
+    expect(mockFileSystem.readCalls[0].path).toBe(configPath); //  "Should read config file";
 
-    expect(mockFileSystem.copyCalls.length).toBe( 1); //  "Should have one copy call";
-    expect(mockFileSystem.copyCalls[0].src).toBe( configPath); //  "Should copy from config file";
+    expect(mockFileSystem.copyCalls.length).toBe(1); //  "Should have one copy call";
+    expect(mockFileSystem.copyCalls[0].src).toBe(configPath); //  "Should copy from config file";
     expect(mockFileSystem.copyCalls[0].dest).toBe(configPath + ".backup-test"); // Should copy to backup file
 
-    expect(mockFileSystem.writeCalls.length).toBe( 1); //  "Should have one write call";
-    expect(mockFileSystem.writeCalls[0].path).toBe( configPath); //  "Should write to config file";
+    expect(mockFileSystem.writeCalls.length).toBe(1); //  "Should have one write call";
+    expect(mockFileSystem.writeCalls[0].path).toBe(configPath); //  "Should write to config file";
   });
-  
 });

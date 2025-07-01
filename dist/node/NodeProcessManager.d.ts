@@ -5,7 +5,7 @@
  * handling platform-specific details like signal translation, stream
  * conversion to Web Streams API, and process cleanup.
  */
-import { ManagedProcess, ProcessManager, SpawnOptions } from '../interfaces.js';
+import { ManagedProcess, ProcessManager, SpawnOptions } from "../interfaces.js";
 /**
  * Node.js implementation of ProcessManager
  *

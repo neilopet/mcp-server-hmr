@@ -239,12 +239,7 @@ export class MockFileSystem implements FileSystem {
   /**
    * Set operation delays (simulates slow I/O)
    */
-  setDelays(options: {
-    read?: number;
-    write?: number;
-    exists?: number;
-    copy?: number;
-  }): void {
+  setDelays(options: { read?: number; write?: number; exists?: number; copy?: number }): void {
     if (options.read !== undefined) this.readDelay = options.read;
     if (options.write !== undefined) this.writeDelay = options.write;
     if (options.exists !== undefined) this.existsDelay = options.exists;
@@ -310,9 +305,11 @@ export class MockFileSystem implements FileSystem {
   private isPathWatched(filePath: string, watchedPaths: string[]): boolean {
     return watchedPaths.some((watchedPath) => {
       // Simple path matching - exact match or starts with directory path
-      return filePath === watchedPath ||
+      return (
+        filePath === watchedPath ||
         filePath.startsWith(watchedPath + "/") ||
-        watchedPath.endsWith("/") && filePath.startsWith(watchedPath);
+        (watchedPath.endsWith("/") && filePath.startsWith(watchedPath))
+      );
     });
   }
 }

@@ -12,15 +12,14 @@
  * Ensures robust operation and proper error recovery.
  */
 
-import { describe, it, expect } from '@jest/globals';
+import { describe, it, expect } from "@jest/globals";
 import { MCPProxy } from "../../src/proxy.js";
 import { MockManagedProcess, MockProcessManager } from "../mocks/MockProcessManager.js";
 import { MockFileSystem } from "../mocks/MockFileSystem.js";
 import { setupProxyTest, simulateRestart, waitForSpawns, waitForStable } from "./test_helper.js";
 
-describe('Test Suite', () => {
-  it('Error handling - process spawn failure', async () => {
-  
+describe("Test Suite", () => {
+  it("Error handling - process spawn failure", async () => {
     const { proxy, procManager, fs, teardown } = setupProxyTest();
 
     // Configure spawn to fail
@@ -58,12 +57,10 @@ describe('Test Suite', () => {
       await teardown();
     }
   });
-  
 });
 
-describe('Test Suite', () => {
-  it('Error handling - file watching failure', async () => {
-  
+describe("Test Suite", () => {
+  it("Error handling - file watching failure", async () => {
     // Create test context but don't set file as existing to simulate watch failure
     const procManager = new MockProcessManager();
     const fs = new MockFileSystem();
@@ -75,28 +72,31 @@ describe('Test Suite', () => {
 
     // Create a new proxy with our custom mocks that don't have the file set as existing
     const { readable: stdinReadable, writable: stdinWritable } = new TransformStream<Uint8Array>();
-    const { readable: stdoutReadable, writable: stdoutWritable } = new TransformStream<
-      Uint8Array
-    >();
-    const { readable: stderrReadable, writable: stderrWritable } = new TransformStream<
-      Uint8Array
-    >();
+    const { readable: stdoutReadable, writable: stdoutWritable } =
+      new TransformStream<Uint8Array>();
+    const { readable: stderrReadable, writable: stderrWritable } =
+      new TransformStream<Uint8Array>();
 
-    const customProxy = new MCPProxy({
-      procManager,
-      fs,
-      stdin: stdinReadable,
-      stdout: stdoutWritable,
-      stderr: stderrWritable,
-      exit: (code: number) => {/* Mock exit - don't actually exit during tests */},
-    }, {
-      command: "node",
-      commandArgs: ["/test/server.js"],
-      entryFile: "/test/server.js",
-      restartDelay: 50,
-      killDelay: 50,
-      readyDelay: 50,
-    });
+    const customProxy = new MCPProxy(
+      {
+        procManager,
+        fs,
+        stdin: stdinReadable,
+        stdout: stdoutWritable,
+        stderr: stderrWritable,
+        exit: (code: number) => {
+          /* Mock exit - don't actually exit during tests */
+        },
+      },
+      {
+        command: "node",
+        commandArgs: ["/test/server.js"],
+        entryFile: "/test/server.js",
+        restartDelay: 50,
+        killDelay: 50,
+        readyDelay: 50,
+      }
+    );
 
     try {
       // Start proxy - file watching should fail but proxy should continue
@@ -123,12 +123,10 @@ describe('Test Suite', () => {
       }
     }
   });
-  
 });
 
-describe('Test Suite', () => {
-  it('Error handling - process crash during operation', async () => {
-  
+describe("Test Suite", () => {
+  it("Error handling - process crash during operation", async () => {
     const { proxy, procManager, fs, teardown } = setupProxyTest();
 
     try {
@@ -138,7 +136,7 @@ describe('Test Suite', () => {
 
       const initialProcess = procManager.getLastSpawnedProcess();
       expect(initialProcess).toBeTruthy(); // Should spawn initial process
-      if (!initialProcess) throw new Error('Initial process should exist');
+      if (!initialProcess) throw new Error("Initial process should exist");
 
       // Simulate process starting successfully
       initialProcess.simulateStdout('{"jsonrpc":"2.0","id":1,"result":{}}\n');
@@ -161,12 +159,10 @@ describe('Test Suite', () => {
       await teardown();
     }
   });
-  
 });
 
-describe('Test Suite', () => {
-  it('Error handling - invalid JSON messages', async () => {
-  
+describe("Test Suite", () => {
+  it("Error handling - invalid JSON messages", async () => {
     const { proxy, procManager, fs, teardown } = setupProxyTest();
 
     try {
@@ -176,7 +172,7 @@ describe('Test Suite', () => {
 
       const initialProcess = procManager.getLastSpawnedProcess();
       expect(initialProcess).toBeTruthy(); // Should spawn initial process
-      if (!initialProcess) throw new Error('Initial process should exist');
+      if (!initialProcess) throw new Error("Initial process should exist");
 
       // Simulate server sending invalid JSON
       initialProcess.simulateStdout("invalid json\n");
@@ -200,12 +196,10 @@ describe('Test Suite', () => {
       await teardown();
     }
   });
-  
 });
 
-describe('Test Suite', () => {
-  it('Error handling - stream errors', async () => {
-  
+describe("Test Suite", () => {
+  it("Error handling - stream errors", async () => {
     const { proxy, procManager, fs, teardown } = setupProxyTest();
 
     try {
@@ -215,7 +209,7 @@ describe('Test Suite', () => {
 
       const initialProcess = procManager.getLastSpawnedProcess();
       expect(initialProcess).toBeTruthy(); // Should spawn initial process
-      if (!initialProcess) throw new Error('Initial process should exist');
+      if (!initialProcess) throw new Error("Initial process should exist");
 
       // Simulate stream working initially
       initialProcess.simulateStdout('{"jsonrpc":"2.0","id":1,"result":{}}\n');
@@ -238,12 +232,10 @@ describe('Test Suite', () => {
       await teardown();
     }
   });
-  
 });
 
-describe('Test Suite', () => {
-  it('Error handling - filesystem operations failure', async () => {
-  
+describe("Test Suite", () => {
+  it("Error handling - filesystem operations failure", async () => {
     // Create custom mocks with filesystem failures
     const procManager = new MockProcessManager();
     const fs = new MockFileSystem();
@@ -259,28 +251,31 @@ describe('Test Suite', () => {
 
     // Create mock I/O streams for testing
     const { readable: stdinReadable, writable: stdinWritable } = new TransformStream<Uint8Array>();
-    const { readable: stdoutReadable, writable: stdoutWritable } = new TransformStream<
-      Uint8Array
-    >();
-    const { readable: stderrReadable, writable: stderrWritable } = new TransformStream<
-      Uint8Array
-    >();
+    const { readable: stdoutReadable, writable: stdoutWritable } =
+      new TransformStream<Uint8Array>();
+    const { readable: stderrReadable, writable: stderrWritable } =
+      new TransformStream<Uint8Array>();
 
-    const proxy = new MCPProxy({
-      procManager,
-      fs,
-      stdin: stdinReadable,
-      stdout: stdoutWritable,
-      stderr: stderrWritable,
-      exit: (code: number) => {/* Mock exit - don't actually exit during tests */},
-    }, {
-      command: "node",
-      commandArgs: ["/test/server.js"],
-      entryFile: "/test/server.js",
-      restartDelay: 50,
-      killDelay: 50,
-      readyDelay: 50,
-    });
+    const proxy = new MCPProxy(
+      {
+        procManager,
+        fs,
+        stdin: stdinReadable,
+        stdout: stdoutWritable,
+        stderr: stderrWritable,
+        exit: (code: number) => {
+          /* Mock exit - don't actually exit during tests */
+        },
+      },
+      {
+        command: "node",
+        commandArgs: ["/test/server.js"],
+        entryFile: "/test/server.js",
+        restartDelay: 50,
+        killDelay: 50,
+        readyDelay: 50,
+      }
+    );
 
     try {
       // Start proxy - should handle filesystem failures gracefully
@@ -310,12 +305,10 @@ describe('Test Suite', () => {
       }
     }
   });
-  
 });
 
-describe('Test Suite', () => {
-  it('Error handling - multiple concurrent errors', async () => {
-  
+describe("Test Suite", () => {
+  it("Error handling - multiple concurrent errors", async () => {
     const { proxy, procManager, fs, teardown } = setupProxyTest({
       restartDelay: 50, // Short delay for faster testing
     });
@@ -327,7 +320,7 @@ describe('Test Suite', () => {
 
       const initialProcess = procManager.getLastSpawnedProcess();
       expect(initialProcess).toBeTruthy(); // Should spawn initial process
-      if (!initialProcess) throw new Error('Initial process should exist');
+      if (!initialProcess) throw new Error("Initial process should exist");
 
       // Simulate multiple errors happening simultaneously:
       // 1. Process crash
@@ -362,5 +355,4 @@ describe('Test Suite', () => {
       await teardown();
     }
   });
-  
 });

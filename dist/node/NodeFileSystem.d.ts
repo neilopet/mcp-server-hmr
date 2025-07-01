@@ -5,7 +5,7 @@
  * handling platform-specific details like file watching, path normalization,
  * and error handling.
  */
-import { FileEvent, FileSystem } from '../interfaces.js';
+import { FileEvent, FileSystem } from "../interfaces.js";
 /**
  * Node.js implementation of FileSystem interface
  *

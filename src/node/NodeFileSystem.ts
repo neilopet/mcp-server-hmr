@@ -6,30 +6,30 @@
  * and error handling.
  */
 
-import { watch, FSWatcher } from 'chokidar';
-import { readFile, writeFile, access, copyFile } from 'fs/promises';
-import { constants } from 'fs';
-import { normalize, resolve } from 'path';
-import { FileEvent, FileEventType, FileSystem } from '../interfaces.js';
+import { watch, FSWatcher } from "chokidar";
+import { readFile, writeFile, access, copyFile } from "fs/promises";
+import { constants } from "fs";
+import { normalize, resolve } from "path";
+import { FileEvent, FileEventType, FileSystem } from "../interfaces.js";
 
 /**
  * Maps chokidar event names to our FileEventType
  */
 function mapChokidarEvent(event: string): FileEventType {
   switch (event) {
-    case 'add':
-      return 'create';
-    case 'addDir':
-      return 'create';
-    case 'change':
-      return 'modify';
-    case 'unlink':
-      return 'remove';
-    case 'unlinkDir':
-      return 'remove';
+    case "add":
+      return "create";
+    case "addDir":
+      return "create";
+    case "change":
+      return "modify";
+    case "unlink":
+      return "remove";
+    case "unlinkDir":
+      return "remove";
     default:
       // For any other chokidar event types, default to modify
-      return 'modify';
+      return "modify";
   }
 }
 
@@ -48,7 +48,7 @@ export class NodeFileSystem implements FileSystem {
 
     try {
       // Normalize paths for cross-platform compatibility
-      const normalizedPaths = paths.map(path => normalize(resolve(path)));
+      const normalizedPaths = paths.map((path) => normalize(resolve(path)));
 
       // Create chokidar watcher with appropriate options
       watcher = watch(normalizedPaths, {
@@ -57,13 +57,13 @@ export class NodeFileSystem implements FileSystem {
         followSymlinks: false,
         // Ignore common directories that shouldn't trigger rebuilds
         ignored: [
-          '**/node_modules/**',
-          '**/.git/**',
-          '**/dist/**',
-          '**/build/**',
-          '**/.DS_Store',
-          '**/Thumbs.db'
-        ]
+          "**/node_modules/**",
+          "**/.git/**",
+          "**/dist/**",
+          "**/build/**",
+          "**/.DS_Store",
+          "**/Thumbs.db",
+        ],
       });
 
       // Create an async iterator from chokidar events
@@ -76,7 +76,7 @@ export class NodeFileSystem implements FileSystem {
       const handleEvent = (event: string, path: string) => {
         const fileEvent: FileEvent = {
           type: mapChokidarEvent(event),
-          path: normalize(resolve(path))
+          path: normalize(resolve(path)),
         };
 
         if (resolveNext) {
@@ -100,12 +100,12 @@ export class NodeFileSystem implements FileSystem {
       };
 
       // Register event listeners
-      watcher.on('add', (path) => handleEvent('add', path));
-      watcher.on('addDir', (path) => handleEvent('addDir', path));
-      watcher.on('change', (path) => handleEvent('change', path));
-      watcher.on('unlink', (path) => handleEvent('unlink', path));
-      watcher.on('unlinkDir', (path) => handleEvent('unlinkDir', path));
-      watcher.on('error', handleError);
+      watcher.on("add", (path) => handleEvent("add", path));
+      watcher.on("addDir", (path) => handleEvent("addDir", path));
+      watcher.on("change", (path) => handleEvent("change", path));
+      watcher.on("unlink", (path) => handleEvent("unlink", path));
+      watcher.on("unlinkDir", (path) => handleEvent("unlinkDir", path));
+      watcher.on("error", handleError);
 
       // Yield events from the async iterator
       while (!isEnded) {
@@ -113,7 +113,7 @@ export class NodeFileSystem implements FileSystem {
           const event = eventQueue.shift();
           if (event === null) {
             // Error marker
-            throw new Error('File watcher error occurred');
+            throw new Error("File watcher error occurred");
           }
           yield event!;
         } else {
@@ -132,7 +132,7 @@ export class NodeFileSystem implements FileSystem {
         }
       }
     } catch (error) {
-      throw new Error(`Failed to watch paths [${paths.join(', ')}]: ${(error as Error).message}`);
+      throw new Error(`Failed to watch paths [${paths.join(", ")}]: ${(error as Error).message}`);
     } finally {
       // Clean up watcher
       if (watcher) {
@@ -146,14 +146,14 @@ export class NodeFileSystem implements FileSystem {
    */
   async readFile(path: string): Promise<string> {
     try {
-      return await readFile(path, 'utf-8');
+      return await readFile(path, "utf-8");
     } catch (error) {
       const nodeError = error as NodeJS.ErrnoException;
-      
+
       // Provide more context in the error message
-      if (nodeError.code === 'ENOENT') {
+      if (nodeError.code === "ENOENT") {
         throw new Error(`File not found: ${path}`);
-      } else if (nodeError.code === 'EACCES' || nodeError.code === 'EPERM') {
+      } else if (nodeError.code === "EACCES" || nodeError.code === "EPERM") {
         throw new Error(`Permission denied reading file: ${path}`);
       } else {
         throw new Error(`Failed to read file '${path}': ${nodeError.message}`);
@@ -166,14 +166,14 @@ export class NodeFileSystem implements FileSystem {
    */
   async writeFile(path: string, content: string): Promise<void> {
     try {
-      await writeFile(path, content, 'utf-8');
+      await writeFile(path, content, "utf-8");
     } catch (error) {
       const nodeError = error as NodeJS.ErrnoException;
 
       // Provide more context in the error message
-      if (nodeError.code === 'EACCES' || nodeError.code === 'EPERM') {
+      if (nodeError.code === "EACCES" || nodeError.code === "EPERM") {
         throw new Error(`Permission denied writing file: ${path}`);
-      } else if (nodeError.code === 'ENOENT') {
+      } else if (nodeError.code === "ENOENT") {
         throw new Error(`Directory not found for file: ${path}`);
       } else {
         throw new Error(`Failed to write file '${path}': ${nodeError.message}`);
@@ -190,11 +190,11 @@ export class NodeFileSystem implements FileSystem {
       return true;
     } catch (error) {
       const nodeError = error as NodeJS.ErrnoException;
-      
-      if (nodeError.code === 'ENOENT') {
+
+      if (nodeError.code === "ENOENT") {
         return false;
       }
-      
+
       // Re-throw other errors (permissions, etc.)
       throw new Error(`Failed to check if path exists '${path}': ${nodeError.message}`);
     }
@@ -209,9 +209,9 @@ export class NodeFileSystem implements FileSystem {
     } catch (error) {
       const nodeError = error as NodeJS.ErrnoException;
 
-      if (nodeError.code === 'ENOENT') {
+      if (nodeError.code === "ENOENT") {
         throw new Error(`Source file not found: ${src}`);
-      } else if (nodeError.code === 'EACCES' || nodeError.code === 'EPERM') {
+      } else if (nodeError.code === "EACCES" || nodeError.code === "EPERM") {
         throw new Error(`Permission denied copying from '${src}' to '${dest}'`);
       } else {
         throw new Error(`Failed to copy file from '${src}' to '${dest}': ${nodeError.message}`);

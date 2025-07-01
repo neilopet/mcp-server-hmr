@@ -221,7 +221,7 @@ export class MCPProxy {
             process.kill(pid, 0);
             // If we get here, process still exists
             console.error(`⚠️  Process ${pid} still running, forcing kill...`);
-            process.kill(pid, 'SIGKILL');
+            process.kill(pid, "SIGKILL");
         }
         catch {
             // Process doesn't exist, which is what we want
@@ -355,7 +355,8 @@ export class MCPProxy {
             this.pendingRequests.set(id, resolve);
             if (this.managedProcess) {
                 const writer = this.managedProcess.stdin.getWriter();
-                writer.write(new TextEncoder().encode(JSON.stringify(request) + "\n"))
+                writer
+                    .write(new TextEncoder().encode(JSON.stringify(request) + "\n"))
                     .then(() => writer.releaseLock())
                     .catch((error) => {
                     this.pendingRequests.delete(id);
