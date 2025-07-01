@@ -111,12 +111,17 @@ async function main() {
   await createCommands();
   await setupPath();
 
+  const watchPath = resolve(PROJECT_DIR, "watch");
+  
   console.log("\n🎉 Setup complete!");
+  console.log("\n📍 Full path to watch command:");
+  console.log(`   ${watchPath}`);
   console.log("\nYou can now use:");
   console.log("   watch --help");
   console.log("   watch --list");
   console.log("   watch --server <name>");
   console.log("   watch --setup <name>");
+  console.log("\n💡 When configuring MCP clients manually, use the full path above.");
 }
 
 // Run setup

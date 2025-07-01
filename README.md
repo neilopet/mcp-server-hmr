@@ -5,64 +5,72 @@
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](./tests/)
 [![Code Style](https://img.shields.io/badge/code%20style-deno%20fmt-blue.svg)](https://deno.land/manual/tools/formatter)
 
-Hot Module Replacement (HMR) for MCP (Model Context Protocol) servers - instant reloading on file changes, inspired by Vite's developer experience.
+A development proxy for MCP (Model Context Protocol) servers that enables hot-reload functionality. Make changes to your MCP server code and see them instantly without restarting your MCP client.
 
-## What it does
+## What it is
 
-- 🔄 **Automatic server restart** when your MCP server files change
-- 📦 **Message buffering** during restart (no lost messages)
-- 🔌 **Transparent connection** management between MCP clients and servers
-- 🛠️ **Tool update notifications** to clients (Claude, MCP Inspector, etc.)
-- 🌍 **Environment variable** passing to your server
-- 📝 **Detailed logging** for debugging
+MCP Hot-Reload is a **transparent proxy** that sits between your MCP client (Claude Desktop, MCP Inspector, etc.) and your MCP server. Once configured, you can modify your server code and the changes take effect immediately - no more restarting Claude Desktop or other clients after every code change.
+
+**Key benefits:**
+- **Non-disruptive development** - Your MCP client stays connected while your server reloads
+- **Zero message loss** - Requests are buffered during server restart
+- **One-time setup** - Configure once, develop freely
+- **Universal compatibility** - Works with any MCP server (Node.js, Python, Deno, etc.)
 
 ## Quick Start
 
-1. **Clone and install**:
+1. **Clone and set up the repository**:
    ```bash
    git clone https://github.com/neilopet/mcp-server-hmr
    cd mcp-server-hmr
-   deno task setup  # Adds 'watch' command to your PATH
+   deno task setup
    ```
+   
+   The setup command will display the full path to the proxy executable, which you'll need for step 3.
 
-2. **Reload your shell**:
+2. **Configure automatic hot-reload for your MCP server**:
    ```bash
-   source ~/.bashrc  # or ~/.zshrc, ~/.bash_profile
+   # If you have servers in Claude Desktop config:
+   watch --setup my-server
+   
+   # Or set up all stdio servers at once:
+   watch --setup --all
    ```
+   
+   This modifies your MCP client configuration to use the hot-reload proxy.
 
-3. **Choose your usage method** (see below)
+3. **Restart your MCP client** (Claude Desktop, etc.) to load the new configuration.
 
-4. **Connect your MCP client** to the proxy instead of directly to your server.
+That's it! Your MCP server now has hot-reload enabled. Edit your server code and changes apply instantly.
 
-📚 **New to MCP?** Check out the [Quick Start Example](examples/quickstart.md) for a complete walkthrough!
+**New to MCP?** Check out the [Quick Start Example](examples/quickstart.md) for a complete walkthrough.
 
-## Usage Methods
+## Usage Examples
 
-### Method 1: Command Line Arguments (Best for MCP Inspector)
+### Direct Command Line Usage
 
-Perfect for one-off usage and MCP Inspector integration:
+Run your MCP server through the hot-reload proxy:
 
 ```bash
-# Basic usage (after running deno task setup)
+# Node.js server
 watch node /path/to/your/mcp-server.js
 
-# With MCP Inspector
-npx @modelcontextprotocol/inspector \
-  -e API_KEY="your-key" \
-  "watch" \
-  "node" "/path/to/your/mcp-server.js"
-
-# Python server example
+# Python server
 watch python -m mcp_server
 
-# Deno server example  
+# Deno server
 watch deno run --allow-all server.ts
 
-# Or use full paths if setup wasn't run
-./src/main.ts node /path/to/your/mcp-server.js
+# With environment variables
+watch -e API_KEY="your-key" node server.js
+
+# Use with MCP Inspector
+npx @modelcontextprotocol/inspector \
+  "watch" \
+  "node" "/path/to/your/mcp-server.js"
 ```
 
-### Method 2: Config File (Best for Multiple Servers)
+### Automatic Configuration Mode
 
 Ideal for managing multiple MCP servers. The config launcher automatically searches for configs in this order:
 
@@ -149,27 +157,34 @@ All config files use the same format:
 }
 ```
 
-### Method 3: Environment Variables (Simple Single Server)
+### Environment Variable Mode
 
-For simple single-server setups:
+For single-server setups without modifying client configs:
 
 1. Copy `.env.example` to `.env`
 2. Configure your server:
    ```env
    MCP_SERVER_COMMAND="node"
    MCP_SERVER_ARGS="/path/to/your/mcp-server.js"
-   MCP_WATCH_FILE="/path/to/watch.js"  # Optional
-   MCP_RESTART_DELAY="300"             # Optional (ms)
+   MCP_WATCH_FILE="/path/to/watch.js"  # Optional, auto-detected if not set
+   MCP_RESTART_DELAY="300"             # Optional, milliseconds
    ```
 3. Run: `deno task start`
 
-## Configuration Options
+## How It Works
 
-- **MCP_SERVER_COMMAND**: Command to run your server (node, deno, python, etc)
-- **MCP_SERVER_ARGS**: Arguments for your server command
-- **MCP_WATCH_FILE**: (Optional) Specific file to watch, auto-detected if not set
-- **MCP_RESTART_DELAY**: (Optional) Debounce delay in ms, default 300
-- Add any environment variables your MCP server needs
+MCP Hot-Reload acts as a transparent proxy between your MCP client and server:
+
+```
+MCP Client → Hot-Reload Proxy → Your MCP Server
+(Claude)         (watches)         (reloads)
+```
+
+1. **File Watching**: Monitors your server files for changes
+2. **Smart Restart**: Cleanly shuts down and restarts your server
+3. **Message Buffering**: Queues incoming requests during restart
+4. **Seamless Handoff**: Replays buffered messages to the new server
+5. **Client Transparency**: Client stays connected throughout
 
 ## Usage with Claude Desktop
 

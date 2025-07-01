@@ -145,6 +145,11 @@ async function setupHotReload(
     const configText = JSON.stringify(newConfig, null, 2);
     await Deno.writeTextFile(configPath, configText);
     console.log(`\n✅ Updated config file: ${configPath}`);
+    console.log(`\n📝 Hot-reload configured for ${serversToSetup.length} server(s):`);
+    for (const serverName of serversToSetup) {
+      console.log(`   - ${serverName} → ${mainPath}`);
+    }
+    console.log(`\n⚠️  Important: Restart your MCP client (Claude Desktop, etc.) to load the new configuration.`);
   } catch (error) {
     console.error(`❌ Failed to write config: ${error.message}`);
     Deno.exit(1);
