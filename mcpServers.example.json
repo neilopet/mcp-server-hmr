@@ -1,11 +1,11 @@
 {
   "mcpServers": {
-    "channelape": {
+    "example-node-server": {
       "command": "node",
-      "args": ["/path/to/channelape-mcp/dist/index.js"],
+      "args": ["/path/to/your/mcp-server.js"],
       "env": {
-        "CHANNELAPE_API_TOKEN": "${CHANNELAPE_API_TOKEN}",
-        "CHANNELAPE_BUSINESS_ID": "${CHANNELAPE_BUSINESS_ID}"
+        "API_KEY": "${API_KEY}",
+        "DATABASE_URL": "${DATABASE_URL}"
       }
     },
     "example-python-server": {
@@ -22,12 +22,12 @@
       "args": ["run", "--allow-all", "server.ts"],
       "cwd": "/path/to/deno/project"
     },
-    "example-node-server": {
-      "command": "node",
-      "args": ["dist/index.js"],
-      "cwd": "/path/to/node/project",
+    "example-typescript-server": {
+      "command": "npx",
+      "args": ["tsx", "src/server.ts"],
+      "cwd": "/path/to/typescript/project",
       "env": {
-        "NODE_ENV": "production"
+        "NODE_ENV": "development"
       }
     }
   }

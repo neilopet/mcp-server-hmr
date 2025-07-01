@@ -24,7 +24,7 @@ if (Deno.args.length > 0) {
   while (i < Deno.args.length) {
     commandArgs.push(Deno.args[i++]);
   }
-  
+
   // Determine entry file for command line mode
   if (command === "node" && commandArgs.length > 0) {
     entryFile = commandArgs[0];
@@ -42,10 +42,11 @@ if (Deno.args.length > 0) {
 } else {
   // Environment variable mode (for production)
   console.error("🔧 Using environment variables mode");
-  
+
   // Load environment variables from .env file (only in env mode)
-  await load();
-  
+  // Allow empty values for optional variables and export them to Deno.env
+  await load({ export: true, allowEmptyValues: true });
+
   const serverCommand = Deno.env.get("MCP_SERVER_COMMAND");
   const serverArgs = Deno.env.get("MCP_SERVER_ARGS");
   const watchFile = Deno.env.get("MCP_WATCH_FILE");

@@ -1,4 +1,9 @@
-# MCP Server HMR
+# MCP Hot-Reload
+
+[![Deno](https://img.shields.io/badge/deno-1.40+-black?logo=deno&logoColor=white)](https://deno.land/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](./tests/)
+[![Code Style](https://img.shields.io/badge/code%20style-deno%20fmt-blue.svg)](https://deno.land/manual/tools/formatter)
 
 Hot Module Replacement (HMR) for MCP (Model Context Protocol) servers - instant reloading on file changes, inspired by Vite's developer experience.
 
@@ -81,7 +86,7 @@ watch --list
 watch -s my-server -c ~/my-config.json
 
 # Auto-configure servers for hot-reload
-watch --setup channelape    # Setup specific server
+watch --setup my-server     # Setup specific server
 watch --all                 # Setup all stdio servers
 ```
 
@@ -95,6 +100,7 @@ The `--setup` command automatically configures your MCP servers to use hot-reloa
 4. **Filters out HTTP/SSE servers** (only stdio servers supported)
 
 Example transformation:
+
 ```json
 // Before setup
 {
@@ -170,6 +176,7 @@ For simple single-server setups:
 Edit your Claude Desktop configuration (`~/Library/Application Support/Claude/claude_desktop_config.json`):
 
 **Option 1: Using Config File (Recommended)**
+
 ```json
 {
   "mcpServers": {
@@ -182,6 +189,7 @@ Edit your Claude Desktop configuration (`~/Library/Application Support/Claude/cl
 ```
 
 **Option 2: Using Command Line Mode**
+
 ```json
 {
   "mcpServers": {
@@ -197,6 +205,7 @@ Edit your Claude Desktop configuration (`~/Library/Application Support/Claude/cl
 ```
 
 **Option 3: Using Environment Variables**
+
 ```json
 {
   "mcpServers": {
@@ -246,6 +255,7 @@ source ~/.bashrc  # or ~/.zshrc, ~/.bash_profile
 ```
 
 This allows you to use `watch` from anywhere:
+
 ```bash
 watch --help
 watch --list
@@ -255,6 +265,7 @@ watch --server my-server
 ### Manual Setup
 
 If you prefer not to modify your PATH, you can always use the full paths:
+
 ```bash
 ./src/main.ts                 # Direct hot-reload proxy
 ./src/config_launcher.ts      # Config-based launcher
@@ -265,22 +276,22 @@ If you prefer not to modify your PATH, you can always use the full paths:
 
 Run `deno task <name>` for any of these:
 
-| Task              | Description                                      |
-| ----------------- | ------------------------------------------------ |
-| `setup`           | **Add 'watch' command to your PATH**            |
-| `dev`             | Run proxy in development mode with file watching |
-| `start`           | Run proxy in production mode                     |
-| `build`           | Cache dependencies and type-check the project    |
-| `clean`           | Remove generated files and refresh cache         |
-| `lint`            | Check code style                                 |
-| `format`          | Format code                                      |
-| `check`           | Type check the code                              |
-| `test`            | Clean, build, then run all tests                 |
-| `test:watch`      | Run tests in watch mode (no clean/build)         |
-| `test:coverage`   | Clean, build, then generate coverage report      |
-| `test:unit`       | Clean, build, then run unit tests only           |
-| `test:integration`| Clean, build, then run integration tests only    |
-| `test:quick`      | Run tests without clean/build (fast iteration)   |
+| Task               | Description                                      |
+| ------------------ | ------------------------------------------------ |
+| `setup`            | **Add 'watch' command to your PATH**             |
+| `dev`              | Run proxy in development mode with file watching |
+| `start`            | Run proxy in production mode                     |
+| `build`            | Cache dependencies and type-check the project    |
+| `clean`            | Remove generated files and refresh cache         |
+| `lint`             | Check code style                                 |
+| `format`           | Format code                                      |
+| `check`            | Type check the code                              |
+| `test`             | Clean, build, then run all tests                 |
+| `test:watch`       | Run tests in watch mode (no clean/build)         |
+| `test:coverage`    | Clean, build, then generate coverage report      |
+| `test:unit`        | Clean, build, then run unit tests only           |
+| `test:integration` | Clean, build, then run integration tests only    |
+| `test:quick`       | Run tests without clean/build (fast iteration)   |
 
 ## Requirements
 
@@ -308,6 +319,7 @@ MCP Client → MCP Server HMR → Your MCP Server
 The proxy provides detailed logging to help troubleshoot issues:
 
 ### Log Output
+
 All logs are written to **stderr** (not stdout) to avoid interfering with MCP protocol messages:
 
 ```bash
@@ -322,6 +334,7 @@ deno task dev 2>&1 | ts '[%Y-%m-%d %H:%M:%S]'
 ```
 
 ### Log Messages
+
 The proxy logs important events with emoji prefixes for easy scanning:
 
 - 🚀 **Startup**: "Starting MCP Server HMR"
@@ -380,23 +393,27 @@ The test suite is built using the **Model Context Protocol (MCP) Client and Serv
 #### MCP Test Components
 
 **MCP Server Examples Used:**
+
 - **Simple Stdio Server Pattern**: Based on the stdio transport examples from the MCP TypeScript SDK
 - **Built as JavaScript**: All test fixtures are pre-built JavaScript files committed to the codebase
 - **Minimal Implementation**: Focus on essential MCP protocol methods (initialize, tools/list, tools/call)
 
 **Test Fixtures:**
+
 - `tests/fixtures/mcp_server_v1.js` - Returns "Result A" from test_tool
-- `tests/fixtures/mcp_server_v2.js` - Returns "Result B" from test_tool  
+- `tests/fixtures/mcp_server_v2.js` - Returns "Result B" from test_tool
 - `tests/fixtures/mcp_client.js` - MCP client for end-to-end testing
 
 #### Test Categories
 
 **Unit Tests** (`deno task test:unit`):
+
 - `file_change_detection_test.ts` - Verifies file watching triggers server restart
 - `restart_sequence_test.ts` - Validates correct restart order (detect → kill → start → buffer → notify)
 - `message_buffering_test.ts` - Tests message queuing and replay during restart
 
 **Integration Tests** (`deno task test:integration`):
+
 - `e2e_reload_test.ts` - Full end-to-end reload functionality test
 - `error_handling_test.ts` - Server startup failures and crash recovery
 - `debouncing_test.ts` - Multiple rapid file changes trigger only one restart
@@ -451,17 +468,17 @@ The test servers implement the essential MCP protocol methods:
 
 ```javascript
 // Initialize handshake
-if (message.method === 'initialize') {
+if (message.method === "initialize") {
   return { protocolVersion: "2024-11-05", capabilities: { tools: {} } };
 }
 
 // Tool discovery
-if (message.method === 'tools/list') {
+if (message.method === "tools/list") {
   return { tools: [{ name: "test_tool", description: "..." }] };
 }
 
 // Tool execution - THIS IS WHAT CHANGES BETWEEN V1 AND V2
-if (message.method === 'tools/call' && toolName === 'test_tool') {
+if (message.method === "tools/call" && toolName === "test_tool") {
   return { content: [{ type: "text", text: "Result A" }] }; // or "Result B"
 }
 ```

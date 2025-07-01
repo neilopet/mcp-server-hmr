@@ -5,12 +5,12 @@
  * Returns "Result B" from test_tool
  */
 
-const readline = require('readline');
+const readline = require("readline");
 
 // MCP Server state
 const serverInfo = {
   name: "test-server-v2",
-  version: "2.0.0"
+  version: "2.0.0",
 };
 
 const tools = [
@@ -22,53 +22,51 @@ const tools = [
       properties: {
         input: {
           type: "string",
-          description: "Test input parameter"
-        }
-      }
-    }
-  }
+          description: "Test input parameter",
+        },
+      },
+    },
+  },
 ];
 
 // Setup readline for stdio communication
 const rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout,
-  terminal: false
+  terminal: false,
 });
 
 // Handle incoming messages
-rl.on('line', (line) => {
+rl.on("line", (line) => {
   try {
     const message = JSON.parse(line.trim());
-    
-    if (message.method === 'initialize') {
+
+    if (message.method === "initialize") {
       const response = {
         jsonrpc: "2.0",
         id: message.id,
         result: {
           protocolVersion: "2024-11-05",
           capabilities: {
-            tools: {}
+            tools: {},
           },
-          serverInfo: serverInfo
-        }
+          serverInfo: serverInfo,
+        },
       };
       console.log(JSON.stringify(response));
-      
-    } else if (message.method === 'tools/list') {
+    } else if (message.method === "tools/list") {
       const response = {
-        jsonrpc: "2.0", 
+        jsonrpc: "2.0",
         id: message.id,
         result: {
-          tools: tools
-        }
+          tools: tools,
+        },
       };
       console.log(JSON.stringify(response));
-      
-    } else if (message.method === 'tools/call') {
+    } else if (message.method === "tools/call") {
       const toolName = message.params?.name;
-      
-      if (toolName === 'test_tool') {
+
+      if (toolName === "test_tool") {
         const response = {
           jsonrpc: "2.0",
           id: message.id,
@@ -76,10 +74,10 @@ rl.on('line', (line) => {
             content: [
               {
                 type: "text",
-                text: "Result B"
-              }
-            ]
-          }
+                text: "Result B",
+              },
+            ],
+          },
         };
         console.log(JSON.stringify(response));
       } else {
@@ -88,12 +86,11 @@ rl.on('line', (line) => {
           id: message.id,
           error: {
             code: -32601,
-            message: `Unknown tool: ${toolName}`
-          }
+            message: `Unknown tool: ${toolName}`,
+          },
         };
         console.log(JSON.stringify(response));
       }
-      
     } else {
       // Unknown method
       const response = {
@@ -101,26 +98,25 @@ rl.on('line', (line) => {
         id: message.id,
         error: {
           code: -32601,
-          message: `Method not found: ${message.method}`
-        }
+          message: `Method not found: ${message.method}`,
+        },
       };
       console.log(JSON.stringify(response));
     }
-    
   } catch (error) {
     console.error(`[Server v2] Parse error: ${error.message}`);
   }
 });
 
 // Handle process shutdown
-process.on('SIGTERM', () => {
-  console.error('[Server v2] Received SIGTERM, shutting down...');
+process.on("SIGTERM", () => {
+  console.error("[Server v2] Received SIGTERM, shutting down...");
   process.exit(0);
 });
 
-process.on('SIGINT', () => {
-  console.error('[Server v2] Received SIGINT, shutting down...');
+process.on("SIGINT", () => {
+  console.error("[Server v2] Received SIGINT, shutting down...");
   process.exit(0);
 });
 
-console.error('[Server v2] MCP Test Server v2 started (returns Result B)');
+console.error("[Server v2] MCP Test Server v2 started (returns Result B)");

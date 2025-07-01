@@ -5,8 +5,8 @@
  * For testing MCP Server HMR functionality
  */
 
-const { spawn } = require('child_process');
-const readline = require('readline');
+const { spawn } = require("child_process");
+const readline = require("readline");
 
 class MCPClient {
   constructor(serverCommand, serverArgs) {
@@ -21,20 +21,20 @@ class MCPClient {
   async connect() {
     return new Promise((resolve, reject) => {
       this.serverProcess = spawn(this.serverCommand, this.serverArgs, {
-        stdio: ['pipe', 'pipe', 'inherit']
+        stdio: ["pipe", "pipe", "inherit"],
       });
 
-      this.serverProcess.on('error', (error) => {
+      this.serverProcess.on("error", (error) => {
         reject(error);
       });
 
-      this.serverProcess.on('spawn', () => {
+      this.serverProcess.on("spawn", () => {
         this.isConnected = true;
         this.setupMessageHandling();
         resolve();
       });
 
-      this.serverProcess.on('exit', (code) => {
+      this.serverProcess.on("exit", (code) => {
         this.isConnected = false;
         console.error(`[Client] Server process exited with code: ${code}`);
       });
@@ -44,13 +44,13 @@ class MCPClient {
   setupMessageHandling() {
     const rl = readline.createInterface({
       input: this.serverProcess.stdout,
-      terminal: false
+      terminal: false,
     });
 
-    rl.on('line', (line) => {
+    rl.on("line", (line) => {
       try {
         const message = JSON.parse(line.trim());
-        
+
         if (message.id && this.pendingRequests.has(message.id)) {
           const { resolve } = this.pendingRequests.get(message.id);
           this.pendingRequests.delete(message.id);
@@ -64,7 +64,7 @@ class MCPClient {
 
   async sendRequest(method, params = {}) {
     if (!this.isConnected) {
-      throw new Error('Not connected to server');
+      throw new Error("Not connected to server");
     }
 
     const id = this.currentId++;
@@ -72,13 +72,13 @@ class MCPClient {
       jsonrpc: "2.0",
       id,
       method,
-      params
+      params,
     };
 
     return new Promise((resolve, reject) => {
       this.pendingRequests.set(id, { resolve, reject });
 
-      const requestStr = JSON.stringify(request) + '\n';
+      const requestStr = JSON.stringify(request) + "\n";
       this.serverProcess.stdin.write(requestStr);
 
       // Timeout after 5 seconds
@@ -92,13 +92,13 @@ class MCPClient {
   }
 
   async initialize() {
-    const response = await this.sendRequest('initialize', {
+    const response = await this.sendRequest("initialize", {
       protocolVersion: "2024-11-05",
       capabilities: {},
       clientInfo: {
         name: "test-client",
-        version: "1.0.0"
-      }
+        version: "1.0.0",
+      },
     });
 
     if (response.error) {
@@ -109,8 +109,8 @@ class MCPClient {
   }
 
   async listTools() {
-    const response = await this.sendRequest('tools/list');
-    
+    const response = await this.sendRequest("tools/list");
+
     if (response.error) {
       throw new Error(`List tools failed: ${response.error.message}`);
     }
@@ -119,9 +119,9 @@ class MCPClient {
   }
 
   async callTool(name, arguments_) {
-    const response = await this.sendRequest('tools/call', {
+    const response = await this.sendRequest("tools/call", {
       name,
-      arguments: arguments_ || {}
+      arguments: arguments_ || {},
     });
 
     if (response.error) {
@@ -133,7 +133,7 @@ class MCPClient {
 
   async disconnect() {
     if (this.serverProcess) {
-      this.serverProcess.kill('SIGTERM');
+      this.serverProcess.kill("SIGTERM");
       this.serverProcess = null;
       this.isConnected = false;
     }
@@ -141,7 +141,7 @@ class MCPClient {
 }
 
 // Export for use in tests
-if (typeof module !== 'undefined' && module.exports) {
+if (typeof module !== "undefined" && module.exports) {
   module.exports = MCPClient;
 }
 
@@ -152,33 +152,32 @@ if (require.main === module) {
     const serverArgs = process.argv.slice(3);
 
     if (!serverCommand) {
-      console.error('Usage: node mcp_client.js <server_command> [args...]');
+      console.error("Usage: node mcp_client.js <server_command> [args...]");
       process.exit(1);
     }
 
     const client = new MCPClient(serverCommand, serverArgs);
 
     try {
-      console.log('[Client] Connecting to server...');
+      console.log("[Client] Connecting to server...");
       await client.connect();
 
-      console.log('[Client] Initializing...');
+      console.log("[Client] Initializing...");
       const initResult = await client.initialize();
-      console.log('[Client] Initialize result:', JSON.stringify(initResult, null, 2));
+      console.log("[Client] Initialize result:", JSON.stringify(initResult, null, 2));
 
-      console.log('[Client] Listing tools...');
+      console.log("[Client] Listing tools...");
       const tools = await client.listTools();
-      console.log('[Client] Available tools:', JSON.stringify(tools, null, 2));
+      console.log("[Client] Available tools:", JSON.stringify(tools, null, 2));
 
       if (tools.length > 0) {
         const toolName = tools[0].name;
         console.log(`[Client] Calling tool: ${toolName}`);
         const result = await client.callTool(toolName, { input: "test" });
-        console.log('[Client] Tool result:', JSON.stringify(result, null, 2));
+        console.log("[Client] Tool result:", JSON.stringify(result, null, 2));
       }
-
     } catch (error) {
-      console.error('[Client] Error:', error.message);
+      console.error("[Client] Error:", error.message);
     } finally {
       await client.disconnect();
     }

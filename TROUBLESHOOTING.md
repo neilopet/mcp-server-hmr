@@ -7,6 +7,7 @@
 **Symptom**: Error message "MCP_SERVER_COMMAND environment variable is required"
 
 **Solution**:
+
 ```bash
 # Make sure you've copied and configured .env
 cp .env.example .env
@@ -18,11 +19,13 @@ cp .env.example .env
 **Symptom**: File changes don't trigger server restart
 
 **Check**:
+
 - Look for the "👀 Watching:" log message - is it watching the right file?
 - Try manually saving the file again
 - Check if the file path is absolute (not relative)
 
 **Solution**:
+
 ```env
 # Explicitly set the file to watch
 MCP_WATCH_FILE="/absolute/path/to/your/server.js"
@@ -31,11 +34,13 @@ MCP_WATCH_FILE="/absolute/path/to/your/server.js"
 ### 3. "Server exited unexpectedly"
 
 **Common Causes**:
+
 1. Your server has a syntax error
 2. Missing dependencies
 3. Wrong command/args in .env
 
 **Debug Steps**:
+
 ```bash
 # Test your server directly without the proxy
 node /path/to/your/server.js
@@ -50,6 +55,7 @@ deno run --allow-all /path/to/your/server.ts
 **Check**: Look for "📦 Buffered message during restart" in logs
 
 **Solution**: Increase restart delay if your server needs more startup time:
+
 ```env
 MCP_RESTART_DELAY=1000  # Milliseconds
 ```
@@ -58,7 +64,8 @@ MCP_RESTART_DELAY=1000  # Milliseconds
 
 **Symptom**: Claude doesn't see new tools after server changes
 
-**Check**: 
+**Check**:
+
 - Look for "📢 Sent tool change notification" in logs
 - Ensure your server implements the `tools/list` method
 - Check if tools are actually changing
@@ -68,6 +75,7 @@ MCP_RESTART_DELAY=1000  # Milliseconds
 **Symptom**: "Requires read access" or similar Deno errors
 
 **Solution**: Ensure all required permissions are granted:
+
 ```bash
 deno run --allow-env --allow-read --allow-run src/main.ts
 ```
@@ -77,16 +85,18 @@ deno run --allow-env --allow-read --allow-run src/main.ts
 **Symptom**: Old server processes keep running
 
 **Check**:
+
 ```bash
 # Find lingering processes
 ps aux | grep "your-server"
 ```
 
 **Solution**: The proxy tries SIGTERM then SIGKILL. If processes still linger, you may need to handle signals in your server:
+
 ```javascript
 // In your MCP server
-process.on('SIGTERM', () => {
-  console.error('Received SIGTERM, shutting down...');
+process.on("SIGTERM", () => {
+  console.error("Received SIGTERM, shutting down...");
   process.exit(0);
 });
 ```
@@ -153,6 +163,7 @@ deno task dev
 ```
 
 You should see:
+
 - 🚀 Starting MCP Server HMR
 - ✅ Server started
 - 👀 Watching: test-server.js

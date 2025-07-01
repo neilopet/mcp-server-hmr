@@ -15,13 +15,13 @@
     "build": "deno cache --reload src/mod.ts src/main.ts && deno check src/mod.ts src/main.ts",
     "clean": "rm -rf coverage/ .test_temp/ dist/ deno.lock && deno cache --reload src/mod.ts src/main.ts",
     "prebuild": "deno fmt && deno lint",
-    
+
     // Code quality
     "lint": "deno lint",
     "format": "deno fmt",
     "format:check": "deno fmt --check",
     "check": "deno check src/mod.ts",
-    
+
     // Testing (runs build + clean first)
     "test": "deno task clean && deno task build && deno test --allow-env --allow-read --allow-write --allow-run tests/",
     "test:watch": "deno test --allow-env --allow-read --allow-write --allow-run --watch tests/",
@@ -37,8 +37,8 @@
     "hooks:install": "echo 'Note: Pre-commit hooks will be implemented in next version'",
 
     // Examples
-    "example:basic": "deno run --allow-env --allow-read --allow-run examples/basic/main.ts",
-    "example:inspector": "deno run --allow-env --allow-read --allow-run examples/inspector/main.ts"
+    "example:basic": "MCP_SERVER_COMMAND=node MCP_SERVER_ARGS=examples/basic/server.js MCP_WATCH_FILE=examples/basic/server.js deno run --allow-env --allow-read --allow-run src/main.ts",
+    "example:python": "MCP_SERVER_COMMAND=python MCP_SERVER_ARGS=examples/python/server.py MCP_WATCH_FILE=examples/python/server.py deno run --allow-env --allow-read --allow-run src/main.ts"
   },
   "lint": {
     "rules": {

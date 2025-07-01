@@ -12,45 +12,49 @@ Create `my-mcp-server.js`:
 console.error("[Server] Starting MCP server...");
 
 // Respond to initialize
-process.stdin.on('data', (data) => {
-  const lines = data.toString().trim().split('\n');
-  
-  lines.forEach(line => {
+process.stdin.on("data", (data) => {
+  const lines = data.toString().trim().split("\n");
+
+  lines.forEach((line) => {
     if (!line.trim()) return;
-    
+
     try {
       const message = JSON.parse(line);
-      console.error(`[Server] Received: ${message.method || 'response'}`);
-      
-      if (message.method === 'initialize') {
-        process.stdout.write(JSON.stringify({
-          jsonrpc: "2.0",
-          id: message.id,
-          result: {
-            capabilities: {},
-            serverInfo: {
-              name: "my-mcp-server",
-              version: "1.0.0"
-            }
-          }
-        }) + '\n');
+      console.error(`[Server] Received: ${message.method || "response"}`);
+
+      if (message.method === "initialize") {
+        process.stdout.write(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            id: message.id,
+            result: {
+              capabilities: {},
+              serverInfo: {
+                name: "my-mcp-server",
+                version: "1.0.0",
+              },
+            },
+          }) + "\n",
+        );
       }
-      
-      if (message.method === 'tools/list') {
+
+      if (message.method === "tools/list") {
         // Change this array to test hot reload!
         const tools = [
           {
             name: "get_time",
             description: "Get current time",
-            inputSchema: { type: "object", properties: {} }
-          }
+            inputSchema: { type: "object", properties: {} },
+          },
         ];
-        
-        process.stdout.write(JSON.stringify({
-          jsonrpc: "2.0",
-          id: message.id,
-          result: { tools }
-        }) + '\n');
+
+        process.stdout.write(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            id: message.id,
+            result: { tools },
+          }) + "\n",
+        );
       }
     } catch (e) {
       console.error("[Server] Parse error:", e.message);
@@ -59,7 +63,7 @@ process.stdin.on('data', (data) => {
 });
 
 // Handle shutdown
-process.on('SIGTERM', () => {
+process.on("SIGTERM", () => {
   console.error("[Server] Received SIGTERM, shutting down...");
   process.exit(0);
 });
@@ -82,6 +86,7 @@ deno task dev
 ```
 
 You should see:
+
 ```
 🚀 Starting MCP Server HMR
 📟 Server: node /path/to/my-mcp-server.js
@@ -119,7 +124,13 @@ Update your Claude Desktop config:
   "mcpServers": {
     "my-server": {
       "command": "deno",
-      "args": ["run", "--allow-env", "--allow-read", "--allow-run", "/path/to/mcp-server-hmr/src/main.ts"],
+      "args": [
+        "run",
+        "--allow-env",
+        "--allow-read",
+        "--allow-run",
+        "/path/to/mcp-server-hmr/src/main.ts"
+      ],
       "env": {
         "MCP_SERVER_COMMAND": "node",
         "MCP_SERVER_ARGS": "/path/to/my-mcp-server.js"

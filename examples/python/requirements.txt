@@ -1,0 +1,2 @@
+# No external dependencies required for this basic example
+# Add any Python packages your MCP server needs here

@@ -23,8 +23,6 @@ fi
 if [ $# -gt 0 ]; then
     echo "🧪 Running in command line mode with arguments: $@"
     npx @modelcontextprotocol/inspector \
-        -e CHANNELAPE_API_TOKEN="$CHANNELAPE_API_TOKEN" \
-        -e CHANNELAPE_BUSINESS_ID="$CHANNELAPE_BUSINESS_ID" \
         "$SCRIPT_DIR/src/main.ts" \
         "$@"
 else
@@ -46,9 +44,9 @@ else
 
     # Pass all environment variables through to the inspector
     npx @modelcontextprotocol/inspector \
-        -e CHANNELAPE_API_TOKEN="$CHANNELAPE_API_TOKEN" \
-        -e CHANNELAPE_BUSINESS_ID="$CHANNELAPE_BUSINESS_ID" \
         -e MCP_SERVER_COMMAND="$MCP_SERVER_COMMAND" \
         -e MCP_SERVER_ARGS="$MCP_SERVER_ARGS" \
+        -e MCP_WATCH_FILE="$MCP_WATCH_FILE" \
+        -e MCP_LOG_LEVEL="$MCP_LOG_LEVEL" \
         "$SCRIPT_DIR/src/main.ts"
 fi
