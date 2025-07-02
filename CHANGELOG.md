@@ -9,21 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Generic Interface System**: New `ChangeSource` interface enables monitoring beyond just files
-- **Extensible Event Types**: Added `version_update` and `dependency_change` event types for package monitoring  
-- **Multiple Watch Targets**: `watchTargets` array replaces single `entryFile` for monitoring multiple resources
-- **Library API Support**: mcpmon can now be imported and used as a library dependency
-- **Status Checking**: New `isRunning()` method for proxy status monitoring
-- **Backward Compatibility**: Automatic adapter converts legacy `FileSystem` to new `ChangeSource` interface
+- **Comprehensive Error Scenario Tests**: Added tests for server initialization failures, process errors, stream forwarding errors, and request timeouts
+- **CLI Integration Tests**: Added tests for command-line interface including argument parsing, watch file auto-detection, and environment variable handling
+- **Node Implementation Tests**: Added integration tests for NodeFileSystem and NodeProcessManager
+- **Test Coverage Improvements**: Increased test coverage from ~32% to ~40% across all metrics
+
+### Fixed
+
+- **Timer Cleanup on Shutdown**: Fixed "worker process failed to exit gracefully" Jest warnings by properly cleaning up all timers and resources
+- **Pending Request Cleanup**: Added proper cleanup of request timeouts during shutdown
+- **Debounced Restart Clear**: Added clearing of debounced restart timer on shutdown
 
 ### Changed
 
-- **Generic Monitoring**: `ChangeSource` interface supports files, packages, APIs, and other resources
-- **Enhanced Configuration**: `MCPProxyConfig` now supports `watchTargets` array with `entryFile` fallback  
-- **Extended Events**: `ChangeEvent` includes optional metadata field for rich event information
-- **Improved Testing**: Comprehensive TDD test coverage for new generic interfaces
+- **Documentation Updates**: Comprehensive update of all documentation to reflect current implementation
+  - Fixed broken documentation links in README.md
+  - Removed references to unimplemented generic interface system from API and architecture docs
+  - Updated testing documentation to match current Jest setup
+  - Fixed npm scripts and commands in CONTRIBUTING.md
+  - Aligned all code examples with actual implementation
 
-This enables mcpmon to be used as a library for monitoring package registries, APIs, and other change sources beyond local files. Perfect for future hosted package monitoring that automatically checks and updates packages.
+### Removed
+
+- **Dead Code**: Removed unused type guard functions `isProcessManager()` and `isFileSystem()` from interfaces.ts
 
 ## [0.3.0] - 2025-07-02
 
