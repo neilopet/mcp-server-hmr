@@ -9,42 +9,42 @@ on:
 jobs:
   test:
     runs-on: ${{ matrix.os }}
-    
+
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        deno: [1.x]
-    
+        node: [18.x, 20.x]
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
-      - name: Setup Deno
-        uses: denoland/setup-deno@v1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          deno-version: ${{ matrix.deno }}
-      
-      - name: Verify formatting
-        run: deno fmt --check
-      
-      - name: Run linter
-        run: deno lint
-      
+          node-version: ${{ matrix.node }}
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build
+
       - name: Type check
-        run: deno check src/mod.ts
-      
+        run: npm run typecheck
+
       - name: Run tests
-        run: deno test --allow-all tests/
-      
+        run: npm test
+
       - name: Generate coverage
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          deno test --allow-all --coverage=coverage/ tests/
-          deno coverage coverage/ --lcov --output=coverage.lcov
-      
+        if: matrix.os == 'ubuntu-latest' && matrix.node == '20.x'
+        run: npm run test:coverage
+
       - name: Upload coverage
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os == 'ubuntu-latest' && matrix.node == '20.x'
         uses: codecov/codecov-action@v3
         with:
-          file: ./coverage.lcov
+          directory: ./coverage
+          flags: unittests
           fail_ci_if_error: false
