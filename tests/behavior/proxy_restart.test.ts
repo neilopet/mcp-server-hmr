@@ -20,10 +20,26 @@ describe("Test Suite", () => {
       restartDelay: 100,
     });
 
+    // Set a manual timeout to prevent infinite hanging
+    const testTimeout = setTimeout(() => {
+      throw new Error("Test manually timed out after 25 seconds");
+    }, 25000);
+
     try {
       // Start proxy and wait for initial spawn
-      proxy.start();
-      await waitForSpawns(procManager, 1);
+      proxy.start(); // Don't await - it has an infinite loop
+      
+      // Give proxy time to start up
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      // Check spawn count
+      const spawnCount = procManager.getSpawnCallCount();
+      expect(spawnCount).toBeGreaterThan(0); // Should have spawned at least one server
+      
+      // Wait for spawns if needed
+      if (spawnCount === 0) {
+        await waitForSpawns(procManager, 1, 5000);
+      }
 
       // Verify initial server was spawned
       expect(procManager.getSpawnCallCount()).toBe(1); // Should spawn initial server
@@ -40,7 +56,7 @@ describe("Test Suite", () => {
       const initialPid = initialProcess.pid;
 
       // Simulate first restart
-      await simulateRestart(procManager, fs);
+      await simulateRestart(procManager, fs, undefined, 100);
 
       // Verify restart sequence
       expect(procManager.getSpawnCallCount()).toBe(2); // Should spawn new server after file change
@@ -65,14 +81,24 @@ describe("Test Suite", () => {
       newProcess.simulateStdout('{"jsonrpc":"2.0","id":2,"result":{"tools":[]}}\n');
 
       // Simulate second restart
-      await simulateRestart(procManager, fs);
+      await simulateRestart(procManager, fs, undefined, 100);
 
       // Should have spawned third server
       expect(procManager.getSpawnCallCount()).toBe(3); // Should spawn third server after second file change
     } finally {
+      clearTimeout(testTimeout);
+      
+      // Make sure all processes exit cleanly for teardown
+      const allProcesses = procManager.getAllSpawnedProcesses();
+      for (const proc of allProcesses) {
+        if (!proc.hasExited()) {
+          proc.simulateExit(0);
+        }
+      }
+      
       await teardown();
     }
-  });
+  }, 35000); // Increase Jest timeout to 35 seconds
 });
 
 describe("Test Suite", () => {

@@ -151,6 +151,13 @@ export class MockManagedProcess implements ManagedProcess {
   getLastKillSignal(): string | undefined {
     return this.killCalls.length > 0 ? this.killCalls[this.killCalls.length - 1].signal : undefined;
   }
+
+  /**
+   * Check if process has exited
+   */
+  hasExited(): boolean {
+    return this._exitCode !== null || this._exitSignal !== null;
+  }
 }
 
 /**

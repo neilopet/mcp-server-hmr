@@ -152,7 +152,8 @@ export async function waitForStable(ms: number = 100): Promise<void> {
 export async function simulateRestart(
   procManager: MockProcessManager,
   fs: MockFileSystem,
-  triggerFile?: string
+  triggerFile?: string,
+  restartDelay: number = 100
 ): Promise<void> {
   const fileToTrigger = triggerFile || "/test/server.js";
 
@@ -162,8 +163,8 @@ export async function simulateRestart(
   // Trigger file change
   fs.triggerFileEvent(fileToTrigger, "modify");
 
-  // Wait for restart to begin
-  await waitForStable(60);
+  // Wait for restart to begin (must wait longer than restartDelay)
+  await waitForStable(restartDelay + 50);
 
   // Simulate process exit to allow killServer() to complete
   if (initialProcess) {
