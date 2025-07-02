@@ -129,11 +129,47 @@ That's it! mcpmon is designed to work with zero configuration.
 
 ## How It Works
 
-mcpmon sits between your MCP client and server, automatically restarting your server when files change:
+mcpmon acts as a transparent proxy between your MCP client and server, providing automatic hot-reload capabilities:
 
-```
-MCP Client → mcpmon → Your MCP Server
-(Claude)    (proxy)     (auto-restart)
+```mermaid
+sequenceDiagram
+    participant Client as MCP Client<br/>(Claude Desktop)
+    participant Proxy as mcpmon<br/>(Proxy)
+    participant Server as MCP Server<br/>(Your Code)
+    participant FS as File System
+
+    Note over Client,FS: Initial Setup
+    Client->>+Proxy: Connect via stdio
+    Proxy->>+Server: Launch subprocess
+    Proxy->>FS: Watch server files
+    
+    Note over Client,FS: Normal Operation
+    Client->>Proxy: MCP requests
+    Proxy->>Server: Forward requests
+    Server->>Proxy: MCP responses
+    Proxy->>Client: Forward responses
+    
+    Note over Client,FS: Hot Reload Triggered
+    FS-->>Proxy: File change detected!
+    Note over Proxy: Debounce changes
+    Proxy->>Proxy: Buffer incoming messages
+    
+    Note over Proxy,Server: Restart Process
+    Proxy->>Server: SIGTERM (graceful shutdown)
+    Proxy->>Server: SIGKILL if needed
+    deactivate Server
+    Proxy->>+Server: Launch new process
+    
+    Note over Client,Server: Restore State
+    Proxy->>Server: Replay buffered messages
+    Proxy->>Server: Request tools/list
+    Server->>Proxy: Updated tool list
+    Proxy->>Client: notifications/tools/list_changed
+    
+    Note over Client,FS: Resume Normal Operation
+    Client->>Proxy: Continue working
+    Proxy->>Server: Forward requests
+    Note over Client: Never disconnected! 🎉
 ```
 
 **The magic:** Your MCP client stays connected while your server reloads. No need to reconnect Claude Desktop or restart MCP Inspector!
@@ -160,7 +196,7 @@ MCPMON_VERBOSE=1 mcpmon node server.js
 ## Development
 
 ```bash
-# Run tests
+# Run tests (includes clean and build)
 npm test
 
 # Development mode
