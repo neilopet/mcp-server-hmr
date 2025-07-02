@@ -255,7 +255,7 @@ This release migrates the project from Deno to Node.js as the canonical implemen
 **Before (Deno):**
 ```bash
 # Installation
-git clone https://github.com/neilopet/claude-live-reload
+git clone https://github.com/neilopet/mcpmon
 cd claude-live-reload
 deno task setup
 
@@ -283,7 +283,7 @@ npm start
 
 2. **Development Setup:**
    ```bash
-   git clone https://github.com/neilopet/claude-live-reload
+   git clone https://github.com/neilopet/mcpmon
    cd claude-live-reload
    npm install
    npm run build

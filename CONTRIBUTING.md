@@ -8,8 +8,8 @@ We welcome contributions from everyone, regardless of experience level. This gui
 
 ### 🐛 Found a Bug?
 
-- Check if it's already reported in [Issues](https://github.com/neilopet/claude-live-reload/issues)
-- If not, [create a new issue](https://github.com/neilopet/claude-live-reload/issues/new) with:
+- Check if it's already reported in [Issues](https://github.com/neilopet/mcpmon/issues)
+- If not, [create a new issue](https://github.com/neilopet/mcpmon/issues/new) with:
   - Steps to reproduce
   - Expected vs actual behavior
   - Your environment (OS, Node.js version)

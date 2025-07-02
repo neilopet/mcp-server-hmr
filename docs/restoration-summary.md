@@ -43,7 +43,7 @@ I sincerely apologize for incorrectly removing valid documentation about the Gen
 ## Correctly Updated Files
 
 ### 1. **CHANGELOG.md**
-- ✅ Fixed outdated GitHub repository URLs (mcp-server-hmr → claude-live-reload)
+- ✅ Fixed outdated GitHub repository URLs (mcp-server-hmr → mcpmon)
 - This change was correct and has been kept
 
 ## Current State
