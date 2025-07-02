@@ -20,14 +20,14 @@ describe("Test Suite", () => {
     try {
       // Start proxy and wait for initial spawn
       proxy.start(); // Don't await - it has an infinite loop
-      
+
       // Give proxy time to start up
-      await new Promise(resolve => setTimeout(resolve, 200));
-      
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
       // Check spawn count
       const spawnCount = procManager.getSpawnCallCount();
       expect(spawnCount).toBeGreaterThan(0); // Should have spawned at least one server
-      
+
       // Wait for spawns if needed
       if (spawnCount === 0) {
         await waitForSpawns(procManager, 1, 5000);

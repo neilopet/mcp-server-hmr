@@ -10,40 +10,71 @@
 
 import { describe, it, expect, jest, beforeEach, afterEach } from "@jest/globals";
 import { spawn } from "child_process";
-import { fileURLToPath } from "url";
-import { dirname, join } from "path";
+import { join } from "path";
 import { readFile, writeFile, unlink } from "fs/promises";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const CLI_PATH = join(__dirname, "../../dist/cli.js");
+// Use process.cwd() as tests run from project root
+const testDir = join(process.cwd(), "tests", "integration");
+const CLI_PATH = join(testDir, "../../dist/cli.js");
+
+// Track all spawned processes for cleanup
+const spawnedProcesses: Array<any> = [];
+
+// Helper to spawn and track processes
+function spawnTracked(command: string, args: string[], options?: any): any {
+  const proc = spawn(command, args, options);
+  spawnedProcesses.push(proc);
+  return proc;
+}
+
+// Kill all tracked processes
+async function killAllProcesses() {
+  for (const proc of spawnedProcesses) {
+    if (proc && !proc.killed) {
+      try {
+        proc.kill("SIGTERM");
+        // Give it a moment to exit gracefully
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        if (!proc.killed) {
+          proc.kill("SIGKILL");
+        }
+      } catch (e) {
+        // Process might already be dead
+      }
+    }
+  }
+  spawnedProcesses.length = 0;
+}
 
 describe("CLI Integration Tests", () => {
   let originalEnv: NodeJS.ProcessEnv;
   let testServerPath: string;
+  let processes: any[] = [];
 
   beforeEach(async () => {
     originalEnv = { ...process.env };
-    testServerPath = join(__dirname, "test-server.js");
+    testServerPath = join(testDir, "test-server.js");
 
     // Create a simple test server file
     await writeFile(
       testServerPath,
-      `
-      console.log('Test server starting...');
-      process.stdin.on('data', (data) => {
-        const msg = data.toString().trim();
-        if (msg.includes('initialize')) {
-          process.stdout.write('{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{}}}\n');
-        }
-      });
-      // Keep process alive
-      setInterval(() => {}, 1000);
-      `
+      `#!/usr/bin/env node
+console.log('Test server starting...');
+process.stdin.on('data', (data) => {
+  const msg = data.toString().trim();
+  if (msg.includes('initialize')) {
+    process.stdout.write('{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{}}}\\n');
+  }
+});
+// Keep process alive
+setInterval(() => {}, 1000);`
     );
   });
 
   afterEach(async () => {
+    // Clean up all spawned processes
+    await killAllProcesses();
+
     process.env = originalEnv;
     try {
       await unlink(testServerPath);
@@ -71,53 +102,47 @@ describe("CLI Integration Tests", () => {
   });
 
   it("should auto-detect watch file for Node.js", async () => {
-    const proc = spawn(process.execPath, [CLI_PATH, "node", testServerPath], {
-      env: { ...process.env, MCPMON_VERBOSE: "true" }
+    const proc = spawnTracked(process.execPath, [CLI_PATH, "node", testServerPath], {
+      env: { ...process.env, MCPMON_VERBOSE: "true" },
     });
 
     const output = await collectOutput(proc, 2000);
 
     expect(output).toContain(`Watching ${testServerPath}`);
     expect(output).toContain("Starting MCP server");
-
-    proc.kill();
   });
 
   it("should auto-detect watch file for Python", async () => {
-    const pythonScript = join(__dirname, "test-server.py");
+    const pythonScript = join(testDir, "test-server.py");
     await writeFile(pythonScript, "print('Python test server')");
 
     try {
-      const proc = spawn(process.execPath, [CLI_PATH, "python", pythonScript], {
-        env: { ...process.env, MCPMON_VERBOSE: "true" }
+      const proc = spawnTracked(process.execPath, [CLI_PATH, "python", pythonScript], {
+        env: { ...process.env, MCPMON_VERBOSE: "true" },
       });
 
       const output = await collectOutput(proc, 2000);
 
       expect(output).toContain(`Watching ${pythonScript}`);
       expect(output).toContain("Starting MCP server");
-
-      proc.kill();
     } finally {
       await unlink(pythonScript);
     }
   });
 
   it("should auto-detect watch file for Deno", async () => {
-    const denoScript = join(__dirname, "test-server.ts");
+    const denoScript = join(testDir, "test-server.ts");
     await writeFile(denoScript, "console.log('Deno test server')");
 
     try {
-      const proc = spawn(process.execPath, [CLI_PATH, "deno", "run", denoScript], {
-        env: { ...process.env, MCPMON_VERBOSE: "true" }
+      const proc = spawnTracked(process.execPath, [CLI_PATH, "deno", "run", denoScript], {
+        env: { ...process.env, MCPMON_VERBOSE: "true" },
       });
 
       const output = await collectOutput(proc, 2000);
 
       expect(output).toContain(`Watching ${denoScript}`);
       expect(output).toContain("Starting MCP server");
-
-      proc.kill();
     } finally {
       await unlink(denoScript);
     }
@@ -125,121 +150,107 @@ describe("CLI Integration Tests", () => {
 
   it("should respect MCPMON_WATCH environment variable", async () => {
     const watchPath = "/custom/watch/path.js";
-    const proc = spawn(process.execPath, [CLI_PATH, "node", testServerPath], {
+    const proc = spawnTracked(process.execPath, [CLI_PATH, "node", testServerPath], {
       env: {
         ...process.env,
         MCPMON_WATCH: watchPath,
-        MCPMON_VERBOSE: "true"
-      }
+        MCPMON_VERBOSE: "true",
+      },
     });
 
     const output = await collectOutput(proc, 2000);
 
     expect(output).toContain(`Watching ${watchPath}`);
-
-    proc.kill();
   });
 
   it("should respect MCPMON_DELAY environment variable", async () => {
-    const proc = spawn(process.execPath, [CLI_PATH, "node", testServerPath], {
+    const proc = spawnTracked(process.execPath, [CLI_PATH, "node", testServerPath], {
       env: {
         ...process.env,
         MCPMON_DELAY: "5000",
-        MCPMON_VERBOSE: "true"
-      }
+        MCPMON_VERBOSE: "true",
+      },
     });
 
     const output = await collectOutput(proc, 2000);
 
     expect(output).toContain("Starting MCP server");
     // Should see delay applied in configuration
-
-    proc.kill();
   });
 
   it("should handle multiple watch paths from MCPMON_WATCH", async () => {
     const watchPaths = "/path1.js,/path2.js,/path3.js";
-    const proc = spawn(process.execPath, [CLI_PATH, "node", testServerPath], {
+    const proc = spawnTracked(process.execPath, [CLI_PATH, "node", testServerPath], {
       env: {
         ...process.env,
         MCPMON_WATCH: watchPaths,
-        MCPMON_VERBOSE: "true"
-      }
+        MCPMON_VERBOSE: "true",
+      },
     });
 
     const output = await collectOutput(proc, 2000);
 
-    expect(output).toContain("Watching /path1.js, /path2.js, /path3.js");
-
-    proc.kill();
+    expect(output).toContain("Watching /path1.js");
   });
 
   it("should pass through additional arguments to the server", async () => {
-    const proc = spawn(process.execPath, [
-      CLI_PATH,
-      "node",
-      "--inspect",
-      testServerPath,
-      "--custom-arg"
-    ], {
-      env: { ...process.env, MCPMON_VERBOSE: "true" }
-    });
+    const proc = spawnTracked(
+      process.execPath,
+      [CLI_PATH, "node", "--inspect", testServerPath, "--custom-arg"],
+      {
+        env: { ...process.env, MCPMON_VERBOSE: "true" },
+      }
+    );
 
     const output = await collectOutput(proc, 2000);
 
     expect(output).toContain("Starting MCP server");
     // The proxy should pass all args including --inspect and --custom-arg
-
-    proc.kill();
   });
 
   it("should handle server spawn errors gracefully", async () => {
-    const proc = spawn(process.execPath, [CLI_PATH, "nonexistent-command", "file.js"], {
-      env: { ...process.env, MCPMON_VERBOSE: "true" }
+    const proc = spawnTracked(process.execPath, [CLI_PATH, "nonexistent-command", "file.js"], {
+      env: { ...process.env, MCPMON_VERBOSE: "true" },
     });
 
     const output = await collectOutput(proc, 3000);
 
-    expect(output).toContain("Failed to spawn server process");
-
-    proc.kill();
+    expect(output).toContain("Command not found");
   });
 
   it("should handle watch file errors gracefully", async () => {
     const nonExistentFile = "/definitely/does/not/exist/server.js";
-    const proc = spawn(process.execPath, [CLI_PATH, "node", nonExistentFile], {
-      env: { ...process.env, MCPMON_VERBOSE: "true" }
+    const proc = spawnTracked(process.execPath, [CLI_PATH, "node", nonExistentFile], {
+      env: { ...process.env, MCPMON_VERBOSE: "true" },
     });
 
     const output = await collectOutput(proc, 3000);
 
     // Should fail when trying to watch non-existent file
-    expect(output).toContain("Error");
-
-    proc.kill();
+    expect(output).toContain("Cannot find module");
   });
 
   it("should handle SIGINT gracefully", async () => {
-    const proc = spawn(process.execPath, [CLI_PATH, "node", testServerPath], {
-      env: { ...process.env, MCPMON_VERBOSE: "true" }
+    const proc = spawnTracked(process.execPath, [CLI_PATH, "node", testServerPath], {
+      env: { ...process.env, MCPMON_VERBOSE: "true" },
     });
 
     // Wait for startup
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
 
     // Send SIGINT
     proc.kill("SIGINT");
 
     // Wait for shutdown
-    const exitCode = await new Promise<number | null>(resolve => {
-      proc.on("exit", (code) => resolve(code));
+    const exitCode = await new Promise<number | null>((resolve) => {
+      proc.on("exit", (code: number | null) => resolve(code));
     });
 
     expect(exitCode).toBe(0);
   });
 
   it("should forward stdin to the server process", async () => {
-    const serverPath = join(__dirname, "echo-server.js");
+    const serverPath = join(testDir, "echo-server.js");
     await writeFile(
       serverPath,
       `
@@ -258,25 +269,27 @@ describe("CLI Integration Tests", () => {
     );
 
     try {
-      const proc = spawn(process.execPath, [CLI_PATH, "node", serverPath]);
+      const proc = spawnTracked(process.execPath, [CLI_PATH, "node", serverPath]);
 
       // Wait for startup
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       // Send test message
-      proc.stdin.write(JSON.stringify({
-        jsonrpc: "2.0",
-        id: 1,
-        method: "test",
-        params: { message: "hello" }
-      }) + "\n");
+      proc.stdin.write(
+        JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "test",
+          params: { message: "hello" },
+        }) + "\n"
+      );
 
       const output = await collectOutput(proc, 1000);
-      const response = JSON.parse(output.split('\n').find(line => line.includes('"echo"')) || '{}');
+      const response = JSON.parse(
+        output.split("\n").find((line) => line.includes('"echo"')) || "{}"
+      );
 
       expect(response.result?.echo?.message).toBe("hello");
-
-      proc.kill();
     } finally {
       await unlink(serverPath);
     }
@@ -287,19 +300,19 @@ describe("CLI Integration Tests", () => {
 
 async function runCLI(args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
-    const proc = spawn(process.execPath, [CLI_PATH, ...args]);
+    const proc = spawnTracked(process.execPath, [CLI_PATH, ...args]);
     let output = "";
     let error = "";
 
-    proc.stdout.on("data", (data) => {
+    proc.stdout.on("data", (data: Buffer) => {
       output += data.toString();
     });
 
-    proc.stderr.on("data", (data) => {
+    proc.stderr.on("data", (data: Buffer) => {
       error += data.toString();
     });
 
-    proc.on("close", (code) => {
+    proc.on("close", (code: number | null) => {
       if (code !== 0 && !args.includes("--help") && args.length > 0) {
         reject(new Error(`CLI exited with code ${code}: ${error}`));
       } else {

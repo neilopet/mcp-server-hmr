@@ -1,0 +1,4 @@
+
+> mcpmon@0.3.0 lint
+> tsc --noEmit
+

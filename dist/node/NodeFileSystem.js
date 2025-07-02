@@ -72,14 +72,16 @@ export class NodeFileSystem {
                 ignoreInitial: true,
                 followSymlinks: false,
                 // Only apply ignore patterns when watching directories
-                ignored: shouldApplyIgnorePatterns ? [
-                    "**/node_modules/**",
-                    "**/.git/**",
-                    "**/dist/**",
-                    "**/build/**",
-                    "**/.DS_Store",
-                    "**/Thumbs.db",
-                ] : [],
+                ignored: shouldApplyIgnorePatterns
+                    ? [
+                        "**/node_modules/**",
+                        "**/.git/**",
+                        "**/dist/**",
+                        "**/build/**",
+                        "**/.DS_Store",
+                        "**/Thumbs.db",
+                    ]
+                    : [],
             });
             // Create an async iterator from chokidar events
             const eventQueue = [];

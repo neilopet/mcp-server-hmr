@@ -53,7 +53,7 @@ export class NodeFileSystem implements FileSystem {
       // Separate files from directories to apply ignore patterns conditionally
       const filePaths: string[] = [];
       const directoryPaths: string[] = [];
-      
+
       for (const path of normalizedPaths) {
         try {
           const stats = await stat(path);
@@ -73,20 +73,22 @@ export class NodeFileSystem implements FileSystem {
       // Directories: apply ignore patterns to avoid unwanted subdirectories
       const watchPaths = [...filePaths, ...directoryPaths];
       const shouldApplyIgnorePatterns = directoryPaths.length > 0;
-      
+
       watcher = watch(watchPaths, {
         persistent: true,
         ignoreInitial: true,
         followSymlinks: false,
         // Only apply ignore patterns when watching directories
-        ignored: shouldApplyIgnorePatterns ? [
-          "**/node_modules/**",
-          "**/.git/**",
-          "**/dist/**",
-          "**/build/**",
-          "**/.DS_Store",
-          "**/Thumbs.db",
-        ] : [],
+        ignored: shouldApplyIgnorePatterns
+          ? [
+              "**/node_modules/**",
+              "**/.git/**",
+              "**/dist/**",
+              "**/build/**",
+              "**/.DS_Store",
+              "**/Thumbs.db",
+            ]
+          : [],
       });
 
       // Create an async iterator from chokidar events

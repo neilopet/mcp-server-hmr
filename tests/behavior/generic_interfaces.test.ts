@@ -1,7 +1,7 @@
 /// <reference path="./global.d.ts" />
 /**
  * TDD tests for improved generic interfaces
- * 
+ *
  * Testing the transition from file-specific to generic change monitoring interfaces
  * to support broader use cases like package monitoring.
  */
@@ -14,7 +14,7 @@ describe("Generic Interface Improvements (TDD)", () => {
     it("should support package monitoring event types", async () => {
       const { proxy, procManager, fs, teardown } = setupProxyTest({
         entryFile: "/test/package.json",
-        restartDelay: 50
+        restartDelay: 50,
       });
 
       try {
@@ -26,7 +26,7 @@ describe("Generic Interface Improvements (TDD)", () => {
         // Currently these would be "modify" events, but we want specific types
         const packageEvents = [
           { type: "version_update", path: "/test/package.json" },
-          { type: "dependency_change", path: "/test/package.json" }
+          { type: "dependency_change", path: "/test/package.json" },
         ];
 
         // Trigger events that would represent package changes
@@ -35,10 +35,10 @@ describe("Generic Interface Improvements (TDD)", () => {
 
         // Verify restart occurred (proxy should handle any change type)
         expect(procManager.getSpawnCallCount()).toBeGreaterThanOrEqual(1);
-        
+
         // Now test the new event types work!
-        expect(typeof 'version_update').toBe('string');
-        expect(typeof 'dependency_change').toBe('string');
+        expect(typeof "version_update").toBe("string");
+        expect(typeof "dependency_change").toBe("string");
       } finally {
         await teardown();
       }
@@ -46,7 +46,7 @@ describe("Generic Interface Improvements (TDD)", () => {
 
     it("should maintain backward compatibility with existing FileEventType", async () => {
       const { proxy, procManager, fs, teardown } = setupProxyTest({
-        restartDelay: 50
+        restartDelay: 50,
       });
 
       try {
@@ -72,12 +72,12 @@ describe("Generic Interface Improvements (TDD)", () => {
           command: "node",
           commandArgs: ["/test/server.js"],
           entryFile: "/test/server.js", // This works
-          restartDelay: 50
+          restartDelay: 50,
         };
-        
+
         // This should work fine
         setupProxyTest(config);
-        
+
         // TODO: After implementing watchTargets, this should also work:
         // setupProxyTest({ ...config, watchTargets: ["/test/server.js", "/test/package.json"] });
       }).not.toThrow();
@@ -86,7 +86,7 @@ describe("Generic Interface Improvements (TDD)", () => {
     it("should support single entryFile as fallback for backward compatibility", async () => {
       const { proxy, procManager, fs, teardown } = setupProxyTest({
         entryFile: "/test/server.js",
-        restartDelay: 50
+        restartDelay: 50,
       });
 
       try {
@@ -95,7 +95,7 @@ describe("Generic Interface Improvements (TDD)", () => {
 
         // Single file watching should still work
         await simulateRestart(procManager, fs, "/test/server.js", 50);
-        
+
         expect(procManager.getSpawnCallCount()).toBe(2); // Initial + restart
       } finally {
         await teardown();
@@ -109,16 +109,16 @@ describe("Generic Interface Improvements (TDD)", () => {
 
       try {
         // Current interface should be called FileSystem
-        expect(typeof fs.watch).toBe('function');
-        expect(typeof fs.readFile).toBe('function');
-        expect(typeof fs.writeFile).toBe('function');
-        expect(typeof fs.exists).toBe('function');
-        expect(typeof fs.copyFile).toBe('function');
+        expect(typeof fs.watch).toBe("function");
+        expect(typeof fs.readFile).toBe("function");
+        expect(typeof fs.writeFile).toBe("function");
+        expect(typeof fs.exists).toBe("function");
+        expect(typeof fs.copyFile).toBe("function");
 
         // Test that the new ChangeSource interface works through the adapter
-        expect(typeof fs.watch).toBe('function');
-        expect(typeof fs.readFile).toBe('function');
-        expect(typeof fs.writeFile).toBe('function');
+        expect(typeof fs.watch).toBe("function");
+        expect(typeof fs.readFile).toBe("function");
+        expect(typeof fs.writeFile).toBe("function");
       } finally {
         await teardown();
       }
@@ -133,11 +133,11 @@ describe("Generic Interface Improvements (TDD)", () => {
         // Current implementation uses 'fs' in dependencies
         // Test that the new isRunning() method works
         expect(proxy).toBeDefined();
-        
+
         // Verify proxy can start with current dependencies
         const proxyStartPromise = proxy.start();
         await waitForStable(50);
-        
+
         // Test the new isRunning() method
         expect(proxy.isRunning()).toBe(true);
       } finally {
@@ -153,15 +153,15 @@ describe("Generic Interface Improvements (TDD)", () => {
       try {
         // Test that our mock system can simulate different event types
         let eventReceived = false;
-        let eventType = '';
-        
+        let eventType = "";
+
         // Set up the file as existing before watching
         fs.setFileExists("/test/package.json", true);
-        
+
         // Set up a watcher
         const watcher = fs.watch(["/test/package.json"]);
         const watcherIterator = watcher[Symbol.asyncIterator]();
-        
+
         // Trigger event in background
         setTimeout(() => {
           fs.triggerFileEvent("/test/package.json", "modify");
@@ -176,7 +176,7 @@ describe("Generic Interface Improvements (TDD)", () => {
 
         expect(eventReceived).toBe(true);
         expect(eventType).toBe("modify"); // Current implementation
-        
+
         // The MockFileSystem still uses FileEvent, but the adapter converts it
         // to ChangeEvent, so the new event types will be supported when we add
         // a proper ChangeSource mock implementation in the future
@@ -192,22 +192,22 @@ describe("Generic Interface Improvements (TDD)", () => {
         command: "node",
         commandArgs: ["/test/server.js"],
         entryFile: "/test/server.js", // Current approach
-        restartDelay: 50
+        restartDelay: 50,
       };
 
       const { proxy, teardown } = setupProxyTest(config);
 
       try {
         expect(proxy).toBeDefined();
-        
+
         // Test the new watchTargets support (this should work now!)
         const newConfig = {
-          command: "node", 
+          command: "node",
           commandArgs: ["/test/server.js"],
           watchTargets: ["/test/server.js", "/test/package.json"],
-          restartDelay: 50
+          restartDelay: 50,
         };
-        
+
         const { proxy: newProxy, teardown: newTeardown } = setupProxyTest(newConfig);
         expect(newProxy).toBeDefined();
         await newTeardown();
@@ -221,7 +221,7 @@ describe("Generic Interface Improvements (TDD)", () => {
 describe("Integration with current system", () => {
   it("should maintain all existing functionality during transition", async () => {
     const { proxy, procManager, fs, teardown } = setupProxyTest({
-      restartDelay: 50
+      restartDelay: 50,
     });
 
     try {
@@ -234,9 +234,9 @@ describe("Integration with current system", () => {
 
       // Test restart functionality
       await simulateRestart(procManager, fs, "/test/server.js", 50);
-      
+
       expect(procManager.getSpawnCallCount()).toBe(2);
-      
+
       const newProcess = procManager.getLastSpawnedProcess();
       expect(newProcess).toBeTruthy();
       expect(newProcess?.pid).not.toBe(initialProcess?.pid);

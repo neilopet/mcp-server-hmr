@@ -58,7 +58,7 @@ export function setupProxyTest(config: TestProxyConfig = {}): TestContext {
     fs.setFileExists(testConfig.entryFile, true);
   }
   if (testConfig.watchTargets) {
-    testConfig.watchTargets.forEach(target => fs.setFileExists(target, true));
+    testConfig.watchTargets.forEach((target) => fs.setFileExists(target, true));
   }
 
   // Create I/O streams
@@ -112,7 +112,7 @@ export function setupProxyTest(config: TestProxyConfig = {}): TestContext {
             proc.simulateExit(0);
           }
         }
-        
+
         await proxy.shutdown();
       } catch {
         // Ignore shutdown errors in tests

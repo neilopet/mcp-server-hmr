@@ -9,13 +9,13 @@
  * - Simulate file system errors
  */
 
-import { 
-  ChangeEvent, 
-  ChangeEventType, 
-  ChangeSource, 
-  FileEvent, 
-  FileEventType, 
-  FileSystem 
+import {
+  ChangeEvent,
+  ChangeEventType,
+  ChangeSource,
+  FileEvent,
+  FileEventType,
+  FileSystem,
 } from "../../src/interfaces.js";
 
 /**
@@ -30,7 +30,7 @@ interface FileWatcher {
 
 /**
  * Mock implementation of ChangeSource/FileSystem for testing
- * 
+ *
  * Implements both new ChangeSource and legacy FileSystem interfaces
  * to support testing during the migration period.
  */
