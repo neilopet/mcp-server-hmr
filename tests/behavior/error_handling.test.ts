@@ -100,7 +100,7 @@ describe("Test Suite", () => {
 
     try {
       // Start proxy - file watching should fail but proxy should continue
-      const proxyStartPromise = customProxy.start();
+      customProxy.start(); // Don't await - it has an infinite loop
       await waitForStable(100);
 
       // Should still spawn initial server even if file watching fails

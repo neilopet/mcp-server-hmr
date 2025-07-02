@@ -9,7 +9,14 @@
  * - Simulate file system errors
  */
 
-import { FileEvent, FileEventType, FileSystem } from "../../src/interfaces.js";
+import { 
+  ChangeEvent, 
+  ChangeEventType, 
+  ChangeSource, 
+  FileEvent, 
+  FileEventType, 
+  FileSystem 
+} from "../../src/interfaces.js";
 
 /**
  * Represents an active file watcher
@@ -22,7 +29,10 @@ interface FileWatcher {
 }
 
 /**
- * Mock implementation of FileSystem for testing
+ * Mock implementation of ChangeSource/FileSystem for testing
+ * 
+ * Implements both new ChangeSource and legacy FileSystem interfaces
+ * to support testing during the migration period.
  */
 export class MockFileSystem implements FileSystem {
   // In-memory file storage
@@ -60,6 +70,13 @@ export class MockFileSystem implements FileSystem {
       timestamp: Date.now(),
       watcherId,
     });
+
+    // Check if all paths exist (simulates real file watcher behavior)
+    for (const path of paths) {
+      if (!this.files.has(path) && !this.fileExists.has(path)) {
+        throw new Error(`File system watch error: Cannot watch non-existent path: ${path}`);
+      }
+    }
 
     // Create readable stream for file events
     const stream = new ReadableStream<FileEvent>({
@@ -205,6 +222,9 @@ export class MockFileSystem implements FileSystem {
 
   /**
    * Manually trigger a file change event for all active watchers
+   */
+  /**
+   * Trigger a file event to all active watchers
    */
   triggerFileEvent(path: string, type: FileEventType): void {
     const event: FileEvent = { path, type };

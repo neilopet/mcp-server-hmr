@@ -77,12 +77,43 @@ export interface ProcessManager {
 }
 
 /**
- * File system event types
+ * Change event types - extensible for different monitoring scenarios
+ * 
+ * Core file operations:
+ * - create: New file/resource created
+ * - modify: Existing file/resource modified  
+ * - remove: File/resource deleted
+ * 
+ * Package monitoring:
+ * - version_update: Package version changed
+ * - dependency_change: Package dependencies modified
+ */
+export type ChangeEventType = 
+  | "create" 
+  | "modify" 
+  | "remove"
+  | "version_update"
+  | "dependency_change";
+
+/**
+ * @deprecated Use ChangeEventType instead. Maintained for backward compatibility.
  */
 export type FileEventType = "create" | "modify" | "remove";
 
 /**
- * Represents a file system change event
+ * Represents a change event - files, packages, or other monitored resources
+ */
+export interface ChangeEvent {
+  /** Type of change that occurred */
+  type: ChangeEventType;
+  /** Absolute path to the affected resource (file path, package name, etc.) */
+  path: string;
+  /** Optional metadata about the change */
+  metadata?: Record<string, any>;
+}
+
+/**
+ * @deprecated Use ChangeEvent instead. Maintained for backward compatibility.
  */
 export interface FileEvent {
   /** Type of change that occurred */
@@ -92,6 +123,62 @@ export interface FileEvent {
 }
 
 /**
+ * Generic interface for monitoring changes in files, packages, or other resources
+ *
+ * Provides abstraction for change detection and resource I/O operations.
+ * Implementations can monitor files, package registries, APIs, or other sources.
+ */
+export interface ChangeSource {
+  /**
+   * Watch resources for changes
+   *
+   * @param paths - Array of paths/identifiers to watch (files, packages, URLs, etc.)
+   * @returns AsyncIterable that yields ChangeEvent objects
+   * @throws Error if watching fails (permissions, invalid paths, etc.)
+   */
+  watch(paths: string[]): AsyncIterable<ChangeEvent>;
+
+  /**
+   * Read resource contents as UTF-8 string
+   *
+   * @param path - Absolute path to resource
+   * @returns Promise resolving to resource contents
+   * @throws Error if resource cannot be read
+   */
+  readFile(path: string): Promise<string>;
+
+  /**
+   * Write string contents to resource
+   *
+   * @param path - Absolute path to resource
+   * @param content - UTF-8 string content to write
+   * @returns Promise that resolves when write completes
+   * @throws Error if resource cannot be written
+   */
+  writeFile(path: string, content: string): Promise<void>;
+
+  /**
+   * Check if a resource exists
+   *
+   * @param path - Absolute path to check
+   * @returns Promise resolving to true if resource exists, false otherwise
+   */
+  exists(path: string): Promise<boolean>;
+
+  /**
+   * Copy a resource from source to destination
+   *
+   * @param src - Source resource path
+   * @param dest - Destination resource path
+   * @returns Promise that resolves when copy completes
+   * @throws Error if copy fails
+   */
+  copyFile(src: string, dest: string): Promise<void>;
+}
+
+/**
+ * @deprecated Use ChangeSource instead. Maintained for backward compatibility.
+ * 
  * Interface for file system operations
  *
  * Provides abstraction for file I/O and file watching functionality.
@@ -152,8 +239,10 @@ export interface FileSystem {
 export interface ProxyDependencies {
   /** Process manager for spawning and controlling MCP servers */
   procManager: ProcessManager;
-  /** File system interface for config and file watching */
-  fs: FileSystem;
+  /** Change source interface for monitoring resources (preferred) */
+  changeSource?: ChangeSource;
+  /** @deprecated Use changeSource instead. File system interface for config and file watching */
+  fs?: FileSystem;
   /** Standard input stream for receiving client messages */
   stdin: ReadableStream<Uint8Array>;
   /** Standard output stream for sending responses to client */

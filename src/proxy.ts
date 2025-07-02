@@ -7,7 +7,11 @@
  */
 
 import type {
+  ChangeSource,
+  ChangeEvent,
+  ChangeEventType,
   FileSystem,
+  FileEvent,
   ManagedProcess,
   ProcessManager,
   ProxyDependencies,
@@ -68,7 +72,10 @@ interface Message {
 export interface MCPProxyConfig {
   command: string;
   commandArgs: string[];
-  entryFile: string | null;
+  /** @deprecated Use watchTargets instead. Single file/directory to watch */
+  entryFile?: string | null;
+  /** Array of files, directories, packages, or other resources to monitor */
+  watchTargets?: string[];
   restartDelay: number;
   env?: Record<string, string>;
   /** Delay in ms after killing server before starting new one (default: 1000) */
@@ -101,7 +108,7 @@ export class MCPProxy {
 
   // Dependency injection
   private procManager: ProcessManager;
-  private fs: FileSystem;
+  private changeSource: ChangeSource;
   private config: MCPProxyConfig;
   private stdin: ReadableStream<Uint8Array>;
   private stdout: WritableStream<Uint8Array>;
@@ -110,12 +117,22 @@ export class MCPProxy {
 
   constructor(dependencies: ProxyDependencies, config: MCPProxyConfig) {
     this.procManager = dependencies.procManager;
-    this.fs = dependencies.fs;
+    
+    // Support both new ChangeSource and legacy FileSystem interfaces
+    if (dependencies.changeSource) {
+      this.changeSource = dependencies.changeSource;
+    } else if (dependencies.fs) {
+      // Create adapter from FileSystem to ChangeSource
+      this.changeSource = this.createFileSystemAdapter(dependencies.fs);
+    } else {
+      throw new Error("Either changeSource or fs must be provided in ProxyDependencies");
+    }
+    
     this.stdin = dependencies.stdin;
     this.stdout = dependencies.stdout;
     this.stderr = dependencies.stderr;
     this.exit = dependencies.exit;
-    this.config = config;
+    this.config = this.normalizeConfig(config);
 
     // Initialize restart function with config
     this.restart = debounce(async () => {
@@ -166,6 +183,54 @@ export class MCPProxy {
     }, this.config.restartDelay);
   }
 
+  /**
+   * Normalize config to handle backward compatibility between entryFile and watchTargets
+   */
+  private normalizeConfig(config: MCPProxyConfig): MCPProxyConfig {
+    const normalized = { ...config };
+    
+    // Handle backward compatibility: entryFile -> watchTargets
+    if (!normalized.watchTargets && normalized.entryFile) {
+      normalized.watchTargets = [normalized.entryFile];
+    }
+    
+    // Ensure we have something to watch (can be empty for non-file-based monitoring)
+    if (!normalized.watchTargets) {
+      normalized.watchTargets = [];
+    }
+    
+    return normalized;
+  }
+
+  /**
+   * Create an adapter that converts FileSystem to ChangeSource interface
+   */
+  private createFileSystemAdapter(fs: FileSystem): ChangeSource {
+    return {
+      async *watch(paths: string[]): AsyncIterable<ChangeEvent> {
+        for await (const fileEvent of fs.watch(paths)) {
+          // Convert FileEvent to ChangeEvent
+          const changeEvent: ChangeEvent = {
+            type: fileEvent.type as ChangeEventType,
+            path: fileEvent.path
+          };
+          yield changeEvent;
+        }
+      },
+      readFile: fs.readFile.bind(fs),
+      writeFile: fs.writeFile.bind(fs),
+      exists: fs.exists.bind(fs),
+      copyFile: fs.copyFile.bind(fs)
+    };
+  }
+
+  /**
+   * Check if the proxy and server are currently running
+   */
+  isRunning(): boolean {
+    return this.managedProcess !== null && this.serverPid !== null && !this.restarting;
+  }
+
   async start() {
     // Start initial server
     try {
@@ -179,8 +244,8 @@ export class MCPProxy {
     // Setup continuous stdin forwarding
     this.setupStdinForwarding();
 
-    // Start file watcher if we have an entry file
-    if (this.config.entryFile) {
+    // Start watcher if we have targets to monitor
+    if (this.config.watchTargets && this.config.watchTargets.length > 0) {
       this.startWatcher();
     }
 
@@ -502,17 +567,27 @@ export class MCPProxy {
   readonly restart: DebouncedFunction<() => Promise<void>>;
 
   private async startWatcher() {
-    if (!this.config.entryFile) return;
+    if (!this.config.watchTargets || this.config.watchTargets.length === 0) return;
 
     try {
-      // Verify file exists by attempting to read it
-      await this.fs.readFile(this.config.entryFile);
-      console.error(`✅ Watching ${this.config.entryFile} for changes`);
+      // For file-based targets, verify they exist by attempting to read them
+      for (const target of this.config.watchTargets) {
+        try {
+          await this.changeSource.readFile(target);
+        } catch (error) {
+          // Log warning but continue - some targets might not be files (e.g., packages)
+          console.error(`⚠️  Could not verify target: ${target} (${error})`);
+        }
+      }
+      
+      const targets = this.config.watchTargets.join(', ');
+      console.error(`✅ Watching ${targets} for changes`);
 
-      const watcher = this.fs.watch([this.config.entryFile]);
+      const watcher = this.changeSource.watch(this.config.watchTargets);
       for await (const event of watcher) {
-        if (["modify", "remove"].includes(event.type)) {
-          console.error(`📝 File ${event.type}: ${event.path}`);
+        // Handle both old FileEvent types and new ChangeEvent types
+        if (["modify", "remove", "version_update", "dependency_change"].includes(event.type)) {
+          console.error(`📝 ${event.type}: ${event.path}`);
           this.restart();
         }
       }

@@ -24,6 +24,7 @@ export interface TestProxyConfig {
   command?: string;
   commandArgs?: string[];
   entryFile?: string;
+  watchTargets?: string[];
   restartDelay?: number;
   killDelay?: number;
   readyDelay?: number;
@@ -34,6 +35,7 @@ const DEFAULT_CONFIG: Required<TestProxyConfig> = {
   command: "node",
   commandArgs: ["/test/server.js"],
   entryFile: "/test/server.js",
+  watchTargets: ["/test/server.js"],
   restartDelay: 50, // Fast test timing
   killDelay: 50, // Fast test timing
   readyDelay: 50, // Fast test timing
@@ -52,7 +54,12 @@ export function setupProxyTest(config: TestProxyConfig = {}): TestContext {
   const fs = new MockFileSystem();
 
   // Set up file system state
-  fs.setFileExists(testConfig.entryFile, true);
+  if (testConfig.entryFile) {
+    fs.setFileExists(testConfig.entryFile, true);
+  }
+  if (testConfig.watchTargets) {
+    testConfig.watchTargets.forEach(target => fs.setFileExists(target, true));
+  }
 
   // Create I/O streams
   const { readable: stdinReadable, writable: stdinWritable } = new TransformStream<Uint8Array>();
@@ -75,6 +82,7 @@ export function setupProxyTest(config: TestProxyConfig = {}): TestContext {
       command: testConfig.command,
       commandArgs: testConfig.commandArgs,
       entryFile: testConfig.entryFile,
+      watchTargets: testConfig.watchTargets,
       restartDelay: testConfig.restartDelay,
       killDelay: testConfig.killDelay,
       readyDelay: testConfig.readyDelay,
