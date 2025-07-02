@@ -111,211 +111,80 @@ Update your Claude Desktop configuration:
 
 ## Configuration
 
-mcpmon works out of the box with zero configuration. It automatically detects what file to watch based on your command arguments.
+mcpmon works out of the box with **zero configuration**. It automatically detects your server file and starts watching for changes.
 
-### Environment Variables
-
-Customize behavior with environment variables:
-
+To watch additional files:
 ```bash
-# Override which files to watch (comma-separated)
+# Watch multiple files
 MCPMON_WATCH="server.js,config.json" mcpmon node server.js
-
-# Change restart delay (default: 1000ms)
-MCPMON_DELAY=500 mcpmon node server.js
-
-# Enable verbose logging
-MCPMON_VERBOSE=1 mcpmon node server.js
 ```
 
-### Watch File Detection
-
-mcpmon automatically detects which files to watch:
-
-1. Looks for the first script file in your arguments (`.js`, `.mjs`, `.ts`, `.py`, `.rb`, `.php`)
-2. Falls back to current directory if no script file found
-3. Can be overridden with `MCPMON_WATCH` environment variable
+That's it! For advanced configuration options, see [Configuration Guide](docs/configuration.md).
 
 ## How It Works
 
-mcpmon acts as a transparent proxy between your MCP client and server:
+mcpmon sits between your MCP client and server, automatically restarting your server when files change:
 
 ```
 MCP Client → mcpmon → Your MCP Server
-(Claude)    (watches)    (reloads)
+(Claude)    (proxy)     (auto-restart)
 ```
 
-1. **File Watching**: Monitors your server files for changes using efficient filesystem events
-2. **Smart Restart**: Cleanly shuts down and restarts your server (SIGTERM → SIGKILL)
-3. **Message Buffering**: Queues incoming requests during restart (~1-2 second window)
-4. **Seamless Handoff**: Replays buffered messages to the new server instance
-5. **Client Transparency**: Client stays connected throughout the restart process
-6. **Tool Discovery**: Automatically fetches and broadcasts updated tool list after restart
+**The magic:** Your MCP client stays connected while your server reloads. No need to reconnect Claude Desktop or restart MCP Inspector!
 
-### Comparison to nodemon
-
-| Feature | nodemon | mcpmon |
+| Feature | Without mcpmon | With mcpmon |
 |---------|---------|---------|
-| **Purpose** | Restart Node.js apps | Restart MCP servers |
-| **Interface** | `nodemon script.js` | `mcpmon node script.js` |
-| **File watching** | ✅ | ✅ |
-| **Zero config** | ✅ | ✅ |
-| **Message buffering** | ❌ | ✅ (MCP-specific) |
-| **Protocol transparency** | ❌ | ✅ (MCP proxy) |
-| **Multi-language** | Node.js focus | Any runtime |
+| **File changes** | Manual restart required | Automatic restart |
+| **Client connection** | Must reconnect | Stays connected |
+| **Lost messages** | Possible | Never (buffered) |
+| **Setup complexity** | Manual config changes | Just add `mcpmon` |
 
-## Logging and Debugging
+## Need Help?
 
-mcpmon provides detailed logging to help troubleshoot issues:
-
-### Verbose Mode
-
+**Enable verbose logging** to see what's happening:
 ```bash
-# Enable verbose logging
 MCPMON_VERBOSE=1 mcpmon node server.js
 ```
 
-Output includes:
-- 🔧 **Startup**: mcpmon initialization
-- 📟 **Command**: Server command and arguments  
-- 👀 **Watching**: Files being monitored
-- 📝 **File changes**: Change events detected
-- 🔄 **Restart**: Server restart sequence
-- 🛑 **Shutdown**: Graceful shutdown process
-- ✅ **Success**: Operations completed
-- ❌ **Errors**: Detailed error information
+**Common issues:**
+- **Server won't start?** Check the error messages for missing dependencies
+- **No hot reload?** Verify your server file is being detected in the logs
+- **Need help?** See our [Troubleshooting Guide](docs/troubleshooting.md)
 
-### Debugging Tips
-
-1. **Server won't start**: Check error logs for missing dependencies or invalid paths
-2. **No hot reload**: Verify the watch file is detected (check 👀 logs with verbose mode)
-3. **Slow restarts**: Increase `MCPMON_DELAY` if your server needs more startup time
-4. **Missing tools**: Check server logs for initialization errors
-
-## Testing
-
-Comprehensive test suite with behavioral and integration tests:
+## Development
 
 ```bash
-# Run all tests
+# Run tests
 npm test
 
-# Run tests in watch mode
-npm run test:watch
-
-# Generate coverage report
-npm run test:coverage
-
-# Run specific test suites
-npm run test:unit        # Unit tests
-npm run test:integration # Integration tests
+# Development mode
+npm run dev
 ```
 
-## Library Usage
+See [Contributing Guide](docs/contributing.md) for more details.
 
-mcpmon can also be imported as a library for advanced use cases:
+## Installation
 
-```typescript
-import { createMCPProxy, ChangeSource } from 'mcpmon';
-
-// Use as a library with custom monitoring
-const proxy = await createMCPProxy({
-  command: 'node',
-  args: ['server.js'],
-  watchTargets: ['server.js', 'config.json'], // Monitor multiple resources
-  restartDelay: 1000
-});
-
-await proxy.start();
-console.log('Running:', proxy.isRunning());
-```
-
-Perfect for projects that need to monitor package registries, APIs, or other resources beyond just local files.
-
-## Requirements
-
-- [Node.js](https://nodejs.org/) 18 or higher
-- macOS, Linux, or Windows
-
-## Installation Options
-
-### Global Installation (Recommended)
+**Requirements:** [Node.js](https://nodejs.org/) 18+
 
 ```bash
-npm install -g mcpmon
-```
-
-### Local Development
-
-```bash
-git clone https://github.com/neilopet/mcpmon
-cd mcpmon
-npm install
-npm run build
-npm link
-```
-
-## Available Scripts
-
-| Script | Description |
-|--------|-------------|
-| `start` | Run mcpmon in production mode |
-| `dev` | Run in development mode with file watching |
-| `build` | Compile TypeScript to JavaScript |
-| `clean` | Remove generated files |
-| `lint` | Check code style and types |
-| `format` | Format code with Prettier |
-| `test` | Run all tests |
-| `test:watch` | Run tests in watch mode |
-| `test:coverage` | Generate coverage report |
-
-## Troubleshooting
-
-### Common Issues
-
-**mcpmon command not found**
-```bash
-# Reinstall globally
+# Install globally (recommended)
 npm install -g mcpmon
 
-# Or use npx
+# Or use without installing
 npx mcpmon node server.js
 ```
 
-**Server keeps crashing**
-```bash
-# Check server logs
-MCPMON_VERBOSE=1 mcpmon node server.js
-
-# Increase restart delay
-MCPMON_DELAY=2000 mcpmon node server.js
-```
-
-**File changes not detected**
-```bash
-# Force watch specific files
-MCPMON_WATCH="server.js,lib/" mcpmon node server.js
-```
-
-## Security
-
-mcpmon requires standard Node.js permissions:
-
-- **File system access**: Monitor files for changes
-- **Process execution**: Start and stop your MCP server
-- **Environment variables**: Read configuration
-- **Network access**: Forward connections (if your server uses them)
-
-No special permissions or elevated access required.
-
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/amazing-feature`
-3. Make your changes
-4. Run tests: `npm test`
-5. Format code: `npm run format`
-6. Submit a pull request
+We welcome contributions! See [Contributing Guide](docs/contributing.md) for details.
+
+## Documentation
+
+- [Configuration Guide](docs/configuration.md) - Advanced configuration options
+- [Troubleshooting Guide](docs/troubleshooting.md) - Common issues and solutions  
+- [API Documentation](docs/api.md) - Library usage and advanced features
+- [Architecture Guide](docs/architecture.md) - How mcpmon works internally
 
 ## License
 
