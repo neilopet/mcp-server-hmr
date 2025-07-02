@@ -6,7 +6,7 @@
  * and error handling.
  */
 import { watch } from "chokidar";
-import { readFile, writeFile, access, copyFile } from "fs/promises";
+import { readFile, writeFile, access, copyFile, stat } from "fs/promises";
 import { constants } from "fs";
 import { normalize, resolve } from "path";
 /**
@@ -44,20 +44,42 @@ export class NodeFileSystem {
         try {
             // Normalize paths for cross-platform compatibility
             const normalizedPaths = paths.map((path) => normalize(resolve(path)));
-            // Create chokidar watcher with appropriate options
-            watcher = watch(normalizedPaths, {
+            // Separate files from directories to apply ignore patterns conditionally
+            const filePaths = [];
+            const directoryPaths = [];
+            for (const path of normalizedPaths) {
+                try {
+                    const stats = await stat(path);
+                    if (stats.isFile()) {
+                        filePaths.push(path);
+                    }
+                    else if (stats.isDirectory()) {
+                        directoryPaths.push(path);
+                    }
+                }
+                catch (error) {
+                    // If path doesn't exist, assume it's a file path for now
+                    filePaths.push(path);
+                }
+            }
+            // Create chokidar watcher with conditional ignore patterns
+            // Files: watch exactly, no ignore patterns
+            // Directories: apply ignore patterns to avoid unwanted subdirectories
+            const watchPaths = [...filePaths, ...directoryPaths];
+            const shouldApplyIgnorePatterns = directoryPaths.length > 0;
+            watcher = watch(watchPaths, {
                 persistent: true,
                 ignoreInitial: true,
                 followSymlinks: false,
-                // Ignore common directories that shouldn't trigger rebuilds
-                ignored: [
+                // Only apply ignore patterns when watching directories
+                ignored: shouldApplyIgnorePatterns ? [
                     "**/node_modules/**",
                     "**/.git/**",
                     "**/dist/**",
                     "**/build/**",
                     "**/.DS_Store",
                     "**/Thumbs.db",
-                ],
+                ] : [],
             });
             // Create an async iterator from chokidar events
             const eventQueue = [];

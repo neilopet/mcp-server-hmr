@@ -1,18 +1,17 @@
-# Python MCP Hot-Reload Example
+# Python mcpmon Example
 
-This example shows how to use MCP Hot-Reload with a Python-based MCP server.
+This example shows how to use mcpmon with a Python-based MCP server.
 
 ## Files
 
 - `server.py` - A Python MCP server using the standard library
-- `.env` - Configuration for the hot-reload proxy
 - `requirements.txt` - Python dependencies (if any)
 - `README.md` - This file
 
 ## Prerequisites
 
 - Python 3.8+ installed
-- Node.js (for testing with the included test client)
+- mcpmon installed (`npm install -g mcpmon`)
 
 ## Setup
 
@@ -26,16 +25,26 @@ This example shows how to use MCP Hot-Reload with a Python-based MCP server.
    chmod +x server.py
    ```
 
-3. **Copy the configuration:**
+3. **Run with mcpmon:**
    ```bash
-   cp .env ../../../.env
+   # From this directory
+   mcpmon python server.py
+   
+   # Or with absolute path
+   mcpmon python /path/to/claude-live-reload/examples/python/server.py
    ```
 
-4. **Start the hot-reload proxy:**
-   ```bash
-   cd ../../../
-   npm start
-   ```
+## Expected Output
+
+When starting mcpmon:
+
+```
+🔧 mcpmon starting...
+📟 Command: python server.py
+👀 Watching: server.py
+🚀 Starting MCP server...
+✅ Server started with PID: 12345
+```
 
 ## Testing Hot-Reload
 
@@ -46,9 +55,14 @@ This example shows how to use MCP Hot-Reload with a Python-based MCP server.
 
 2. **Save the file and observe the output:**
    ```
-   📝 File change detected: examples/python/server.py
-   🔄 Restarting server...
-   ✅ Server restarted with PID: 12347
+   📝 File modify: server.py
+   🔄 File change detected, restarting server...
+   🛑 Killing server process 12345...
+   ✅ Server process 12345 terminated
+   🚀 Starting MCP server...
+   ✅ Server started with PID: 12346
+   📢 Sent tool change notification with X tools
+   ✅ Server restart complete
    ```
 
 ## Example Modifications
@@ -82,9 +96,65 @@ Try these changes to see hot-reload in action:
 {
   "mcpServers": {
     "python-example": {
-      "command": "mcp-hmr",
+      "command": "mcpmon",
       "args": ["python", "/path/to/claude-live-reload/examples/python/server.py"]
     }
   }
 }
+```
+
+## Integration with MCP Inspector
+
+Test with MCP Inspector:
+
+```bash
+npx @modelcontextprotocol/inspector mcpmon python server.py
+```
+
+## Advanced Usage
+
+**With virtual environment:**
+```bash
+# Activate your venv first, then run mcpmon
+source venv/bin/activate
+mcpmon python server.py
+```
+
+**With module syntax:**
+```bash
+mcpmon python -m my_mcp_server
+```
+
+**With arguments:**
+```bash
+mcpmon python server.py --port 3000 --debug
+```
+
+**With environment variables:**
+```bash
+API_KEY=your-key mcpmon python server.py
+```
+
+## Troubleshooting
+
+**Python not found?**
+```bash
+# Use full Python path
+mcpmon /usr/bin/python3 server.py
+
+# Or specify Python version
+mcpmon python3 server.py
+```
+
+**Want verbose logging?**
+```bash
+MCPMON_VERBOSE=1 mcpmon python server.py
+```
+
+**Server crashes on startup?**
+```bash
+# Test Python server directly first
+python server.py
+
+# Check for syntax errors or missing dependencies
 ```

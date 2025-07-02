@@ -1,12 +1,13 @@
 {
-  "name": "mcp-server-hmr",
-  "version": "0.2.0",
+  "name": "mcpmon",
+  "version": "0.3.0",
+  "description": "Hot-reload monitor for MCP servers - like nodemon but for Model Context Protocol",
+  "keywords": ["mcp", "model-context-protocol", "hot-reload", "nodemon", "development", "monitor"],
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "mcp-hmr": "dist/cli.js",
-    "mcp-watch": "dist/cli.js"
+    "mcpmon": "dist/cli.js"
   },
   "files": [
     "dist/cli.js",

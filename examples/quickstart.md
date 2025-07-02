@@ -1,6 +1,6 @@
 # Quick Start Example
 
-This example shows how to set up MCP Server HMR with a simple Node.js MCP server.
+This example shows how to set up mcpmon with a simple Node.js MCP server for hot-reload development.
 
 ## 1. Create a Simple MCP Server
 
@@ -69,28 +69,33 @@ process.on("SIGTERM", () => {
 });
 ```
 
-## 2. Configure MCP Server HMR
-
-Create `.env` in the HMR directory:
-
-```env
-MCP_SERVER_COMMAND="node"
-MCP_SERVER_ARGS="/path/to/my-mcp-server.js"
-```
-
-## 3. Run the Proxy
+## 2. Install mcpmon
 
 ```bash
-cd mcp-server-hmr
-npm run dev
+# Install globally
+npm install -g mcpmon
+
+# Or use with npx (no installation needed)
+npx mcpmon node my-mcp-server.js
+```
+
+## 3. Run with mcpmon
+
+```bash
+# Basic usage
+mcpmon node my-mcp-server.js
+
+# With verbose logging to see what's happening
+MCPMON_VERBOSE=1 mcpmon node my-mcp-server.js
 ```
 
 You should see:
 
 ```
-🚀 Starting MCP Server HMR
-📟 Server: node /path/to/my-mcp-server.js
-👀 Watching: /path/to/my-mcp-server.js
+🔧 mcpmon starting...
+📟 Command: node my-mcp-server.js
+👀 Watching: my-mcp-server.js
+🚀 Starting MCP server...
 [Server] Starting MCP server...
 ✅ Server started with PID: 12345
 ```
@@ -102,9 +107,9 @@ You should see:
    - Change a description
    - Add a console.error message
 
-2. Save the file and watch the HMR proxy:
+2. Save the file and watch mcpmon:
    ```
-   📝 File modify: /path/to/my-mcp-server.js
+   📝 File modify: my-mcp-server.js
    🔄 File change detected, restarting server...
    🛑 Killing server process 12345...
    ✅ Server process 12345 terminated
@@ -115,7 +120,19 @@ You should see:
    ✅ Server restart complete
    ```
 
-## 5. Connect with Claude Desktop
+## 5. Use with MCP Inspector
+
+Test your server with MCP Inspector:
+
+```bash
+# Direct usage
+npx @modelcontextprotocol/inspector mcpmon node my-mcp-server.js
+
+# With environment variables
+API_KEY=your-key npx @modelcontextprotocol/inspector mcpmon node my-mcp-server.js
+```
+
+## 6. Connect with Claude Desktop
 
 Update your Claude Desktop config:
 
@@ -123,8 +140,11 @@ Update your Claude Desktop config:
 {
   "mcpServers": {
     "my-server": {
-      "command": "mcp-hmr",
-      "args": ["node", "/path/to/my-mcp-server.js"]
+      "command": "mcpmon",
+      "args": ["node", "/absolute/path/to/my-mcp-server.js"],
+      "env": {
+        "API_KEY": "your-key-if-needed"
+      }
     }
   }
 }
@@ -132,9 +152,62 @@ Update your Claude Desktop config:
 
 Now when you save changes to `my-mcp-server.js`, Claude will automatically see the updated tools!
 
+## Advanced Usage
+
+### Custom file watching
+
+```bash
+# Watch specific files
+MCPMON_WATCH="server.js,config.json" mcpmon node my-mcp-server.js
+
+# Change restart delay
+MCPMON_DELAY=2000 mcpmon node my-mcp-server.js
+```
+
+### Python MCP Server
+
+```bash
+# Python server
+mcpmon python -m my_mcp_server
+
+# With arguments
+mcpmon python server.py --port 3000
+```
+
+### Deno MCP Server
+
+```bash
+# Deno server
+mcpmon deno run --allow-all server.ts
+```
+
 ## Tips
 
 - Add more console.error messages to your server to see what's happening
-- Try breaking your server (syntax error) to see how HMR handles it
+- Try breaking your server (syntax error) to see how mcpmon handles it
+- Use `MCPMON_VERBOSE=1` to see detailed logging
 - Experiment with different file changes to understand the restart behavior
 - Check the logs if something doesn't work as expected
+
+## Troubleshooting
+
+**Server won't start?**
+```bash
+# Test your server directly first
+node my-mcp-server.js
+
+# Then run with mcpmon
+mcpmon node my-mcp-server.js
+```
+
+**No hot reload?**
+```bash
+# Enable verbose logging to see what files are being watched
+MCPMON_VERBOSE=1 mcpmon node my-mcp-server.js
+```
+
+**Too many restarts?**
+```bash
+# Increase restart delay
+MCPMON_DELAY=2000 mcpmon node my-mcp-server.js
+```

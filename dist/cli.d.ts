@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 /**
- * Config-based launcher for MCP Server HMR (Node.js version)
+ * mcpmon - Hot-reload monitor for MCP servers
  *
- * Reads from mcpServers.json format and launches the HMR proxy
- * with the appropriate configuration.
+ * Like nodemon, but for Model Context Protocol servers.
+ * Automatically restarts your MCP server when files change.
  *
  * Usage:
- *   mcp-hmr --server <server-name> [--config <path-to-config>]
- *   mcp-hmr -s <server-name> [-c <path-to-config>]
+ *   mcpmon node server.js
+ *   mcpmon python server.py
+ *   mcpmon deno run server.ts
  */
 export {};
 //# sourceMappingURL=cli.d.ts.map

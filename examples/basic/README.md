@@ -1,48 +1,56 @@
-# Basic MCP Hot-Reload Example
+# Basic mcpmon Example
 
-This example demonstrates the simplest possible setup for MCP Hot-Reload with a basic Node.js MCP server.
+This example demonstrates the simplest possible setup for mcpmon with a basic Node.js MCP server.
 
 ## Files
 
 - `server.js` - A minimal MCP server that responds to basic requests
-- `.env` - Configuration for the hot-reload proxy
 - `README.md` - This file
 
 ## Quick Start
 
-1. **Copy the configuration:**
+1. **Install mcpmon globally:**
    ```bash
-   cp .env ../../../.env
+   npm install -g mcpmon
    ```
 
-2. **Start the hot-reload proxy:**
+2. **Run the server with mcpmon:**
    ```bash
-   cd ../../../
-   npm start
+   # From this directory
+   mcpmon node server.js
+   
+   # Or with absolute path
+   mcpmon node /path/to/claude-live-reload/examples/basic/server.js
    ```
 
 3. **Test hot-reload:**
    - Edit `server.js`
-   - Add a new tool or change existing descriptions
-   - Save the file and watch the proxy restart the server
+   - Add a new tool or change existing descriptions  
+   - Save the file and watch mcpmon restart the server
 
 ## Expected Output
 
-When starting the proxy:
+When starting mcpmon:
 
 ```
-🚀 Starting MCP Hot-Reload Proxy
-📟 Server: node examples/basic/server.js
-👀 Watching: examples/basic/server.js
+🔧 mcpmon starting...
+📟 Command: node server.js
+👀 Watching: server.js
+🚀 Starting MCP server...
 ✅ Server started with PID: 12345
 ```
 
 When you modify `server.js`:
 
 ```
-📝 File change detected: examples/basic/server.js
-🔄 Restarting server...
-✅ Server restarted with PID: 12346
+📝 File modify: server.js
+🔄 File change detected, restarting server...
+🛑 Killing server process 12345...
+✅ Server process 12345 terminated
+🚀 Starting MCP server...
+✅ Server started with PID: 12346
+📢 Sent tool change notification with X tools
+✅ Server restart complete
 ```
 
 ## Integration with Claude Desktop
@@ -53,11 +61,35 @@ Add this to your Claude Desktop configuration:
 {
   "mcpServers": {
     "basic-example": {
-      "command": "mcp-hmr",
+      "command": "mcpmon",
       "args": ["node", "/path/to/claude-live-reload/examples/basic/server.js"]
     }
   }
 }
 ```
 
+## Integration with MCP Inspector
+
+Test with MCP Inspector:
+
+```bash
+npx @modelcontextprotocol/inspector mcpmon node server.js
+```
+
 Now Claude will automatically see any changes you make to the server!
+
+## Troubleshooting
+
+**mcpmon command not found?**
+```bash
+# Install globally
+npm install -g mcpmon
+
+# Or use with npx
+npx mcpmon node server.js
+```
+
+**Want verbose logging?**
+```bash
+MCPMON_VERBOSE=1 mcpmon node server.js
+```

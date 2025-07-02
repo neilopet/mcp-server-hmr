@@ -1,6 +1,6 @@
 # Test Suite
 
-This directory contains comprehensive tests for the MCP Server HMR project using Jest and Node.js.
+This directory contains comprehensive tests for the mcpmon project using Jest and Node.js.
 
 ## Running Tests
 

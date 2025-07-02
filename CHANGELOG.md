@@ -7,6 +7,208 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2025-07-02
+
+### 🚨 BREAKING CHANGES
+
+**Major Simplification: mcp-hmr → mcpmon**
+
+This release dramatically simplifies the interface from complex config-based setup to a simple nodemon-like command-line interface. This is a **major breaking change** but makes the tool much easier to use.
+
+#### Migration Guide for Existing Users
+
+**Before (mcp-hmr):**
+```bash
+# Installation
+npm install -g mcp-server-hmr
+
+# Complex config-based usage
+mcp-hmr --server my-server --config ~/.config/Claude/claude_desktop_config.json
+mcp-hmr --setup my-server     # Automatic config modification
+mcp-hmr --list               # List available servers
+
+# Claude Desktop config
+{
+  "mcpServers": {
+    "my-server": {
+      "command": "mcp-hmr",
+      "args": ["--server", "my-server", "--config", "/path/to/config.json"]
+    }
+  }
+}
+```
+
+**After (mcpmon):**
+```bash
+# Installation
+npm install -g mcpmon
+
+# Simple nodemon-like usage
+mcpmon node server.js
+mcpmon python server.py
+mcpmon deno run --allow-all server.ts
+
+# Claude Desktop config
+{
+  "mcpServers": {
+    "my-server": {
+      "command": "mcpmon",
+      "args": ["node", "server.js"],
+      "env": { "API_KEY": "your-key" }
+    }
+  }
+}
+```
+
+#### Key Changes
+
+| Feature | Before (mcp-hmr) | After (mcpmon) |
+|---------|------------------|----------------|
+| **Interface** | Config-based `--server` flags | Direct `mcpmon <command> <args...>` |
+| **Setup** | Required `mcpServers.json` config files | Zero configuration needed |
+| **Usage** | `mcp-hmr --server my-server` | `mcpmon node server.js` |
+| **File watching** | Manual config of watch paths | Auto-detected from command |
+| **Environment** | Complex env var setup | Direct passthrough |
+| **CLI similarity** | Custom interface | Like nodemon - familiar to developers |
+
+#### Command Examples
+
+**Node.js server:**
+```bash
+# Before
+mcp-hmr --server my-node-server
+
+# After  
+mcpmon node server.js
+```
+
+**Python server:**
+```bash
+# Before
+mcp-hmr --server my-python-server
+
+# After
+mcpmon python -m my_server
+mcpmon python server.py --port 3000
+```
+
+**Deno server:**
+```bash
+# Before
+mcp-hmr --server my-deno-server
+
+# After
+mcpmon deno run --allow-all server.ts
+```
+
+**With MCP Inspector:**
+```bash
+# Before
+npx @modelcontextprotocol/inspector --config config.json --server my-server
+
+# After
+npx @modelcontextprotocol/inspector mcpmon node server.js
+```
+
+#### Environment Variables
+
+**Before (mcp-hmr):**
+Complex config files with server definitions.
+
+**After (mcpmon):**
+Simple environment variables for customization:
+```bash
+# Override file watching
+MCPMON_WATCH="server.js,config.json" mcpmon node server.js
+
+# Change restart delay
+MCPMON_DELAY=2000 mcpmon node server.js
+
+# Enable verbose logging
+MCPMON_VERBOSE=1 mcpmon node server.js
+```
+
+#### Benefits of the New Approach
+
+1. **Zero Configuration**: No config files needed - just wrap your server command
+2. **Nodemon Familiarity**: Uses the same pattern as nodemon for instant recognition
+3. **Automatic Detection**: Watches the right files without manual configuration
+4. **Environment Passthrough**: All environment variables automatically passed to your server
+5. **Simpler Installation**: One command, ready to use
+6. **Universal Compatibility**: Works with any MCP server in any language
+
+### Added
+
+- **mcpmon Command**: New simple CLI interface like nodemon
+- **Auto File Detection**: Automatically detects script files to watch (.js, .mjs, .ts, .py, .rb, .php)
+- **Environment Passthrough**: All environment variables automatically passed through
+- **Verbose Logging**: MCPMON_VERBOSE for detailed debugging output
+- **Customizable Watching**: MCPMON_WATCH for custom file patterns
+- **Configurable Delays**: MCPMON_DELAY for restart timing control
+
+### Changed
+
+- **Package Name**: Renamed from `mcp-server-hmr` to `mcpmon`
+- **Binary Command**: Changed from `mcp-hmr` to `mcpmon`
+- **CLI Interface**: Complete redesign from config-based to command wrapping
+- **File Watching**: Auto-detection instead of manual configuration
+- **Usage Pattern**: Now follows nodemon pattern: `mcpmon <command> <args...>`
+
+### Removed
+
+- **Config File Support**: No longer supports mcpServers.json config files
+- **--setup Mode**: No automatic config file modification
+- **--list Mode**: No server listing (not needed with new approach)
+- **--server Flag**: No server name references (direct command usage)
+- **--config Flag**: No config file loading
+- **Config Auto-detection**: No searching for Claude Desktop configs
+- **mcp-watch Alias**: Only mcpmon command available now
+
+### Fixed
+
+- **Simplified Onboarding**: From "configure config files" to "wrap your command"
+- **Reduced Complexity**: 90% fewer CLI options and concepts
+- **Improved Discoverability**: Clear analogy to nodemon makes usage obvious
+- **Better Error Messages**: Clearer feedback when files can't be watched
+
+### Migration Steps
+
+1. **Update Installation:**
+   ```bash
+   npm uninstall -g mcp-server-hmr
+   npm install -g mcpmon
+   ```
+
+2. **Update Claude Desktop Config:**
+   Replace config-based server definitions with direct commands:
+   ```json
+   {
+     "mcpServers": {
+       "my-server": {
+         "command": "mcpmon",
+         "args": ["node", "/absolute/path/to/server.js"],
+         "env": { "API_KEY": "your-key" }
+       }
+     }
+   }
+   ```
+
+3. **Update MCP Inspector Usage:**
+   ```bash
+   npx @modelcontextprotocol/inspector mcpmon node server.js
+   ```
+
+4. **Test the New Interface:**
+   ```bash
+   # Try the new simplified command
+   mcpmon node server.js
+   
+   # With verbose logging to see what's happening
+   MCPMON_VERBOSE=1 mcpmon node server.js
+   ```
+
+The new mcpmon interface is dramatically simpler while maintaining all the hot-reload functionality you expect. Like nodemon, it "just works" without configuration.
+
 ## [0.2.0] - 2025-07-01
 
 ### 🚨 BREAKING CHANGES

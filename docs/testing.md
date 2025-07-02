@@ -1,6 +1,6 @@
 # Testing Documentation
 
-This document provides comprehensive information about the MCP Hot-Reload test suite, including architecture, patterns, and best practices.
+This document provides comprehensive information about the mcpmon test suite, including architecture, patterns, and best practices.
 
 ## Table of Contents
 

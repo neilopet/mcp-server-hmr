@@ -1,8 +1,8 @@
-# Contributing to MCP Hot-Reload
+# Contributing to mcpmon
 
 👍🎉 First off, thanks for taking the time to contribute! 🎉👍
 
-We welcome contributions from everyone, regardless of experience level. This guide helps you get started with MCP Hot-Reload development.
+We welcome contributions from everyone, regardless of experience level. This guide helps you get started with mcpmon development.
 
 ## Ways to Contribute
 
@@ -42,8 +42,8 @@ We welcome contributions from everyone, regardless of experience level. This gui
 
 ```bash
 # 1. Fork and clone
-git clone https://github.com/YOUR_USERNAME/claude-live-reload.git
-cd claude-live-reload
+git clone https://github.com/YOUR_USERNAME/mcpmon.git
+cd mcpmon
 
 # 2. Install dependencies
 npm install
@@ -289,4 +289,4 @@ Contributors are recognized in:
 - README.md contributors section
 - Git history
 
-Thank you for contributing to MCP Hot-Reload! 🚀
+Thank you for contributing to mcpmon! 🚀

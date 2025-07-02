@@ -4,14 +4,16 @@
 
 ### 1. Server Won't Start
 
-**Symptom**: Error message "MCP_SERVER_COMMAND environment variable is required"
+**Symptom**: Error message "mcpmon command not found" or "no file to watch detected"
 
 **Solution**:
 
 ```bash
-# Make sure you've copied and configured .env
-cp .env.example .env
-# Edit .env with your server details
+# Install mcpmon globally
+npm install -g mcpmon
+
+# Or use with explicit file watching
+MCPMON_WATCH=server.js mcpmon node server.js
 ```
 
 ### 2. No Hot Reload Happening
@@ -26,9 +28,12 @@ cp .env.example .env
 
 **Solution**:
 
-```env
+```bash
 # Explicitly set the file to watch
-MCP_WATCH_FILE="/absolute/path/to/your/server.js"
+MCPMON_WATCH="/absolute/path/to/your/server.js" mcpmon node server.js
+
+# Or enable verbose logging to see what's being watched
+MCPMON_VERBOSE=1 mcpmon node server.js
 ```
 
 ### 3. "Server exited unexpectedly"
@@ -58,8 +63,9 @@ deno run --allow-all /path/to/your/server.ts
 
 **Solution**: Increase restart delay if your server needs more startup time:
 
-```env
-MCP_RESTART_DELAY=1000  # Milliseconds
+```bash
+# Increase restart delay to 2 seconds
+MCPMON_DELAY=2000 mcpmon node server.js
 ```
 
 ### 5. Tool Updates Not Received
@@ -74,13 +80,16 @@ MCP_RESTART_DELAY=1000  # Milliseconds
 
 ### 6. Installation Issues
 
-**Symptom**: "mcp-hmr: command not found" or installation errors
+**Symptom**: "mcpmon: command not found" or installation errors
 
 **Solution**: Ensure the package is properly installed:
 
 ```bash
 # For global installation
-npm install -g mcp-server-hmr
+npm install -g mcpmon
+
+# Or use with npx
+npx mcpmon node server.js
 
 # For development
 npm install && npm run build && npm link
@@ -109,14 +118,17 @@ process.on("SIGTERM", () => {
 
 ## Debug Mode
 
-For verbose logging, run with debug output:
+For verbose logging, enable debug output:
 
 ```bash
-# Capture all output
-npm run dev 2>&1 | tee debug.log
+# Enable verbose logging
+MCPMON_VERBOSE=1 mcpmon node server.js
+
+# Capture all output to file
+MCPMON_VERBOSE=1 mcpmon node server.js 2>&1 | tee debug.log
 
 # With timestamps
-npm run dev 2>&1 | ts '[%Y-%m-%d %H:%M:%S]' | tee debug.log
+MCPMON_VERBOSE=1 mcpmon node server.js 2>&1 | ts '[%Y-%m-%d %H:%M:%S]' | tee debug.log
 ```
 
 ## Getting Help
@@ -130,9 +142,9 @@ npm run dev 2>&1 | ts '[%Y-%m-%d %H:%M:%S]' | tee debug.log
 
 ## Performance Tips
 
-1. **Restart Delay**: Default is 300ms. Increase for large servers:
-   ```env
-   MCP_RESTART_DELAY=1000
+1. **Restart Delay**: Default is 1000ms. Increase for large servers:
+   ```bash
+   MCPMON_DELAY=2000 mcpmon node server.js
    ```
 
 2. **File Watching**: Only watches one file by default. For multi-file projects, watch the main entry point that imports others.
@@ -160,16 +172,14 @@ process.stdin.on('data', (data) => {
 });
 EOF
 
-# 2. Configure
-echo 'MCP_SERVER_COMMAND="node"' > .env
-echo 'MCP_SERVER_ARGS="'$(pwd)'/test-server.js"' >> .env
-
-# 3. Run
-npm run dev
+# 2. Run with mcpmon
+MCPMON_VERBOSE=1 mcpmon node test-server.js
 ```
 
 You should see:
 
-- 🚀 Starting MCP Server HMR
-- ✅ Server started
+- 🔧 mcpmon starting...
+- 📟 Command: node test-server.js  
 - 👀 Watching: test-server.js
+- 🚀 Starting MCP server...
+- ✅ Server started
