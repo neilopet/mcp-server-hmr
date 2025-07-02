@@ -84,12 +84,15 @@ import { createMCPProxy } from "mcpmon";
 const proxy = await createMCPProxy({
   command: "node",
   args: ["server.js"],
-  watchFile: "server.js",
+  watchTargets: ["server.js"], // Can monitor multiple resources
   restartDelay: 1000,
 });
 
 // Start the proxy
 await proxy.start();
+
+// Check if running
+console.log("Proxy running:", proxy.isRunning());
 
 // Handle shutdown
 process.on("SIGTERM", () => proxy.shutdown());
@@ -105,8 +108,11 @@ interface MCPProxyConfig {
   /** Arguments passed to the command */
   commandArgs: string[];
 
-  /** File or directory to watch for changes */
-  entryFile?: string;
+  /** @deprecated Use watchTargets instead. Single file/directory to watch */
+  entryFile?: string | null;
+
+  /** Array of files, directories, packages, or other resources to monitor */
+  watchTargets?: string[];
 
   /** Restart delay in milliseconds */
   restartDelay?: number;
@@ -132,7 +138,7 @@ class MCPProxy {
   /** Stop the proxy and server */
   async shutdown(): Promise<void>;
 
-  /** Get current server status */
+  /** Check if the proxy and server are currently running */
   isRunning(): boolean;
 }
 ```
@@ -145,7 +151,7 @@ import { createMCPProxy } from 'mcpmon';
 const proxy = await createMCPProxy({
   command: 'node',
   args: ['server.js'],
-  watchFile: 'server.js',
+  watchTargets: ['server.js', 'config.json'], // Monitor multiple resources
   restartDelay: 1000,
   env: { API_KEY: 'your-key' },
   killDelay: 1000,
@@ -226,6 +232,76 @@ mcpmon automatically handles many error conditions:
 | 1 | General error |
 | 130 | Interrupted (Ctrl+C) |
 
+## Library Usage
+
+### Using mcpmon as a Library
+
+mcpmon can be imported and used as a library in your Node.js applications for generic change monitoring beyond just files:
+
+```typescript
+import { MCPProxy, createMCPProxy } from 'mcpmon';
+import { ChangeSource, ChangeEvent, ChangeEventType } from 'mcpmon';
+
+// Custom change source for monitoring APIs, packages, etc.
+class PackageRegistrySource implements ChangeSource {
+  async *watch(packages: string[]): AsyncIterable<ChangeEvent> {
+    // Monitor npm registry for package updates
+    for (const pkg of packages) {
+      // Implementation would check for version updates
+      yield {
+        type: 'version_update',
+        path: pkg,
+        metadata: { oldVersion: '1.0.0', newVersion: '1.1.0' }
+      };
+    }
+  }
+  
+  // Implement other required methods...
+  async readFile(path: string): Promise<string> { /* ... */ }
+  async writeFile(path: string, content: string): Promise<void> { /* ... */ }
+  async exists(path: string): Promise<boolean> { /* ... */ }
+  async copyFile(src: string, dest: string): Promise<void> { /* ... */ }
+}
+
+// Use custom change source
+const proxy = new MCPProxy({
+  procManager: myProcessManager,
+  changeSource: new PackageRegistrySource(),
+  stdin: process.stdin,
+  stdout: process.stdout,
+  stderr: process.stderr,
+  exit: process.exit
+}, {
+  command: 'node',
+  commandArgs: ['server.js'],
+  watchTargets: ['@types/node', 'express', 'typescript'],
+  restartDelay: 1000
+});
+```
+
+### Generic Change Monitoring
+
+The new interface supports monitoring any type of resource:
+
+```typescript
+// Monitor files, packages, APIs, etc.
+const changeEvents: ChangeEventType[] = [
+  'create',           // New file/resource created
+  'modify',           // Existing file/resource modified
+  'remove',           // File/resource deleted
+  'version_update',   // Package version changed
+  'dependency_change' // Package dependencies modified
+];
+
+// Handle change events with metadata
+for await (const event of changeSource.watch(targets)) {
+  console.log(`${event.type}: ${event.path}`);
+  if (event.metadata) {
+    console.log('Metadata:', event.metadata);
+  }
+}
+```
+
 ## Advanced Usage
 
 ### File Detection
@@ -236,12 +312,16 @@ mcpmon automatically detects which files to watch:
 2. Falls back to current directory if no script file found
 3. Can be overridden with `MCPMON_WATCH` environment variable
 
-### Multiple File Watching
+### Multiple Resource Monitoring
 
-Watch multiple files or directories:
+Watch multiple files, directories, or other resources:
 
 ```bash
+# Files and directories
 MCPMON_WATCH="src/,config/settings.json,package.json" mcpmon node server.js
+
+# Mixed resource types (future: package registries, APIs, etc.)
+MCPMON_WATCH="server.js,@types/node,package.json" mcpmon node server.js
 ```
 
 ### Custom Restart Delays

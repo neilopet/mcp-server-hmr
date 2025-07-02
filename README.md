@@ -20,6 +20,7 @@ mcpmon is a **transparent proxy** that sits between your MCP client (Claude Desk
 - **Non-disruptive development** - Your MCP client stays connected while your server reloads
 - **Zero message loss** - Requests are buffered during server restart
 - **Universal compatibility** - Works with any MCP server (Node.js, Python, Deno, etc.)
+- **Library support** - Import as a dependency for custom monitoring solutions
 
 ## Quick Start
 
@@ -209,6 +210,27 @@ npm run test:coverage
 npm run test:unit        # Unit tests
 npm run test:integration # Integration tests
 ```
+
+## Library Usage
+
+mcpmon can also be imported as a library for advanced use cases:
+
+```typescript
+import { createMCPProxy, ChangeSource } from 'mcpmon';
+
+// Use as a library with custom monitoring
+const proxy = await createMCPProxy({
+  command: 'node',
+  args: ['server.js'],
+  watchTargets: ['server.js', 'config.json'], // Monitor multiple resources
+  restartDelay: 1000
+});
+
+await proxy.start();
+console.log('Running:', proxy.isRunning());
+```
+
+Perfect for projects that need to monitor package registries, APIs, or other resources beyond just local files.
 
 ## Requirements
 

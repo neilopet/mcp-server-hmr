@@ -1,6 +1,6 @@
 # Architecture Documentation
 
-This document explains the internal architecture and design principles of MCP Hot-Reload.
+This document explains the internal architecture and design principles of mcpmon.
 
 ## Table of Contents
 
@@ -14,20 +14,21 @@ This document explains the internal architecture and design principles of MCP Ho
 
 ## Overview
 
-MCP Hot-Reload acts as a transparent proxy between MCP clients (like Claude Desktop) and MCP servers, enabling automatic server restarts when source files change.
+mcpmon acts as a transparent proxy between MCP clients (like Claude Desktop) and MCP servers, enabling automatic server restarts when resources change. It supports monitoring files, packages, APIs, and other resources through its generic interface system.
 
 ```
 ┌─────────────────┐    JSON-RPC    ┌──────────────────┐    JSON-RPC    ┌─────────────────┐
 │                 │ ◄─────────────► │                  │ ◄─────────────► │                 │
-│   MCP Client    │                │ Hot-Reload Proxy │                │   MCP Server    │
+│   MCP Client    │                │   mcpmon Proxy   │                │   MCP Server    │
 │ (Claude Desktop)│                │                  │                │                 │
 └─────────────────┘                └──────────────────┘                └─────────────────┘
                                              │
-                                             │ File System Events
+                                             │ Change Events (Generic)
                                              ▼
                                     ┌─────────────────┐
-                                    │  File Watcher   │
-                                    │   (src/, *.js)  │
+                                    │  ChangeSource   │
+                                    │ (files, packages│
+                                    │  APIs, etc.)    │
                                     └─────────────────┘
 ```
 
@@ -41,7 +42,8 @@ The main proxy implementation uses dependency injection for platform independenc
 // Dependency injection architecture
 interface ProxyDependencies {
   procManager: ProcessManager;
-  fs: FileSystem;
+  changeSource?: ChangeSource;  // New generic interface
+  fs?: FileSystem;              // Legacy support
   stdin: ReadableStream<Uint8Array>;
   stdout: WritableStream<Uint8Array>;
   stderr: WritableStream<Uint8Array>;
@@ -77,18 +79,41 @@ interface ProcessManager {
   spawn(command: string, args: string[], options?: SpawnOptions): ManagedProcess;
 }
 
+// New generic interface for monitoring any type of resource
+interface ChangeSource {
+  watch(paths: string[]): AsyncIterable<ChangeEvent>;
+  readFile(path: string): Promise<string>;
+  writeFile(path: string, content: string): Promise<void>;
+  exists(path: string): Promise<boolean>;
+  copyFile(src: string, dest: string): Promise<void>;
+}
+
+// Legacy interface (still supported through adapter)
 interface FileSystem {
   watch(paths: string[]): AsyncIterable<FileEvent>;
   readFile(path: string): Promise<string>;
   writeFile(path: string, content: string): Promise<void>;
   exists(path: string): Promise<boolean>;
+  copyFile(src: string, dest: string): Promise<void>;
+}
+
+// Extended event types for generic monitoring
+type ChangeEventType = 
+  | "create" | "modify" | "remove"        // File operations
+  | "version_update" | "dependency_change"; // Package monitoring
+
+interface ChangeEvent {
+  type: ChangeEventType;
+  path: string;
+  metadata?: Record<string, any>;
 }
 ```
 
 **Platform Implementations:**
 
-- **Node.js**: `NodeProcessManager`, `NodeFileSystem`
-- **Mock**: `MockProcessManager`, `MockFileSystem` (testing)
+- **Node.js**: `NodeProcessManager`, `NodeFileSystem` (implements ChangeSource via adapter)
+- **Mock**: `MockProcessManager`, `MockFileSystem` (testing - implements both interfaces)
+- **Custom**: Users can implement `ChangeSource` for monitoring APIs, packages, etc.
 
 ### 3. Server Process Manager
 
@@ -113,29 +138,34 @@ class McpServerProcess {
 - Process health monitoring
 - Automatic cleanup on errors
 
-### 4. File Watcher (`FileSystemWatcher`)
+### 4. Change Source Watcher
 
-Monitors source files for changes using Node.js built-in file system APIs:
+Monitors resources for changes using the generic ChangeSource interface:
 
 ```typescript
-class FileWatcher {
-  private watcher: fs.FSWatcher | null = null;
-  private watchPath: string;
+class ChangeWatcher {
+  private changeSource: ChangeSource;
+  private watchTargets: string[];
 
   async start() {
-    this.watcher = fs.watch(this.watchPath, (eventType, filename) => {
-      this.handleFileEvent({ type: eventType, path: filename });
-    });
+    for await (const event of this.changeSource.watch(this.watchTargets)) {
+      this.handleChangeEvent(event);
+    }
   }
 }
 ```
 
 **Event Types Handled:**
 
-- `create`: New files created
-- `modify`: Existing files modified
-- `remove`: Files deleted
-- `rename`: Files moved/renamed
+- `create`: New files/resources created
+- `modify`: Existing files/resources modified
+- `remove`: Files/resources deleted
+- `version_update`: Package versions changed
+- `dependency_change`: Package dependencies modified
+
+**Backward Compatibility:**
+
+The system includes a FileSystem to ChangeSource adapter that automatically converts old FileEvent objects to new ChangeEvent objects, ensuring existing code continues to work.
 
 ### 5. Message Buffer
 
@@ -222,40 +252,50 @@ sequenceDiagram
     P->>C: tools response
 ```
 
-## File Watching
+## Resource Monitoring
 
 ### Watch Strategies
 
-1. **Single File Watching**
+1. **Single Resource Watching**
    ```bash
-   MCP_WATCH_FILE=server.js
+   MCPMON_WATCH=server.js
    ```
-   - Watches specific file for changes
+   - Watches specific file/resource for changes
    - Most efficient for simple servers
 
 2. **Directory Watching**
    ```bash
-   MCP_WATCH_FILE=src/
+   MCPMON_WATCH=src/
    ```
    - Recursively watches directory
    - Captures all file changes in tree
 
-3. **Multiple Path Watching**
+3. **Multiple Resource Watching**
    ```bash
-   MCP_WATCH_FILE=src/,config/,package.json
+   MCPMON_WATCH=src/,config/,package.json
    ```
-   - Watches multiple files/directories
+   - Watches multiple resources
    - Comma-separated list
+   - Can include files, directories, packages, etc.
 
-### File Event Filtering
+4. **Generic Resource Monitoring** (Future)
+   ```bash
+   MCPMON_WATCH=@types/node,express,server.js
+   ```
+   - Monitor package updates alongside files
+   - Custom ChangeSource implementations
 
-Not all file system events trigger restarts:
+### Change Event Filtering
+
+Not all change events trigger restarts:
 
 **Triggers Restart:**
 
 - `.js`, `.ts`, `.py` file modifications
 - Configuration file changes
 - Package manifest changes (`package.json`, `tsconfig.json`)
+- Package version updates (`version_update` events)
+- Dependency changes (`dependency_change` events)
 
 **Ignored Events:**
 

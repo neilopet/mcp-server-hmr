@@ -48,7 +48,7 @@ Platform-agnostic tests that verify proxy behavior through interfaces:
 - **message_buffering.test.ts** - Message queuing during restart
 - **initialization_replay.test.ts** - MCP handshake preservation
 - **error_handling.test.ts** - Fault tolerance and recovery
-- **config_transformation.test.ts** - Config launcher functionality
+- **generic_interfaces.test.ts** - TDD tests for new generic monitoring interfaces
 
 **Characteristics:**
 

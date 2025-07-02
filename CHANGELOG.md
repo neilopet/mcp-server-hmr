@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Generic Interface System**: New `ChangeSource` interface enables monitoring beyond just files
+- **Extensible Event Types**: Added `version_update` and `dependency_change` event types for package monitoring  
+- **Multiple Watch Targets**: `watchTargets` array replaces single `entryFile` for monitoring multiple resources
+- **Library API Support**: mcpmon can now be imported and used as a library dependency
+- **Status Checking**: New `isRunning()` method for proxy status monitoring
+- **Backward Compatibility**: Automatic adapter converts legacy `FileSystem` to new `ChangeSource` interface
+
+### Changed
+
+- **Generic Monitoring**: `ChangeSource` interface supports files, packages, APIs, and other resources
+- **Enhanced Configuration**: `MCPProxyConfig` now supports `watchTargets` array with `entryFile` fallback  
+- **Extended Events**: `ChangeEvent` includes optional metadata field for rich event information
+- **Improved Testing**: Comprehensive TDD test coverage for new generic interfaces
+
+This enables mcpmon to be used as a library for monitoring package registries, APIs, and other change sources beyond local files. Perfect for future hosted package monitoring that automatically checks and updates packages.
+
 ## [0.3.0] - 2025-07-02
 
 ### 🚨 BREAKING CHANGES
