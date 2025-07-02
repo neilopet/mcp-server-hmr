@@ -133,31 +133,22 @@ mcpmon acts as a transparent proxy between your MCP client and server, providing
 
 ```mermaid
 sequenceDiagram
-    participant Client as MCP Client<br/>(Claude Code)
+    participant Client as MCP Client
     participant mcpmon
-    participant Server as MCP Server<br/>(Your Code)
+    participant Server as MCP Server
     
-    rect rgb(240, 250, 240)
-        Note over Client,Server: Normal Development Flow
-        Client->>mcpmon: MCP messages
-        mcpmon->>Server: Forward messages
-        Server->>mcpmon: Responses
-        mcpmon->>Client: Forward responses
-    end
+    Client->>mcpmon: Request
+    mcpmon->>Server: Request
+    Server->>mcpmon: Response
+    mcpmon->>Client: Response
     
-    rect rgb(255, 240, 240)
-        Note over Client,Server: You edit server code...
-        Server->>Server: 📝 File changed!
-        mcpmon->>Server: Restart automatically
-        Note over Client: Still connected! ✨
-    end
+    Server->>Server: File changed
+    Note right of Server: Auto restart
     
-    rect rgb(240, 250, 240)
-        Note over Client,Server: Continue working seamlessly
-        Client->>mcpmon: More messages
-        mcpmon->>Server: Forward to new server
-        Note over Client,Server: No reconnection needed! 🎉
-    end
+    Client->>mcpmon: Request
+    mcpmon->>Server: Request
+    Server->>mcpmon: Response
+    mcpmon->>Client: Response
 ```
 
 **The magic:** Your MCP client stays connected while your server reloads. No need to reconnect Claude Code or restart MCP Inspector!
