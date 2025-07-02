@@ -6,6 +6,17 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch: # Allow manual runs
+    inputs:
+      verbose:
+        description: 'Enable verbose test output'
+        required: false
+        default: false
+        type: boolean
+      show-console-logs:
+        description: 'Show console.log/error output from tests'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   test:
@@ -36,7 +47,28 @@ jobs:
         run: npm run typecheck
 
       - name: Run tests
-        run: npm test
+        run: |
+          # Default to --silent in CI to reduce log size (suppress console.log/error from tested code)
+          # Can be overridden with workflow_dispatch inputs
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            if [[ "${{ inputs.show-console-logs }}" == "true" ]]; then
+              JEST_ARGS=""
+            else
+              JEST_ARGS="--silent"
+            fi
+            if [[ "${{ inputs.verbose }}" == "true" ]]; then
+              JEST_ARGS="$JEST_ARGS --verbose"
+            fi
+          else
+            # For push/PR events, always use --silent to keep logs manageable
+            JEST_ARGS="--silent"
+          fi
+          echo "Running tests with args: $JEST_ARGS"
+          npm test -- $JEST_ARGS
+        env:
+          CI: true
+          FORCE_COLOR: 0
+        shell: bash
 
       - name: Generate coverage
         if: matrix.os == 'ubuntu-latest' && matrix.node == '20.x'
