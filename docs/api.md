@@ -35,16 +35,14 @@ npx @modelcontextprotocol/inspector mcpmon node server.js
 API_KEY=your-key npx @modelcontextprotocol/inspector mcpmon node server.js
 ```
 
-### Help and Version
+### Help
 
 ```bash
 # Show help
 mcpmon --help
-mcpmon -h
 
-# Show version
-mcpmon --version
-mcpmon -v
+# Also shows help when called without arguments
+mcpmon
 ```
 
 ## Environment Variables
@@ -75,7 +73,7 @@ MCPMON_VERBOSE=1 MCPMON_DELAY=2000 mcpmon node server.js
 
 ## Programmatic API
 
-### Main Module (`src/index.ts`)
+### Main Module
 
 ```typescript
 import { createMCPProxy } from "mcpmon";
@@ -84,18 +82,19 @@ import { createMCPProxy } from "mcpmon";
 const proxy = await createMCPProxy({
   command: "node",
   args: ["server.js"],
-  watchTargets: ["server.js"], // Can monitor multiple resources
+  watchFile: "server.js", // Optional - auto-detected if not specified
   restartDelay: 1000,
+  env: { API_KEY: "your-key" }
 });
 
-// Start the proxy
-await proxy.start();
-
-// Check if running
-console.log("Proxy running:", proxy.isRunning());
+// Start the proxy (runs indefinitely)
+proxy.start();
 
 // Handle shutdown
-process.on("SIGTERM", () => proxy.shutdown());
+process.on("SIGTERM", async () => {
+  await proxy.shutdown();
+  process.exit(0);
+});
 ```
 
 ### Configuration Interface
@@ -138,8 +137,8 @@ class MCPProxy {
   /** Stop the proxy and server */
   async shutdown(): Promise<void>;
 
-  /** Check if the proxy and server are currently running */
-  isRunning(): boolean;
+  /** Restart the server (debounced) */
+  readonly restart: () => Promise<void>;
 }
 ```
 
@@ -151,7 +150,7 @@ import { createMCPProxy } from 'mcpmon';
 const proxy = await createMCPProxy({
   command: 'node',
   args: ['server.js'],
-  watchTargets: ['server.js', 'config.json'], // Monitor multiple resources
+  watchFile: 'server.js', // Single file to watch (auto-detected if not specified)
   restartDelay: 1000,
   env: { API_KEY: 'your-key' },
   killDelay: 1000,
@@ -236,37 +235,15 @@ mcpmon automatically handles many error conditions:
 
 ### Using mcpmon as a Library
 
-mcpmon can be imported and used as a library in your Node.js applications for generic change monitoring beyond just files:
+mcpmon can be imported and used as a library in your Node.js applications:
 
 ```typescript
-import { MCPProxy, createMCPProxy } from 'mcpmon';
-import { ChangeSource, ChangeEvent, ChangeEventType } from 'mcpmon';
+import { MCPProxy, NodeProcessManager, NodeFileSystem } from 'mcpmon';
 
-// Custom change source for monitoring APIs, packages, etc.
-class PackageRegistrySource implements ChangeSource {
-  async *watch(packages: string[]): AsyncIterable<ChangeEvent> {
-    // Monitor npm registry for package updates
-    for (const pkg of packages) {
-      // Implementation would check for version updates
-      yield {
-        type: 'version_update',
-        path: pkg,
-        metadata: { oldVersion: '1.0.0', newVersion: '1.1.0' }
-      };
-    }
-  }
-  
-  // Implement other required methods...
-  async readFile(path: string): Promise<string> { /* ... */ }
-  async writeFile(path: string, content: string): Promise<void> { /* ... */ }
-  async exists(path: string): Promise<boolean> { /* ... */ }
-  async copyFile(src: string, dest: string): Promise<void> { /* ... */ }
-}
-
-// Use custom change source
+// Create custom proxy with platform implementations
 const proxy = new MCPProxy({
-  procManager: myProcessManager,
-  changeSource: new PackageRegistrySource(),
+  procManager: new NodeProcessManager(),
+  fs: new NodeFileSystem(),
   stdin: process.stdin,
   stdout: process.stdout,
   stderr: process.stderr,
@@ -274,32 +251,20 @@ const proxy = new MCPProxy({
 }, {
   command: 'node',
   commandArgs: ['server.js'],
-  watchTargets: ['@types/node', 'express', 'typescript'],
+  entryFile: 'server.js',
   restartDelay: 1000
 });
-```
 
-### Generic Change Monitoring
+// Or use the helper function for simpler setup
+import { createMCPProxy } from 'mcpmon';
 
-The new interface supports monitoring any type of resource:
-
-```typescript
-// Monitor files, packages, APIs, etc.
-const changeEvents: ChangeEventType[] = [
-  'create',           // New file/resource created
-  'modify',           // Existing file/resource modified
-  'remove',           // File/resource deleted
-  'version_update',   // Package version changed
-  'dependency_change' // Package dependencies modified
-];
-
-// Handle change events with metadata
-for await (const event of changeSource.watch(targets)) {
-  console.log(`${event.type}: ${event.path}`);
-  if (event.metadata) {
-    console.log('Metadata:', event.metadata);
-  }
-}
+const proxy = await createMCPProxy({
+  command: 'node',
+  args: ['server.js'],
+  watchFile: 'server.js',
+  restartDelay: 1000,
+  env: { API_KEY: 'your-key' }
+});
 ```
 
 ## Advanced Usage
@@ -312,16 +277,16 @@ mcpmon automatically detects which files to watch:
 2. Falls back to current directory if no script file found
 3. Can be overridden with `MCPMON_WATCH` environment variable
 
-### Multiple Resource Monitoring
+### Multiple File Monitoring
 
-Watch multiple files, directories, or other resources:
+Watch multiple files or directories:
 
 ```bash
-# Files and directories
-MCPMON_WATCH="src/,config/settings.json,package.json" mcpmon node server.js
+# Multiple files
+MCPMON_WATCH="server.js,config.json,package.json" mcpmon node server.js
 
-# Mixed resource types (future: package registries, APIs, etc.)
-MCPMON_WATCH="server.js,@types/node,package.json" mcpmon node server.js
+# Directories and files
+MCPMON_WATCH="src/,config/settings.json,package.json" mcpmon node server.js
 ```
 
 ### Custom Restart Delays

@@ -17,6 +17,7 @@ function debounce(fn, delay) {
             timeoutId = undefined;
             fn(...latestArgs);
         }, delay);
+        timeoutId.unref();
     });
     debouncedFn.clear = () => {
         if (timeoutId) {
@@ -54,9 +55,15 @@ export class MCPProxy {
     initializeParams = null;
     pendingRequests = new Map();
     stdinForwardingStarted = false;
+    killTimeout;
+    fileWatcher;
+    shutdownRequested = false;
+    startPromise;
+    monitoringTimeout;
+    errorRetryTimeout;
     // Dependency injection
     procManager;
-    fs;
+    changeSource;
     config;
     stdin;
     stdout;
@@ -64,12 +71,22 @@ export class MCPProxy {
     exit;
     constructor(dependencies, config) {
         this.procManager = dependencies.procManager;
-        this.fs = dependencies.fs;
+        // Support both new ChangeSource and legacy FileSystem interfaces
+        if (dependencies.changeSource) {
+            this.changeSource = dependencies.changeSource;
+        }
+        else if (dependencies.fs) {
+            // Create adapter from FileSystem to ChangeSource
+            this.changeSource = this.createFileSystemAdapter(dependencies.fs);
+        }
+        else {
+            throw new Error("Either changeSource or fs must be provided in ProxyDependencies");
+        }
         this.stdin = dependencies.stdin;
         this.stdout = dependencies.stdout;
         this.stderr = dependencies.stderr;
         this.exit = dependencies.exit;
-        this.config = config;
+        this.config = this.normalizeConfig(config);
         // Initialize restart function with config
         this.restart = debounce(async () => {
             console.error("\n🔄 File change detected, restarting server...");
@@ -77,7 +94,10 @@ export class MCPProxy {
             // Kill the old server completely
             await this.killServer();
             // Wait a moment to ensure process is fully terminated
-            await new Promise((resolve) => setTimeout(resolve, this.config.killDelay || 1000));
+            await new Promise((resolve) => {
+                const timeout = setTimeout(resolve, this.config.killDelay || 1000);
+                timeout.unref();
+            });
             // Start new server
             try {
                 await this.startServer();
@@ -88,7 +108,10 @@ export class MCPProxy {
                 return; // Exit restart function if we can't start server
             }
             // Wait for server to be ready
-            await new Promise((resolve) => setTimeout(resolve, this.config.readyDelay || 2000));
+            await new Promise((resolve) => {
+                const timeout = setTimeout(resolve, this.config.readyDelay || 2000);
+                timeout.unref();
+            });
             // Get updated tools list
             const tools = await this.getToolsList();
             // Send tool change notification
@@ -112,6 +135,48 @@ export class MCPProxy {
             console.error("✅ Server restart complete\n");
         }, this.config.restartDelay);
     }
+    /**
+     * Normalize config to handle backward compatibility between entryFile and watchTargets
+     */
+    normalizeConfig(config) {
+        const normalized = { ...config };
+        // Handle backward compatibility: entryFile -> watchTargets
+        if (!normalized.watchTargets && normalized.entryFile) {
+            normalized.watchTargets = [normalized.entryFile];
+        }
+        // Ensure we have something to watch (can be empty for non-file-based monitoring)
+        if (!normalized.watchTargets) {
+            normalized.watchTargets = [];
+        }
+        return normalized;
+    }
+    /**
+     * Create an adapter that converts FileSystem to ChangeSource interface
+     */
+    createFileSystemAdapter(fs) {
+        return {
+            async *watch(paths) {
+                for await (const fileEvent of fs.watch(paths)) {
+                    // Convert FileEvent to ChangeEvent
+                    const changeEvent = {
+                        type: fileEvent.type,
+                        path: fileEvent.path,
+                    };
+                    yield changeEvent;
+                }
+            },
+            readFile: fs.readFile.bind(fs),
+            writeFile: fs.writeFile.bind(fs),
+            exists: fs.exists.bind(fs),
+            copyFile: fs.copyFile.bind(fs),
+        };
+    }
+    /**
+     * Check if the proxy and server are currently running
+     */
+    isRunning() {
+        return this.managedProcess !== null && this.serverPid !== null && !this.restarting;
+    }
     async start() {
         // Start initial server
         try {
@@ -124,13 +189,13 @@ export class MCPProxy {
         }
         // Setup continuous stdin forwarding
         this.setupStdinForwarding();
-        // Start file watcher if we have an entry file
-        if (this.config.entryFile) {
+        // Start watcher if we have targets to monitor
+        if (this.config.watchTargets && this.config.watchTargets.length > 0) {
             this.startWatcher();
         }
         // Keep proxy running - don't exit when server exits during hot-reload
         // The proxy manages the server lifecycle, not the other way around
-        while (true) {
+        while (!this.shutdownRequested) {
             if (this.managedProcess && !this.restarting) {
                 try {
                     const status = await this.managedProcess.status;
@@ -148,7 +213,10 @@ export class MCPProxy {
                 catch (error) {
                     if (!this.restarting) {
                         console.error(`❌ Server process error: ${error}`);
-                        await new Promise((resolve) => setTimeout(resolve, 1000));
+                        await new Promise((resolve) => {
+                            this.errorRetryTimeout = setTimeout(resolve, 1000);
+                            this.errorRetryTimeout.unref();
+                        });
                         try {
                             await this.startServer();
                         }
@@ -158,7 +226,12 @@ export class MCPProxy {
                     }
                 }
             }
-            await new Promise((resolve) => setTimeout(resolve, 1000));
+            if (!this.shutdownRequested) {
+                await new Promise((resolve) => {
+                    this.monitoringTimeout = setTimeout(resolve, 100);
+                    this.monitoringTimeout.unref();
+                });
+            }
         }
     }
     async startServer() {
@@ -198,12 +271,14 @@ export class MCPProxy {
             // First try SIGTERM
             this.managedProcess.kill("SIGTERM");
             // Wait up to 5 seconds for graceful shutdown
-            const timeout = setTimeout(() => {
+            this.killTimeout = setTimeout(() => {
                 console.error("⚠️  Server didn't exit gracefully, sending SIGKILL...");
                 this.managedProcess?.kill("SIGKILL");
             }, 5000);
+            this.killTimeout.unref();
             await this.managedProcess.status;
-            clearTimeout(timeout);
+            clearTimeout(this.killTimeout);
+            this.killTimeout = undefined;
             // Verify process is actually dead
             await this.verifyProcessKilled(this.serverPid);
             console.error(`✅ Server process ${this.serverPid} terminated`);
@@ -305,9 +380,10 @@ export class MCPProxy {
                             try {
                                 const message = JSON.parse(line);
                                 if (message.id && this.pendingRequests.has(message.id)) {
-                                    const handler = this.pendingRequests.get(message.id);
+                                    const pending = this.pendingRequests.get(message.id);
+                                    clearTimeout(pending.timeoutId);
                                     this.pendingRequests.delete(message.id);
-                                    handler(message);
+                                    pending.resolve(message);
                                 }
                             }
                             catch {
@@ -351,29 +427,37 @@ export class MCPProxy {
             method,
             params,
         };
-        return new Promise((resolve) => {
-            this.pendingRequests.set(id, resolve);
+        return new Promise((resolve, reject) => {
+            const timeoutId = setTimeout(() => {
+                if (this.pendingRequests.has(id)) {
+                    this.pendingRequests.delete(id);
+                    resolve({ jsonrpc: "2.0", id, error: { code: -32603, message: "Request timeout" } });
+                }
+            }, 5000);
+            timeoutId.unref();
+            this.pendingRequests.set(id, { resolve, reject, timeoutId });
             if (this.managedProcess) {
                 const writer = this.managedProcess.stdin.getWriter();
                 writer
                     .write(new TextEncoder().encode(JSON.stringify(request) + "\n"))
                     .then(() => writer.releaseLock())
                     .catch((error) => {
-                    this.pendingRequests.delete(id);
-                    resolve({ jsonrpc: "2.0", id, error: { code: -32603, message: error.toString() } });
+                    const pending = this.pendingRequests.get(id);
+                    if (pending) {
+                        clearTimeout(pending.timeoutId);
+                        this.pendingRequests.delete(id);
+                        resolve({ jsonrpc: "2.0", id, error: { code: -32603, message: error.toString() } });
+                    }
                 });
             }
             else {
-                this.pendingRequests.delete(id);
-                resolve({ jsonrpc: "2.0", id, error: { code: -32603, message: "Server not running" } });
-            }
-            // Timeout after 5 seconds
-            setTimeout(() => {
-                if (this.pendingRequests.has(id)) {
+                const pending = this.pendingRequests.get(id);
+                if (pending) {
+                    clearTimeout(pending.timeoutId);
                     this.pendingRequests.delete(id);
-                    resolve({ jsonrpc: "2.0", id, error: { code: -32603, message: "Request timeout" } });
+                    resolve({ jsonrpc: "2.0", id, error: { code: -32603, message: "Server not running" } });
                 }
-            }, 5000);
+            }
         });
     }
     async getToolsList() {
@@ -418,16 +502,30 @@ export class MCPProxy {
     }
     restart;
     async startWatcher() {
-        if (!this.config.entryFile)
+        if (!this.config.watchTargets || this.config.watchTargets.length === 0)
             return;
         try {
-            // Verify file exists by attempting to read it
-            await this.fs.readFile(this.config.entryFile);
-            console.error(`✅ Watching ${this.config.entryFile} for changes`);
-            const watcher = this.fs.watch([this.config.entryFile]);
-            for await (const event of watcher) {
-                if (["modify", "remove"].includes(event.type)) {
-                    console.error(`📝 File ${event.type}: ${event.path}`);
+            // For file-based targets, verify they exist by attempting to read them
+            for (const target of this.config.watchTargets) {
+                try {
+                    await this.changeSource.readFile(target);
+                }
+                catch (error) {
+                    // Log warning but continue - some targets might not be files (e.g., packages)
+                    console.error(`⚠️  Could not verify target: ${target} (${error})`);
+                }
+            }
+            const targets = this.config.watchTargets.join(", ");
+            console.error(`✅ Watching ${targets} for changes`);
+            this.fileWatcher = this.changeSource.watch(this.config.watchTargets);
+            for await (const event of this.fileWatcher) {
+                // Check if shutdown was requested
+                if (this.shutdownRequested) {
+                    break;
+                }
+                // Handle both old FileEvent types and new ChangeEvent types
+                if (["modify", "remove", "version_update", "dependency_change"].includes(event.type)) {
+                    console.error(`📝 ${event.type}: ${event.path}`);
                     this.restart();
                 }
             }
@@ -439,6 +537,32 @@ export class MCPProxy {
     async shutdown() {
         console.error("\n🛑 Shutting down proxy...");
         this.restarting = true;
+        this.shutdownRequested = true;
+        // Clear any pending restart
+        this.restart.clear();
+        // Clear monitoring timeouts
+        if (this.monitoringTimeout) {
+            clearTimeout(this.monitoringTimeout);
+            this.monitoringTimeout = undefined;
+        }
+        if (this.errorRetryTimeout) {
+            clearTimeout(this.errorRetryTimeout);
+            this.errorRetryTimeout = undefined;
+        }
+        // Clear all pending request timeouts
+        for (const [id, request] of this.pendingRequests) {
+            if (request.timeoutId) {
+                clearTimeout(request.timeoutId);
+            }
+            request.reject(new Error("Proxy shutting down"));
+        }
+        this.pendingRequests.clear();
+        // Clear kill timeout if exists
+        if (this.killTimeout) {
+            clearTimeout(this.killTimeout);
+            this.killTimeout = undefined;
+        }
+        // Kill the server
         await this.killServer();
         // Note: Process exit is handled by the caller (main.ts or test runner)
     }

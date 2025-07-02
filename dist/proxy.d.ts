@@ -13,7 +13,10 @@ type DebouncedFunction<T extends (...args: any[]) => any> = T & {
 export interface MCPProxyConfig {
     command: string;
     commandArgs: string[];
-    entryFile: string | null;
+    /** @deprecated Use watchTargets instead. Single file/directory to watch */
+    entryFile?: string | null;
+    /** Array of files, directories, packages, or other resources to monitor */
+    watchTargets?: string[];
     restartDelay: number;
     env?: Record<string, string>;
     /** Delay in ms after killing server before starting new one (default: 1000) */
@@ -42,14 +45,32 @@ export declare class MCPProxy {
     private initializeParams;
     private pendingRequests;
     private stdinForwardingStarted;
+    private killTimeout?;
+    private fileWatcher?;
+    private shutdownRequested;
+    private startPromise?;
+    private monitoringTimeout?;
+    private errorRetryTimeout?;
     private procManager;
-    private fs;
+    private changeSource;
     private config;
     private stdin;
     private stdout;
     private stderr;
     private exit;
     constructor(dependencies: ProxyDependencies, config: MCPProxyConfig);
+    /**
+     * Normalize config to handle backward compatibility between entryFile and watchTargets
+     */
+    private normalizeConfig;
+    /**
+     * Create an adapter that converts FileSystem to ChangeSource interface
+     */
+    private createFileSystemAdapter;
+    /**
+     * Check if the proxy and server are currently running
+     */
+    isRunning(): boolean;
     start(): Promise<void>;
     private startServer;
     private killServer;

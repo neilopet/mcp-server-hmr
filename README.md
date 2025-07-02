@@ -119,7 +119,13 @@ To watch additional files:
 MCPMON_WATCH="server.js,config.json" mcpmon node server.js
 ```
 
-That's it! For advanced configuration options, see [Configuration Guide](docs/configuration.md).
+That's it! mcpmon is designed to work with zero configuration.
+
+### Environment Variables
+
+- `MCPMON_WATCH` - Override files/directories to watch (comma-separated)
+- `MCPMON_DELAY` - Restart delay in milliseconds (default: 1000)
+- `MCPMON_VERBOSE` - Enable verbose logging
 
 ## How It Works
 
@@ -149,7 +155,7 @@ MCPMON_VERBOSE=1 mcpmon node server.js
 **Common issues:**
 - **Server won't start?** Check the error messages for missing dependencies
 - **No hot reload?** Verify your server file is being detected in the logs
-- **Need help?** See our [Troubleshooting Guide](docs/troubleshooting.md)
+- **Need help?** See our [Troubleshooting Guide](TROUBLESHOOTING.md)
 
 ## Development
 
@@ -161,7 +167,7 @@ npm test
 npm run dev
 ```
 
-See [Contributing Guide](docs/contributing.md) for more details.
+See [Contributing Guide](CONTRIBUTING.md) for more details.
 
 ## Installation
 
@@ -177,14 +183,16 @@ npx mcpmon node server.js
 
 ## Contributing
 
-We welcome contributions! See [Contributing Guide](docs/contributing.md) for details.
+We welcome contributions! See [Contributing Guide](CONTRIBUTING.md) for details.
 
 ## Documentation
 
-- [Configuration Guide](docs/configuration.md) - Advanced configuration options
-- [Troubleshooting Guide](docs/troubleshooting.md) - Common issues and solutions  
 - [API Documentation](docs/api.md) - Library usage and advanced features
 - [Architecture Guide](docs/architecture.md) - How mcpmon works internally
+- [Testing Guide](docs/testing.md) - Test architecture and patterns
+- [Troubleshooting Guide](TROUBLESHOOTING.md) - Common issues and solutions
+- [Contributing Guide](CONTRIBUTING.md) - How to contribute
+- [Changelog](CHANGELOG.md) - Version history and changes
 
 ## License
 

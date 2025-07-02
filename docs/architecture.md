@@ -14,7 +14,7 @@ This document explains the internal architecture and design principles of mcpmon
 
 ## Overview
 
-mcpmon acts as a transparent proxy between MCP clients (like Claude Desktop) and MCP servers, enabling automatic server restarts when resources change. It supports monitoring files, packages, APIs, and other resources through its generic interface system.
+mcpmon acts as a transparent proxy between MCP clients (like Claude Desktop) and MCP servers, enabling automatic server restarts when files change.
 
 ```
 ┌─────────────────┐    JSON-RPC    ┌──────────────────┐    JSON-RPC    ┌─────────────────┐
@@ -23,12 +23,11 @@ mcpmon acts as a transparent proxy between MCP clients (like Claude Desktop) and
 │ (Claude Desktop)│                │                  │                │                 │
 └─────────────────┘                └──────────────────┘                └─────────────────┘
                                              │
-                                             │ Change Events (Generic)
+                                             │ File Events
                                              ▼
                                     ┌─────────────────┐
-                                    │  ChangeSource   │
-                                    │ (files, packages│
-                                    │  APIs, etc.)    │
+                                    │  File Watcher   │
+                                    │                 │
                                     └─────────────────┘
 ```
 
@@ -42,8 +41,7 @@ The main proxy implementation uses dependency injection for platform independenc
 // Dependency injection architecture
 interface ProxyDependencies {
   procManager: ProcessManager;
-  changeSource?: ChangeSource;  // New generic interface
-  fs?: FileSystem;              // Legacy support
+  fs: FileSystem;
   stdin: ReadableStream<Uint8Array>;
   stdout: WritableStream<Uint8Array>;
   stderr: WritableStream<Uint8Array>;
@@ -79,16 +77,6 @@ interface ProcessManager {
   spawn(command: string, args: string[], options?: SpawnOptions): ManagedProcess;
 }
 
-// New generic interface for monitoring any type of resource
-interface ChangeSource {
-  watch(paths: string[]): AsyncIterable<ChangeEvent>;
-  readFile(path: string): Promise<string>;
-  writeFile(path: string, content: string): Promise<void>;
-  exists(path: string): Promise<boolean>;
-  copyFile(src: string, dest: string): Promise<void>;
-}
-
-// Legacy interface (still supported through adapter)
 interface FileSystem {
   watch(paths: string[]): AsyncIterable<FileEvent>;
   readFile(path: string): Promise<string>;
@@ -97,23 +85,18 @@ interface FileSystem {
   copyFile(src: string, dest: string): Promise<void>;
 }
 
-// Extended event types for generic monitoring
-type ChangeEventType = 
-  | "create" | "modify" | "remove"        // File operations
-  | "version_update" | "dependency_change"; // Package monitoring
+type FileEventType = "create" | "modify" | "remove";
 
-interface ChangeEvent {
-  type: ChangeEventType;
+interface FileEvent {
+  type: FileEventType;
   path: string;
-  metadata?: Record<string, any>;
 }
 ```
 
 **Platform Implementations:**
 
-- **Node.js**: `NodeProcessManager`, `NodeFileSystem` (implements ChangeSource via adapter)
-- **Mock**: `MockProcessManager`, `MockFileSystem` (testing - implements both interfaces)
-- **Custom**: Users can implement `ChangeSource` for monitoring APIs, packages, etc.
+- **Node.js**: `NodeProcessManager`, `NodeFileSystem`
+- **Mock**: `MockProcessManager`, `MockFileSystem` (for testing)
 
 ### 3. Server Process Manager
 
@@ -138,34 +121,28 @@ class McpServerProcess {
 - Process health monitoring
 - Automatic cleanup on errors
 
-### 4. Change Source Watcher
+### 4. File Watcher
 
-Monitors resources for changes using the generic ChangeSource interface:
+Monitors files for changes:
 
 ```typescript
-class ChangeWatcher {
-  private changeSource: ChangeSource;
-  private watchTargets: string[];
+class FileWatcher {
+  private fs: FileSystem;
+  private watchPaths: string[];
 
   async start() {
-    for await (const event of this.changeSource.watch(this.watchTargets)) {
-      this.handleChangeEvent(event);
+    for await (const event of this.fs.watch(this.watchPaths)) {
+      this.handleFileEvent(event);
     }
   }
 }
 ```
 
-**Event Types Handled:**
+**Event Types:**
 
-- `create`: New files/resources created
-- `modify`: Existing files/resources modified
-- `remove`: Files/resources deleted
-- `version_update`: Package versions changed
-- `dependency_change`: Package dependencies modified
-
-**Backward Compatibility:**
-
-The system includes a FileSystem to ChangeSource adapter that automatically converts old FileEvent objects to new ChangeEvent objects, ensuring existing code continues to work.
+- `create`: New files created
+- `modify`: Existing files modified
+- `remove`: Files deleted
 
 ### 5. Message Buffer
 
@@ -252,15 +229,15 @@ sequenceDiagram
     P->>C: tools response
 ```
 
-## Resource Monitoring
+## File Watching
 
 ### Watch Strategies
 
-1. **Single Resource Watching**
+1. **Single File Watching**
    ```bash
    MCPMON_WATCH=server.js
    ```
-   - Watches specific file/resource for changes
+   - Watches specific file for changes
    - Most efficient for simple servers
 
 2. **Directory Watching**
@@ -270,20 +247,12 @@ sequenceDiagram
    - Recursively watches directory
    - Captures all file changes in tree
 
-3. **Multiple Resource Watching**
+3. **Multiple File/Directory Watching**
    ```bash
    MCPMON_WATCH=src/,config/,package.json
    ```
-   - Watches multiple resources
+   - Watches multiple files and directories
    - Comma-separated list
-   - Can include files, directories, packages, etc.
-
-4. **Generic Resource Monitoring** (Future)
-   ```bash
-   MCPMON_WATCH=@types/node,express,server.js
-   ```
-   - Monitor package updates alongside files
-   - Custom ChangeSource implementations
 
 ### Change Event Filtering
 
@@ -294,8 +263,7 @@ Not all change events trigger restarts:
 - `.js`, `.ts`, `.py` file modifications
 - Configuration file changes
 - Package manifest changes (`package.json`, `tsconfig.json`)
-- Package version updates (`version_update` events)
-- Dependency changes (`dependency_change` events)
+
 
 **Ignored Events:**
 

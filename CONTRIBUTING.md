@@ -77,11 +77,12 @@ tests/
 ├── behavior/          # Platform-agnostic behavioral tests
 │   ├── test_helper.ts # Shared test utilities
 │   └── *.test.ts      # Behavioral test files
+├── integration/       # Integration tests
+│   ├── cli.test.ts
+│   └── node_implementations.test.ts
 ├── mocks/             # Mock implementations
 │   ├── MockProcessManager.ts
 │   └── MockFileSystem.ts
-├── unit/              # Unit tests
-├── integration/       # Integration tests
 └── fixtures/          # Test MCP servers
 
 examples/              # Usage examples
@@ -136,12 +137,15 @@ All changes must include appropriate tests:
 # Run all tests
 npm test
 
-# Run specific test categories
-npm run test:unit        # Unit tests only
-npm run test:integration # Integration tests only
+# Run tests in watch mode (for TDD)
+npm run test:watch
 
 # Run tests with coverage
 npm run test:coverage
+
+# Run specific test files
+npm test -- tests/behavior/proxy_restart.test.ts
+npm test -- tests/integration/cli.test.ts
 ```
 
 **Testing Guidelines:**
@@ -239,7 +243,6 @@ git commit -m "test: add e2e tests for config launcher"
 
 - [ ] Tests pass (`npm test`)
 - [ ] Code is formatted (`npm run format`)
-- [ ] Code is linted (`npm run lint`)
 - [ ] Code compiles (`npm run build`)
 - [ ] Documentation is updated
 - [ ] CHANGELOG.md is updated (if applicable)

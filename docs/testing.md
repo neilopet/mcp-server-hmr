@@ -30,11 +30,10 @@ tests/
 ├── behavior/          # Platform-agnostic behavioral tests
 │   ├── test_helper.ts # Shared test utilities
 │   └── *.test.ts      # Behavioral test files
+├── integration/       # Integration tests
 ├── mocks/             # Mock implementations
 │   ├── MockProcessManager.ts
 │   └── MockFileSystem.ts
-├── unit/              # Unit tests
-├── integration/       # Integration tests
 └── fixtures/          # Test MCP servers
 ```
 
@@ -48,7 +47,8 @@ Platform-agnostic tests that verify proxy behavior through interfaces:
 - **message_buffering.test.ts** - Message queuing during restart
 - **initialization_replay.test.ts** - MCP handshake preservation
 - **error_handling.test.ts** - Fault tolerance and recovery
-- **generic_interfaces.test.ts** - TDD tests for new generic monitoring interfaces
+- **error_scenarios.test.ts** - Additional error path coverage
+- **generic_interfaces.test.ts** - Interface extensibility tests
 
 **Characteristics:**
 
@@ -59,25 +59,16 @@ Platform-agnostic tests that verify proxy behavior through interfaces:
 
 ### Integration Tests (`tests/integration/`)
 
-End-to-end tests with real MCP client/server communication:
+Integration tests with real implementations:
 
-- **e2e_reload_test.ts** - Full hot-reload flow validation
-- **error_handling_test.ts** - Server failure recovery
-- **debouncing_test.ts** - File change debouncing
+- **cli.test.ts** - Command-line interface testing
+- **node_implementations.test.ts** - NodeFileSystem and NodeProcessManager tests
 
 **Characteristics:**
 
-- Uses actual MCP TypeScript SDK
-- Tests real file watching and process management
-- Validates complete system behavior
-
-### Unit Tests
-
-Core functionality tests:
-
-- **file_change_detection_test.ts** - File watching triggers
-- **restart_sequence_test.ts** - Restart order validation
-- **message_buffering_test.ts** - Message queue behavior
+- Tests real Node.js implementations
+- Validates actual file I/O and process spawning
+- Tests CLI argument parsing and behavior
 
 ## Test Helper Pattern
 
@@ -217,13 +208,6 @@ await proxy.start();
 npm test
 ```
 
-### Specific Test Suites
-
-```bash
-npm run test:unit        # Unit and behavioral tests
-npm run test:integration # E2E integration tests
-```
-
 ### Development Mode
 
 ```bash
@@ -233,22 +217,29 @@ npm run test:watch       # Watch mode for TDD
 ### Coverage Report
 
 ```bash
-npm run test:coverage
+npm run test:coverage    # Generate coverage report
+```
+
+### Specific Test Files
+
+```bash
+npm test -- tests/behavior/proxy_restart.test.ts
+npm test -- tests/integration/cli.test.ts
 ```
 
 ## Test Coverage
 
-We maintain >80% coverage on core logic:
+Current coverage targets:
 
-- `src/proxy.ts` - MCPProxy class
-- `src/config_launcher.ts` - Config management
-- Platform implementations (Node.js)
+- `src/proxy.ts` - ~60% coverage (core proxy logic)
+- `src/cli.ts` - Integration tested
+- `src/node/*.ts` - Integration tested
 
 ### Viewing Coverage
 
 ```bash
 npm run test:coverage
-# Open coverage/lcov-report/index.html in browser
+# Coverage summary shown in terminal
 ```
 
 ## MCP Protocol Testing
@@ -320,10 +311,10 @@ This proves:
 
 ### Debug Mode
 
-Enable verbose logging in tests:
+Run tests with verbose output:
 
-```typescript
-const { proxy, procManager, fs, teardown } = setupProxyTest({
-  logLevel: "debug",
-});
+```bash
+npm test -- --verbose
 ```
+
+Or check console.error output in test files for debugging information.
