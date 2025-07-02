@@ -85,17 +85,16 @@ describe('Setup functionality', () => {
     expect(modifiedConfig.mcpServers['server-one']).toEqual(originalConfig.mcpServers['server-one']);
     expect(modifiedConfig.mcpServers['server-three']).toEqual(originalConfig.mcpServers['server-three']);
 
-    // Verify server-two is now using hot-reload
-    expect(modifiedConfig.mcpServers['server-two'].command).toBe('mcpmon');
-    expect(modifiedConfig.mcpServers['server-two'].args).toEqual(['python', '-m', 'server2']);
+    // Verify server-two is now using hot-reload with modern Node.js
+    expect(modifiedConfig.mcpServers['server-two'].command).toMatch(/\.nvm\/versions\/node\/.*\/bin\/node$/);
+    expect(modifiedConfig.mcpServers['server-two'].args[0]).toMatch(/mcpmon$/);
+    expect(modifiedConfig.mcpServers['server-two'].args.slice(1)).toEqual(['python', '-m', 'server2']);
     expect(modifiedConfig.mcpServers['server-two'].env).toEqual({ TOKEN: 'token2' });
 
-    // Verify server-two-original exists with original config
-    expect(modifiedConfig.mcpServers['server-two-original']).toBeDefined();
-    expect(modifiedConfig.mcpServers['server-two-original']).toEqual(originalConfig.mcpServers['server-two']);
+    // Note: Original config is now preserved in timestamped backup files, not as -original servers
 
-    // Verify no extra servers were added
-    const expectedServerCount = 4; // 3 original + 1 -original
+    // Verify no extra servers were added (same count as original)
+    const expectedServerCount = 3; // Same as original since we don't create -original servers
     expect(Object.keys(modifiedConfig.mcpServers)).toHaveLength(expectedServerCount);
   }, 30000);
 
@@ -133,16 +132,16 @@ describe('Setup functionality', () => {
     // Verify HTTP server is unchanged (not stdio)
     expect(modifiedConfig.mcpServers['http-server']).toEqual(originalConfig.mcpServers['http-server']);
 
-    // Verify stdio servers are converted
-    expect(modifiedConfig.mcpServers['stdio-server'].command).toBe('mcpmon');
-    expect(modifiedConfig.mcpServers['stdio-server'].args).toEqual(['node', 'server.js']);
+    // Verify stdio servers are converted with modern Node.js
+    expect(modifiedConfig.mcpServers['stdio-server'].command).toMatch(/\.nvm\/versions\/node\/.*\/bin\/node$/);
+    expect(modifiedConfig.mcpServers['stdio-server'].args[0]).toMatch(/mcpmon$/);
+    expect(modifiedConfig.mcpServers['stdio-server'].args.slice(1)).toEqual(['node', 'server.js']);
 
-    expect(modifiedConfig.mcpServers['another-stdio'].command).toBe('mcpmon');
-    expect(modifiedConfig.mcpServers['another-stdio'].args).toEqual(['python', 'server.py']);
+    expect(modifiedConfig.mcpServers['another-stdio'].command).toMatch(/\.nvm\/versions\/node\/.*\/bin\/node$/);
+    expect(modifiedConfig.mcpServers['another-stdio'].args[0]).toMatch(/mcpmon$/);
+    expect(modifiedConfig.mcpServers['another-stdio'].args.slice(1)).toEqual(['python', 'server.py']);
 
-    // Verify originals exist
-    expect(modifiedConfig.mcpServers['stdio-server-original']).toBeDefined();
-    expect(modifiedConfig.mcpServers['another-stdio-original']).toBeDefined();
+    // Note: Original configs are now preserved in timestamped backup files, not as -original servers
 
     // Verify no http-server-original (since it wasn't converted)
     expect(modifiedConfig.mcpServers['http-server-original']).toBeUndefined();
@@ -217,9 +216,10 @@ describe('Setup functionality', () => {
     // First, setup to create a backup
     await runSetupCommand(['--config', configPath, 'test-server']);
 
-    // Verify config was modified
+    // Verify config was modified with modern Node.js
     let modifiedConfig = JSON.parse(readFileSync(configPath, 'utf8'));
-    expect(modifiedConfig.mcpServers['test-server'].command).toBe('mcpmon');
+    expect(modifiedConfig.mcpServers['test-server'].command).toMatch(/\.nvm\/versions\/node\/.*\/bin\/node$/);
+    expect(modifiedConfig.mcpServers['test-server'].args[0]).toMatch(/mcpmon$/);
 
     // Now restore
     const result = await runSetupCommand(['--config', configPath, '--restore']);
@@ -314,7 +314,10 @@ describe('Setup functionality', () => {
 
     const modifiedConfig = JSON.parse(readFileSync(configPath, 'utf8'));
 
-    // Verify hot-reload server preserves env and cwd
+    // Verify hot-reload server uses modern Node.js and preserves env and cwd
+    expect(modifiedConfig.mcpServers['complex-server'].command).toMatch(/\.nvm\/versions\/node\/.*\/bin\/node$/);
+    expect(modifiedConfig.mcpServers['complex-server'].args[0]).toMatch(/mcpmon$/);
+    expect(modifiedConfig.mcpServers['complex-server'].args.slice(1)).toEqual(['python', '-m', 'myserver']);
     expect(modifiedConfig.mcpServers['complex-server'].env).toEqual({
       API_KEY: 'secret123',
       DEBUG: 'true',
@@ -322,7 +325,6 @@ describe('Setup functionality', () => {
     });
     expect(modifiedConfig.mcpServers['complex-server'].cwd).toBe('/custom/working/dir');
 
-    // Verify original is preserved
-    expect(modifiedConfig.mcpServers['complex-server-original']).toEqual(originalConfig.mcpServers['complex-server']);
+    // Note: Original config is now preserved in timestamped backup files, not as -original servers
   }, 30000);
 });
