@@ -2,99 +2,126 @@
 
 ## Summary
 
-Based on our test suite and manual analysis, here's the coverage status for the MCP Hot-Reload project:
+Current test coverage for the mcpmon project as of latest run:
 
-### Source Files Coverage
+### Overall Coverage Metrics
 
-| File                       | Coverage Status     | Notes                                                                                 |
-| -------------------------- | ------------------- | ------------------------------------------------------------------------------------- |
-| **src/main.ts**            | ✅ Partially Tested | Core functionality tested via e2e tests. Command-line args parsing tested indirectly. |
-| **src/config_launcher.ts** | ✅ Well Tested      | New tests added for setup, list, and preservation of other servers.                   |
-| **src/mod.ts**             | ❌ Not Tested       | Simple export file, low priority.                                                     |
+```
+=============================== Coverage summary ===============================
+Statements   : 58.96% ( 332/563 )
+Branches     : 36.62% ( 63/172 )
+Functions    : 58.49% ( 62/106 )
+Lines        : 59.96% ( 325/542 )
+================================================================================
+```
 
-### Test Coverage by Feature
+### Test Statistics
 
-#### ✅ Well-Tested Features:
+- **Total Test Suites**: 8
+- **Total Tests**: 65 (all passing)
+- **Test Categories**:
+  - Behavioral tests: 27 tests
+  - Integration tests: 30 tests
+  - Error scenario tests: 8 tests
 
-1. **End-to-End Hot Reload** (e2e_reload_test.ts)
-   - File change detection triggers restart
-   - Server restart with proper cleanup
-   - Message buffering during restart
-   - Tool updates after reload
-   - Client connection persistence
+### Coverage by Component
 
-2. **Config Launcher** (config_launcher_test.ts)
-   - Setup preserves other servers in config
-   - Setup --all only modifies stdio servers
-   - List servers functionality
-   - Config file handling
+#### Well-Tested Components (>60% coverage)
 
-3. **Error Handling** (error_handling_test.ts)
-   - Basic error scenarios
-   - Process cleanup on errors
+1. **proxy.ts** - Core proxy implementation
+   - ~62% line coverage
+   - Message buffering, restart logic, file watching
+   - Process lifecycle management
 
-#### ⚠️ Partially Tested Features:
+2. **CLI Integration** - Command-line interface
+   - Comprehensive integration tests
+   - Auto-detection for Node.js, Python, Deno
+   - Environment variable handling
+   - Error scenarios
 
-1. **Debouncing** (debouncing_test.ts)
-   - Tests exist but failing due to env var issues
-   - Logic is sound when tests pass
+3. **Node Implementations** - Platform-specific code
+   - NodeFileSystem: File operations and watching
+   - NodeProcessManager: Process spawning and management
+   - Spawn error handling via status promise
 
-2. **File Change Detection** (file_change_detection_test.ts)
-   - Tests exist but failing due to env var issues
-   - Core functionality verified in e2e test
+#### Partially Tested Components (30-60% coverage)
 
-3. **Message Buffering** (message_buffering_test.ts)
-   - Tests exist but failing due to env var issues
-   - Functionality verified in e2e test
+1. **Error Handling Paths**
+   - Server initialization failures ✓
+   - Process crash recovery ✓
+   - Stream forwarding errors ✓
+   - Request timeouts ✓
 
-4. **Restart Sequence** (restart_sequence_test.ts)
-   - Tests exist but failing due to env var issues
-   - Sequence verified in e2e test
+2. **Configuration**
+   - Basic configuration handling
+   - Environment variable processing
 
-#### ❌ Not Tested:
+#### Low Coverage Components (<30% coverage)
 
-1. **Watch file auto-detection** for different commands (python, deno)
-2. **Signal handling** (SIGTERM, SIGINT)
-3. **Timeout handling** for slow server startup/shutdown
-4. **Multiple file/directory watching**
-5. **Edge cases** like server crashes, malformed JSON-RPC
+1. **cli.ts** - Main CLI entry point (0%)
+   - Tested indirectly through integration tests
+   - Direct unit tests would improve coverage
 
-### Test Suite Issues
+2. **index.ts** - Library exports (0%)
+   - Simple export file
+   - Used by library consumers
 
-The main issue affecting coverage is that most unit tests are failing due to environment variable loading. The tests expect environment variables but the new `load({ export: true })` change hasn't been applied to test utilities.
+3. **interfaces.ts** - Type definitions (0%)
+   - Pure TypeScript interfaces
+   - Dead code removed (isProcessManager, isFileSystem)
 
-### Recommendations for Improving Coverage
+### Test Categories
 
-1. **Fix env var loading in tests** - Update test utilities to handle the new dotenv loading
-2. **Add integration tests** for:
-   - Different server types (Python, Deno)
-   - Signal handling
-   - Timeout scenarios
-   - Multiple file watching
-3. **Add unit tests** for:
-   - Command-line argument parsing
-   - Watch file detection logic
-   - Process management edge cases
+#### Behavioral Tests (tests/behavior/)
+- **proxy_restart.test.ts** - File change triggers restart
+- **message_buffering.test.ts** - Messages queued during restart
+- **initialization_replay.test.ts** - Initialize params preserved
+- **error_handling.test.ts** - Various error scenarios
+- **error_scenarios.test.ts** - Additional error paths
+- **generic_interfaces.test.ts** - Interface compatibility
 
-### Current Test Statistics
+#### Integration Tests (tests/integration/)
+- **cli.test.ts** - Full CLI functionality
+  - Help display
+  - Watch file auto-detection
+  - Environment variables
+  - Process management
+  - Signal handling
+- **node_implementations.test.ts** - Real file I/O and process operations
+  - File watching with multiple files
+  - Process spawning with various configurations
+  - Stream handling
+  - Error propagation
 
-- **Total test files**: 7
-- **Passing tests**: 5 (e2e, config_launcher, error_handling)
-- **Failing tests**: 5 (due to env var issues)
-- **Test assertions**: ~50+
+### Recent Improvements
 
-### Code Quality Indicators
+1. **Fixed all test failures** - All 65 tests now pass reliably
+2. **Added comprehensive error scenario tests** - Improved error path coverage
+3. **Fixed timer cleanup** - Resolved Jest worker exit warnings
+4. **Fixed spawn error handling** - Async errors now properly propagated
+5. **Added CLI integration tests** - Real-world usage scenarios
+6. **Added Node implementation tests** - Platform-specific functionality
 
-✅ **Strengths**:
+### Recommendations for Further Improvement
 
-- Core hot-reload functionality is well-tested via e2e
-- Config launcher has good test coverage
-- Tests use real MCP protocol implementation
-- Good separation of concerns in test structure
+1. **Add unit tests for cli.ts** - Would significantly boost coverage
+2. **Test edge cases**:
+   - Very large files/directories
+   - Symbolic links
+   - Permission errors
+   - Network file systems
+3. **Performance tests**:
+   - Stress testing with many file changes
+   - Memory usage over time
+   - Large message handling
+4. **Cross-platform testing**:
+   - Windows-specific path handling
+   - Different Node.js versions
 
-⚠️ **Areas for Improvement**:
+### Strengths
 
-- Unit test coverage needs fixing
-- Edge case coverage is limited
-- No performance or stress tests
-- Limited cross-platform testing
+✅ **Comprehensive behavioral testing** - Core functionality thoroughly tested
+✅ **Real integration tests** - Actual process spawning and file I/O
+✅ **Error scenario coverage** - Many error paths now tested
+✅ **Clean test architecture** - Good use of mocks and helpers
+✅ **Deterministic timing** - No flaky setTimeout-based tests

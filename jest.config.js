@@ -29,6 +29,7 @@ export default {
     "**/src/**/*.spec.ts",
     "**/tests/behavior/**/*.test.ts",
     "**/tests/integration/**/*.test.ts",
+    "**/tests/**/*.test.ts",
   ],
   testPathIgnorePatterns: ["/node_modules/", "/dist/"],
   collectCoverageFrom: ["src/**/*.ts", "!src/**/*.test.ts", "!src/**/*.spec.ts", "!src/**/*.d.ts"],

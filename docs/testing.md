@@ -205,26 +205,30 @@ await proxy.start();
 ### All Tests
 
 ```bash
-npm test
+npm test             # Runs clean + build + all tests
 ```
 
 ### Development Mode
 
 ```bash
-npm run test:watch       # Watch mode for TDD
+npm run test:watch       # Watch mode for TDD (no clean/build)
 ```
 
 ### Coverage Report
 
 ```bash
-npm run test:coverage    # Generate coverage report
+npm run test:coverage    # Generate coverage report (no clean/build)
 ```
 
 ### Specific Test Files
 
 ```bash
-npm test -- tests/behavior/proxy_restart.test.ts
-npm test -- tests/integration/cli.test.ts
+npm test -- tests/behavior/proxy_restart.test.ts    # Includes clean + build
+npm test -- tests/integration/cli.test.ts           # Includes clean + build
+
+# For faster iteration without clean/build:
+npm run test:unit                                   # Just behavioral tests
+npm run test:integration                           # Just integration tests
 ```
 
 ## Test Coverage
@@ -314,7 +318,7 @@ This proves:
 Run tests with verbose output:
 
 ```bash
-npm test -- --verbose
+npm test -- --verbose    # Includes clean + build + verbose output
 ```
 
 Or check console.error output in test files for debugging information.

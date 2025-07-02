@@ -33,6 +33,7 @@ Sample MCP servers for integration testing:
 - **`message_buffering.test.ts`** - Message queuing during restart
 - **`initialization_replay.test.ts`** - MCP handshake preservation
 - **`error_handling.test.ts`** - Fault tolerance and recovery scenarios
+- **`error_scenarios.test.ts`** - Additional error path coverage
 - **`generic_interfaces.test.ts`** - TDD tests for new generic monitoring interfaces
 
 ## Testing Philosophy
@@ -117,16 +118,16 @@ const newConfig = { watchTargets: ['server.js'] };   // New way
 ## Running Tests
 
 ```bash
-# All tests (includes build)
+# All tests (includes clean + build)
 npm test
 
-# Watch mode for TDD
+# Watch mode for TDD (no clean/build)
 npm run test:watch
 
-# Coverage report
+# Coverage report (no clean/build)
 npm run test:coverage
 
-# Specific suites
+# Specific suites (no clean/build for faster iteration)
 npm run test:unit        # Behavioral tests
 npm run test:integration # E2E tests
 ```
@@ -145,6 +146,7 @@ npm run test:integration # E2E tests
 // Examples:
 "Proxy restart - file change triggers server restart sequence"
 "Message buffering - preserves order during restart"
+"Error scenarios - handles server initialization failures"
 "Generic interfaces - supports package monitoring event types"
 ```
 

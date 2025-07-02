@@ -13,35 +13,85 @@
 
 import { resolve, dirname, extname, join } from "path";
 import { fileURLToPath } from "url";
+import { Command } from "commander";
 import { NodeFileSystem } from "./node/NodeFileSystem.js";
 import { NodeProcessManager } from "./node/NodeProcessManager.js";
 import { MCPProxy } from "./proxy.js";
+import { setupCommand } from "./setup.js";
+
+// Check if we're running on an outdated Node.js version
+const nodeVersion = process.version;
+const [major] = nodeVersion.slice(1).split('.').map(Number);
+
+if (major < 16) {
+  console.error(`❌ mcpmon requires Node.js 16+ but found ${nodeVersion}`);
+  console.error(`💡 Try running with a newer Node.js version: ~/.nvm/versions/node/v20.12.2/bin/node $(which mcpmon)`);
+  process.exit(1);
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-function showHelp() {
-  console.log(`
-mcpmon - Hot-reload monitor for MCP servers
+const program = new Command();
 
-Usage:
-  mcpmon <command> [args...]
+program
+  .name('mcpmon')
+  .description('Hot-reload monitor for MCP servers - like nodemon but for Model Context Protocol')
+  .version('0.3.0')
+  .allowUnknownOption();
 
+// Main proxy command (default action)
+program
+  .argument('[command]', 'Command to run (node, python, deno, etc.)')
+  .argument('[args...]', 'Arguments to pass to command')
+  .option('--watch <paths>', 'Override files/directories to watch (comma-separated)')
+  .option('--delay <ms>', 'Restart delay in milliseconds', '1000')
+  .option('--verbose', 'Enable verbose logging')
+  .addHelpText('after', `
 Examples:
   mcpmon node server.js
   mcpmon python server.py
   mcpmon deno run server.ts
   mcpmon node --inspect server.js
 
-Environment:
+Environment Variables:
   MCPMON_WATCH     Override files/directories to watch (comma-separated)
   MCPMON_DELAY     Restart delay in milliseconds (default: 1000)
   MCPMON_VERBOSE   Enable verbose logging
 
 Like nodemon, but for Model Context Protocol servers.
 Automatically restarts your server when files change.
-`);
-}
+`)
+  .action(async (command, args, options) => {
+    if (!command) {
+      program.help();
+      return;
+    }
+
+    await runProxy(command, args, options);
+  });
+
+// Setup subcommand
+program
+  .command('setup')
+  .description('Configure MCP servers to use hot-reload')
+  .argument('[server-name]', 'Server name to configure')
+  .option('-c, --config <path>', 'Path to config file (auto-detected if not specified)')
+  .option('-l, --list', 'List available servers in the config')
+  .option('--all', 'Setup all stdio servers')
+  .option('--restore', 'Restore config from latest backup')
+  .addHelpText('after', `
+Examples:
+  mcpmon setup my-server          # Configure my-server to use hot-reload
+  mcpmon setup --all              # Configure all stdio servers
+  mcpmon setup --list             # Show all available servers
+  mcpmon setup --restore          # Restore original config
+
+The setup command modifies your Claude Desktop or Claude Code configuration
+to wrap MCP servers with mcpmon for hot-reload capabilities. A backup is
+automatically created before any changes are made.
+`)
+  .action(setupCommand);
 
 function autoDetectWatchFile(command: string, args: string[]): string | null {
   // Look for the first file argument that looks like a script
@@ -60,38 +110,22 @@ function autoDetectWatchFile(command: string, args: string[]): string | null {
   return null;
 }
 
-function parseCommandLine(): { command: string; args: string[]; watchFile: string | null } {
-  const argv = process.argv.slice(2);
-
-  if (argv.length === 0 || argv[0] === "--help" || argv[0] === "-h") {
-    showHelp();
-    process.exit(0);
-  }
-
-  if (argv[0] === "--version" || argv[0] === "-v") {
-    console.log("mcpmon 0.3.0");
-    process.exit(0);
-  }
-
-  const command = argv[0];
-  const args = argv.slice(1);
-
+async function runProxy(command: string, args: string[], options: any) {
   // Auto-detect what file to watch
   let watchFile = autoDetectWatchFile(command, args);
 
-  // Override with environment variable if provided
-  if (process.env.MCPMON_WATCH) {
+  // Override with CLI option or environment variable
+  if (options.watch) {
+    const watchPaths = options.watch.split(",").map((p: string) => p.trim());
+    watchFile = watchPaths[0]; // Use first path for now
+  } else if (process.env.MCPMON_WATCH) {
     const watchPaths = process.env.MCPMON_WATCH.split(",").map((p) => p.trim());
     watchFile = watchPaths[0]; // Use first path for now
   }
 
-  return { command, args, watchFile };
-}
-
-async function main() {
-  const { command, args, watchFile } = parseCommandLine();
-
-  if (process.env.MCPMON_VERBOSE) {
+  // Set verbose mode from CLI option or environment variable
+  const verbose = options.verbose || process.env.MCPMON_VERBOSE;
+  if (verbose) {
     console.error(`🔧 mcpmon starting...`);
     console.error(`📟 Command: ${command} ${args.join(" ")}`);
     if (watchFile) {
@@ -140,7 +174,8 @@ async function main() {
   });
 
   // Create proxy config
-  const restartDelay = process.env.MCPMON_DELAY ? parseInt(process.env.MCPMON_DELAY) : 1000;
+  const restartDelay = options.delay ? parseInt(options.delay) : 
+    (process.env.MCPMON_DELAY ? parseInt(process.env.MCPMON_DELAY) : 1000);
 
   const proxy = new MCPProxy(
     {
@@ -166,7 +201,7 @@ async function main() {
 
   // Handle signals gracefully
   process.on("SIGINT", async () => {
-    if (process.env.MCPMON_VERBOSE) {
+    if (verbose) {
       console.error(`\n🛑 Received SIGINT, shutting down...`);
     }
     await proxy.shutdown();
@@ -174,7 +209,7 @@ async function main() {
   });
 
   process.on("SIGTERM", async () => {
-    if (process.env.MCPMON_VERBOSE) {
+    if (verbose) {
       console.error(`\n🛑 Received SIGTERM, shutting down...`);
     }
     await proxy.shutdown();
@@ -191,10 +226,13 @@ process.on("unhandledRejection", (reason, promise) => {
   process.exit(1);
 });
 
-main().catch((error) => {
+// Parse command line arguments and run
+try {
+  await program.parseAsync();
+} catch (error: any) {
   console.error("❌ mcpmon failed to start:", error.message);
   if (process.env.MCPMON_VERBOSE) {
     console.error(error.stack);
   }
   process.exit(1);
-});
+}

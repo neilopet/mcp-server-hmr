@@ -27,7 +27,7 @@ mcpmon python server.py
 mcpmon deno run --allow-all server.ts
 
 # Library usage (new capability)
-import { createMCPProxy, ChangeSource } from 'mcpmon';
+import { createMCPProxy } from 'mcpmon';
 const proxy = await createMCPProxy({
   command: 'node',
   args: ['server.js'],
@@ -38,14 +38,16 @@ const proxy = await createMCPProxy({
 ## Development Context
 
 ### Recent Major Changes (v0.3.x)
-1. **Generic Interface System**: Extended from file-only monitoring to support packages, APIs, etc.
-2. **Library Support**: Can now be imported as a dependency for custom monitoring solutions
-3. **Enhanced Configuration**: `watchTargets` array with `entryFile` fallback
-4. **Extended Events**: `version_update`, `dependency_change` alongside file operations
+1. **Renamed to mcpmon**: Simplified from `mcp-server-hmr` to `mcpmon`
+2. **Nodemon-like CLI**: Simple command wrapping instead of config-based approach
+3. **Zero Configuration**: Auto-detects files to watch from command arguments
+4. **Library Support**: Can be imported as a dependency for custom monitoring solutions
+5. **Improved Testing**: Comprehensive test coverage with behavioral and integration tests
 
 ### Migration History
-- **v0.3.0**: Deno → Node.js migration, simplified CLI from config-based to nodemon-like
-- **v0.2.0**: Major simplification from `mcp-server-hmr` to `mcpmon`
+- **v0.3.0**: Renamed from `mcp-server-hmr` to `mcpmon`, simplified CLI to nodemon-like interface
+- **v0.2.0**: Migrated from Deno to Node.js implementation
+- **v0.1.0**: Initial Deno implementation
 
 ### Key Files
 - `package.json`: npm package configuration with global CLI binary
@@ -68,8 +70,8 @@ mcpmon is designed to support monitoring beyond files - package registries, APIs
 ```bash
 npm install          # Install dependencies
 npm run build        # Compile TypeScript
-npm test             # Run full test suite
-npm run test:watch   # TDD mode
+npm test             # Clean, build, and run full test suite
+npm run test:watch   # TDD mode (no rebuild)
 npm run lint         # Check code quality
 npm link             # Link for local development
 ```

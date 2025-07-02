@@ -20,6 +20,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Pending Request Cleanup**: Added proper cleanup of request timeouts during shutdown
 - **Debounced Restart Clear**: Added clearing of debounced restart timer on shutdown
 
+### Improved
+
+- **Safer Clean Command**: Replaced dangerous `rm -rf dist` with cross-platform `rimraf dist` for safer directory removal
+- **Test Build Safety**: Updated default `npm test` to always run clean and build first, preventing stale build testing
+  - Developers can still use `npm run test:unit`, `test:integration`, or `test:watch` for faster iteration without rebuilding
+  - Removed redundant `test:full` script as `npm test` now includes clean and build
+
 ### Changed
 
 - **Documentation Updates**: Comprehensive update of all documentation to reflect current implementation
@@ -248,8 +255,8 @@ This release migrates the project from Deno to Node.js as the canonical implemen
 **Before (Deno):**
 ```bash
 # Installation
-git clone https://github.com/neilopet/mcp-server-hmr
-cd mcp-server-hmr
+git clone https://github.com/neilopet/claude-live-reload
+cd claude-live-reload
 deno task setup
 
 # Usage
@@ -276,8 +283,8 @@ npm start
 
 2. **Development Setup:**
    ```bash
-   git clone https://github.com/neilopet/mcp-server-hmr
-   cd mcp-server-hmr
+   git clone https://github.com/neilopet/claude-live-reload
+   cd claude-live-reload
    npm install
    npm run build
    npm link

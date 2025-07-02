@@ -5,16 +5,16 @@ This directory contains comprehensive tests for the mcpmon project using Jest an
 ## Running Tests
 
 ```bash
-# Run all tests (includes build)
+# Run all tests (includes clean + build)
 npm test
 
-# Watch mode for TDD
+# Watch mode for TDD (no clean/build)
 npm run test:watch
 
-# Generate coverage report
+# Generate coverage report (no clean/build)
 npm run test:coverage
 
-# Run specific test suites
+# Run specific test suites (no clean/build for faster iteration)
 npm run test:unit        # Unit and behavioral tests
 npm run test:integration # E2E integration tests
 ```

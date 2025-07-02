@@ -1,6 +1,6 @@
 # mcpmon
 
-[![Node.js](https://img.shields.io/badge/node.js-18+-green?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/node.js-16+-green?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](./tests/)
 [![Code Style](https://img.shields.io/badge/code%20style-prettier-blue.svg)](https://prettier.io/)
@@ -105,9 +105,24 @@ mcpmon setup --restore
 
 The setup command automatically:
 - ✅ **Backs up** your original configuration
+- ✅ **Detects** and uses modern Node.js versions for compatibility
 - ✅ **Wraps** your server command with mcpmon 
 - ✅ **Preserves** all environment variables and arguments
 - ✅ **Enables** hot-reload instantly
+- ✅ **Idempotent** - safe to run multiple times
+
+### 🔥 Claude Desktop Hot-Reload Tips
+
+After setting up hot-reload:
+
+- **Code changes**: Your server automatically restarts - no action needed!
+- **Schema changes** (new tools/resources): Toggle the MCP server off/on in Claude Desktop settings
+  - Go to Claude Desktop Settings → Features → Model Context Protocol
+  - Toggle your server off, then back on
+  - **No restart needed** - just the toggle!
+- **Config changes**: Restart Claude Desktop only if you modify the configuration file directly
+
+> **Pro tip**: For the best development experience, make code changes first, then schema changes. Claude Desktop will pick up tool calls from the latest hot-reloaded code even after schema updates!
 
 **Manual configuration:** You can also manually update your config:
 
@@ -131,8 +146,8 @@ The setup command automatically:
 {
   "mcpServers": {
     "my-server": {
-      "command": "mcpmon",
-      "args": ["python", "server.py"],
+      "command": "/Users/username/.nvm/versions/node/v22.15.0/bin/node",
+      "args": ["/usr/local/bin/mcpmon", "python", "server.py"],
       "env": {
         "PYTHONPATH": "/path/to/your/modules"
       }
@@ -140,6 +155,8 @@ The setup command automatically:
   }
 }
 ```
+
+> **Note**: The setup command automatically detects your latest Node.js version and mcpmon path. The above shows what the generated config looks like - you rarely need to write this manually!
 
 ## Configuration
 
@@ -200,8 +217,10 @@ MCPMON_VERBOSE=1 mcpmon node server.js
 ```
 
 **Common issues:**
+- **"ReadableStream is not defined"?** mcpmon requires Node.js 16+. Use `mcpmon setup` to auto-detect modern Node.js versions
 - **Server won't start?** Check the error messages for missing dependencies
 - **No hot reload?** Verify your server file is being detected in the logs
+- **Schema changes not visible?** Toggle your MCP server off/on in Claude Desktop settings
 - **Need help?** See our [Troubleshooting Guide](TROUBLESHOOTING.md)
 
 ## Development
@@ -218,7 +237,7 @@ See [Contributing Guide](CONTRIBUTING.md) for more details.
 
 ## Installation
 
-**Requirements:** [Node.js](https://nodejs.org/) 18+
+**Requirements:** [Node.js](https://nodejs.org/) 16+ (automatically detected by setup command)
 
 ```bash
 # Install globally (recommended)

@@ -107,6 +107,7 @@ export type { MCPProxyConfig } from "./proxy.js";
 export { NodeProcessManager } from "./node/NodeProcessManager.js";
 export { NodeFileSystem } from "./node/NodeFileSystem.js";
 export type { ProcessManager, ManagedProcess, FileSystem, FileEvent, FileEventType, ExitStatus, SpawnOptions, ProxyDependencies, } from "./interfaces.js";
+export { setup, setupCommand } from "./setup.js";
 /**
  * Helper function to create a standard MCP proxy with Node.js implementations.
  * This provides a simple API for common use cases.

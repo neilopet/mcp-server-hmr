@@ -123,6 +123,9 @@ export type {
   ProxyDependencies,
 } from "./interfaces.js";
 
+// Setup utilities
+export { setup, setupCommand } from "./setup.js";
+
 /**
  * Helper function to create a standard MCP proxy with Node.js implementations.
  * This provides a simple API for common use cases.

@@ -86,18 +86,18 @@ setInterval(() => {}, 1000);`
   it("should display help when called with --help", async () => {
     const output = await runCLI(["--help"]);
 
-    expect(output).toContain("mcpmon - Hot-reload monitor for MCP servers");
+    expect(output).toContain("Hot-reload monitor for MCP servers");
     expect(output).toContain("Usage:");
     expect(output).toContain("Examples:");
     expect(output).toContain("mcpmon node server.js");
     expect(output).toContain("mcpmon python server.py");
-    expect(output).toContain("Environment:");
+    expect(output).toContain("Environment Variables:");
   });
 
   it("should display help when called without arguments", async () => {
     const output = await runCLI([]);
 
-    expect(output).toContain("mcpmon - Hot-reload monitor for MCP servers");
+    expect(output).toContain("Hot-reload monitor for MCP servers");
     expect(output).toContain("Usage:");
   });
 

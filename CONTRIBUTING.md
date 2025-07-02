@@ -51,7 +51,7 @@ npm install
 # 3. Build the project
 npm run build
 
-# 4. Run tests to verify setup
+# 4. Run tests to verify setup (includes clean and build)
 npm test
 
 # 5. Start development
@@ -134,18 +134,22 @@ npm run build && npm run lint
 All changes must include appropriate tests:
 
 ```bash
-# Run all tests
+# Run all tests (includes clean and build)
 npm test
 
-# Run tests in watch mode (for TDD)
+# Run tests in watch mode for TDD (no clean/build)
 npm run test:watch
 
-# Run tests with coverage
+# Run tests with coverage (no clean/build)
 npm run test:coverage
 
-# Run specific test files
+# Run specific test files (includes clean and build)
 npm test -- tests/behavior/proxy_restart.test.ts
 npm test -- tests/integration/cli.test.ts
+
+# Fast test runs without clean/build
+npm run test:unit        # Just behavioral tests
+npm run test:integration # Just integration tests
 ```
 
 **Testing Guidelines:**
@@ -241,7 +245,7 @@ git commit -m "test: add e2e tests for config launcher"
 
 ### 1. Before Submitting
 
-- [ ] Tests pass (`npm test`)
+- [ ] Tests pass (`npm test` - this will clean and build first)
 - [ ] Code is formatted (`npm run format`)
 - [ ] Code compiles (`npm run build`)
 - [ ] Documentation is updated
