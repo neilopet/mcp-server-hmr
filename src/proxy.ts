@@ -36,6 +36,7 @@ function debounce<T extends (...args: any[]) => any>(fn: T, delay: number): Debo
       timeoutId = undefined;
       fn(...latestArgs);
     }, delay);
+    timeoutId.unref();
   }) as DebouncedFunction<T>;
 
   debouncedFn.clear = () => {
@@ -103,8 +104,21 @@ export class MCPProxy {
   private stdinReader: ReadableStreamDefaultReader<Uint8Array> | null = null;
   private currentRequestId = 1;
   private initializeParams: unknown = null;
-  private pendingRequests = new Map<number, (response: Message) => void>();
+  private pendingRequests = new Map<
+    number,
+    {
+      resolve: (response: Message) => void;
+      reject: (error: Error) => void;
+      timeoutId?: NodeJS.Timeout;
+    }
+  >();
   private stdinForwardingStarted = false;
+  private killTimeout?: NodeJS.Timeout;
+  private fileWatcher?: AsyncIterable<ChangeEvent>;
+  private shutdownRequested = false;
+  private startPromise?: Promise<void>;
+  private monitoringTimeout?: NodeJS.Timeout;
+  private errorRetryTimeout?: NodeJS.Timeout;
 
   // Dependency injection
   private procManager: ProcessManager;
@@ -117,7 +131,7 @@ export class MCPProxy {
 
   constructor(dependencies: ProxyDependencies, config: MCPProxyConfig) {
     this.procManager = dependencies.procManager;
-    
+
     // Support both new ChangeSource and legacy FileSystem interfaces
     if (dependencies.changeSource) {
       this.changeSource = dependencies.changeSource;
@@ -127,7 +141,7 @@ export class MCPProxy {
     } else {
       throw new Error("Either changeSource or fs must be provided in ProxyDependencies");
     }
-    
+
     this.stdin = dependencies.stdin;
     this.stdout = dependencies.stdout;
     this.stderr = dependencies.stderr;
@@ -143,7 +157,10 @@ export class MCPProxy {
       await this.killServer();
 
       // Wait a moment to ensure process is fully terminated
-      await new Promise((resolve) => setTimeout(resolve, this.config.killDelay || 1000));
+      await new Promise((resolve) => {
+        const timeout = setTimeout(resolve, this.config.killDelay || 1000);
+        timeout.unref();
+      });
 
       // Start new server
       try {
@@ -155,7 +172,10 @@ export class MCPProxy {
       }
 
       // Wait for server to be ready
-      await new Promise((resolve) => setTimeout(resolve, this.config.readyDelay || 2000));
+      await new Promise((resolve) => {
+        const timeout = setTimeout(resolve, this.config.readyDelay || 2000);
+        timeout.unref();
+      });
 
       // Get updated tools list
       const tools = await this.getToolsList();
@@ -188,17 +208,17 @@ export class MCPProxy {
    */
   private normalizeConfig(config: MCPProxyConfig): MCPProxyConfig {
     const normalized = { ...config };
-    
+
     // Handle backward compatibility: entryFile -> watchTargets
     if (!normalized.watchTargets && normalized.entryFile) {
       normalized.watchTargets = [normalized.entryFile];
     }
-    
+
     // Ensure we have something to watch (can be empty for non-file-based monitoring)
     if (!normalized.watchTargets) {
       normalized.watchTargets = [];
     }
-    
+
     return normalized;
   }
 
@@ -212,7 +232,7 @@ export class MCPProxy {
           // Convert FileEvent to ChangeEvent
           const changeEvent: ChangeEvent = {
             type: fileEvent.type as ChangeEventType,
-            path: fileEvent.path
+            path: fileEvent.path,
           };
           yield changeEvent;
         }
@@ -220,7 +240,7 @@ export class MCPProxy {
       readFile: fs.readFile.bind(fs),
       writeFile: fs.writeFile.bind(fs),
       exists: fs.exists.bind(fs),
-      copyFile: fs.copyFile.bind(fs)
+      copyFile: fs.copyFile.bind(fs),
     };
   }
 
@@ -251,7 +271,7 @@ export class MCPProxy {
 
     // Keep proxy running - don't exit when server exits during hot-reload
     // The proxy manages the server lifecycle, not the other way around
-    while (true) {
+    while (!this.shutdownRequested) {
       if (this.managedProcess && !this.restarting) {
         try {
           const status = await this.managedProcess.status;
@@ -267,7 +287,10 @@ export class MCPProxy {
         } catch (error) {
           if (!this.restarting) {
             console.error(`❌ Server process error: ${error}`);
-            await new Promise((resolve) => setTimeout(resolve, 1000));
+            await new Promise((resolve) => {
+              this.errorRetryTimeout = setTimeout(resolve, 1000);
+              this.errorRetryTimeout.unref();
+            });
             try {
               await this.startServer();
             } catch (startError) {
@@ -276,7 +299,12 @@ export class MCPProxy {
           }
         }
       }
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      if (!this.shutdownRequested) {
+        await new Promise((resolve) => {
+          this.monitoringTimeout = setTimeout(resolve, 100);
+          this.monitoringTimeout.unref();
+        });
+      }
     }
   }
 
@@ -325,13 +353,15 @@ export class MCPProxy {
       this.managedProcess.kill("SIGTERM");
 
       // Wait up to 5 seconds for graceful shutdown
-      const timeout = setTimeout(() => {
+      this.killTimeout = setTimeout(() => {
         console.error("⚠️  Server didn't exit gracefully, sending SIGKILL...");
         this.managedProcess?.kill("SIGKILL");
       }, 5000);
+      this.killTimeout.unref();
 
       await this.managedProcess.status;
-      clearTimeout(timeout);
+      clearTimeout(this.killTimeout);
+      this.killTimeout = undefined;
 
       // Verify process is actually dead
       await this.verifyProcessKilled(this.serverPid);
@@ -447,9 +477,10 @@ export class MCPProxy {
               try {
                 const message: Message = JSON.parse(line);
                 if (message.id && this.pendingRequests.has(message.id)) {
-                  const handler = this.pendingRequests.get(message.id)!;
+                  const pending = this.pendingRequests.get(message.id)!;
+                  clearTimeout(pending.timeoutId);
                   this.pendingRequests.delete(message.id);
-                  handler(message);
+                  pending.resolve(message);
                 }
               } catch {
                 // Not JSON, ignore
@@ -492,8 +523,16 @@ export class MCPProxy {
       params,
     };
 
-    return new Promise((resolve) => {
-      this.pendingRequests.set(id, resolve);
+    return new Promise((resolve, reject) => {
+      const timeoutId = setTimeout(() => {
+        if (this.pendingRequests.has(id)) {
+          this.pendingRequests.delete(id);
+          resolve({ jsonrpc: "2.0", id, error: { code: -32603, message: "Request timeout" } });
+        }
+      }, 5000);
+      timeoutId.unref();
+
+      this.pendingRequests.set(id, { resolve, reject, timeoutId });
 
       if (this.managedProcess) {
         const writer = this.managedProcess.stdin.getWriter();
@@ -501,21 +540,21 @@ export class MCPProxy {
           .write(new TextEncoder().encode(JSON.stringify(request) + "\n"))
           .then(() => writer.releaseLock())
           .catch((error) => {
-            this.pendingRequests.delete(id);
-            resolve({ jsonrpc: "2.0", id, error: { code: -32603, message: error.toString() } });
+            const pending = this.pendingRequests.get(id);
+            if (pending) {
+              clearTimeout(pending.timeoutId);
+              this.pendingRequests.delete(id);
+              resolve({ jsonrpc: "2.0", id, error: { code: -32603, message: error.toString() } });
+            }
           });
       } else {
-        this.pendingRequests.delete(id);
-        resolve({ jsonrpc: "2.0", id, error: { code: -32603, message: "Server not running" } });
-      }
-
-      // Timeout after 5 seconds
-      setTimeout(() => {
-        if (this.pendingRequests.has(id)) {
+        const pending = this.pendingRequests.get(id);
+        if (pending) {
+          clearTimeout(pending.timeoutId);
           this.pendingRequests.delete(id);
-          resolve({ jsonrpc: "2.0", id, error: { code: -32603, message: "Request timeout" } });
+          resolve({ jsonrpc: "2.0", id, error: { code: -32603, message: "Server not running" } });
         }
-      }, 5000);
+      }
     });
   }
 
@@ -579,12 +618,16 @@ export class MCPProxy {
           console.error(`⚠️  Could not verify target: ${target} (${error})`);
         }
       }
-      
-      const targets = this.config.watchTargets.join(', ');
+
+      const targets = this.config.watchTargets.join(", ");
       console.error(`✅ Watching ${targets} for changes`);
 
-      const watcher = this.changeSource.watch(this.config.watchTargets);
-      for await (const event of watcher) {
+      this.fileWatcher = this.changeSource.watch(this.config.watchTargets);
+      for await (const event of this.fileWatcher) {
+        // Check if shutdown was requested
+        if (this.shutdownRequested) {
+          break;
+        }
         // Handle both old FileEvent types and new ChangeEvent types
         if (["modify", "remove", "version_update", "dependency_change"].includes(event.type)) {
           console.error(`📝 ${event.type}: ${event.path}`);
@@ -599,7 +642,39 @@ export class MCPProxy {
   async shutdown() {
     console.error("\n🛑 Shutting down proxy...");
     this.restarting = true;
+    this.shutdownRequested = true;
+
+    // Clear any pending restart
+    this.restart.clear();
+
+    // Clear monitoring timeouts
+    if (this.monitoringTimeout) {
+      clearTimeout(this.monitoringTimeout);
+      this.monitoringTimeout = undefined;
+    }
+    if (this.errorRetryTimeout) {
+      clearTimeout(this.errorRetryTimeout);
+      this.errorRetryTimeout = undefined;
+    }
+
+    // Clear all pending request timeouts
+    for (const [id, request] of this.pendingRequests) {
+      if (request.timeoutId) {
+        clearTimeout(request.timeoutId);
+      }
+      request.reject(new Error("Proxy shutting down"));
+    }
+    this.pendingRequests.clear();
+
+    // Clear kill timeout if exists
+    if (this.killTimeout) {
+      clearTimeout(this.killTimeout);
+      this.killTimeout = undefined;
+    }
+
+    // Kill the server
     await this.killServer();
+
     // Note: Process exit is handled by the caller (main.ts or test runner)
   }
 }
