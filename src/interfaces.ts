@@ -78,19 +78,19 @@ export interface ProcessManager {
 
 /**
  * Change event types - extensible for different monitoring scenarios
- * 
+ *
  * Core file operations:
  * - create: New file/resource created
- * - modify: Existing file/resource modified  
+ * - modify: Existing file/resource modified
  * - remove: File/resource deleted
- * 
+ *
  * Package monitoring:
  * - version_update: Package version changed
  * - dependency_change: Package dependencies modified
  */
-export type ChangeEventType = 
-  | "create" 
-  | "modify" 
+export type ChangeEventType =
+  | "create"
+  | "modify"
   | "remove"
   | "version_update"
   | "dependency_change";
@@ -178,7 +178,7 @@ export interface ChangeSource {
 
 /**
  * @deprecated Use ChangeSource instead. Maintained for backward compatibility.
- * 
+ *
  * Interface for file system operations
  *
  * Provides abstraction for file I/O and file watching functionality.
@@ -261,32 +261,4 @@ export interface ConfigLauncherDependencies {
   fs: FileSystem;
   /** Process exit function for graceful termination */
   exit: (code: number) => void;
-}
-
-/**
- * Type guard to check if an object implements ProcessManager
- */
-export function isProcessManager(obj: unknown): obj is ProcessManager {
-  return (
-    obj !== null &&
-    typeof obj === "object" &&
-    "spawn" in obj &&
-    typeof (obj as ProcessManager).spawn === "function"
-  );
-}
-
-/**
- * Type guard to check if an object implements FileSystem
- */
-export function isFileSystem(obj: unknown): obj is FileSystem {
-  return (
-    obj !== null &&
-    typeof obj === "object" &&
-    "watch" in obj &&
-    "readFile" in obj &&
-    "writeFile" in obj &&
-    typeof (obj as FileSystem).watch === "function" &&
-    typeof (obj as FileSystem).readFile === "function" &&
-    typeof (obj as FileSystem).writeFile === "function"
-  );
 }
