@@ -46,17 +46,11 @@ mcpmon is a **transparent proxy** that sits between your MCP client (Claude Code
    # MCP Inspector
    npx @modelcontextprotocol/inspector mcpmon node server.js
 
-   # Or in Claude Code config:
-   {
-     "mcpServers": {
-       "my-server": {
-         "command": "mcpmon",
-         "args": ["node", "server.js"],
-         "env": { "API_KEY": "your-key" }
-       }
-     }
-   }
+   # For existing Claude Code/Desktop servers, use setup:
+   mcpmon setup my-server
    ```
+
+   Setup automatically configures your existing MCP servers for hot-reload! ✨
 
 That's it! Your MCP server now has hot-reload enabled. Edit your server code and changes apply instantly.
 
@@ -93,8 +87,31 @@ API_KEY=your-key npx @modelcontextprotocol/inspector mcpmon node server.js
 
 ### With Claude Code or Claude Desktop
 
-Update your configuration file:
+**Easiest way:** Use the automatic setup command for existing servers:
 
+```bash
+# Setup hot-reload for an existing server
+mcpmon setup my-server
+
+# Setup all stdio servers for hot-reload
+mcpmon setup --all
+
+# List available servers
+mcpmon setup --list
+
+# Restore original config if needed
+mcpmon setup --restore
+```
+
+The setup command automatically:
+- ✅ **Backs up** your original configuration
+- ✅ **Wraps** your server command with mcpmon 
+- ✅ **Preserves** all environment variables and arguments
+- ✅ **Enables** hot-reload instantly
+
+**Manual configuration:** You can also manually update your config:
+
+**Claude Code** (`~/.claude_code_config`):
 ```json
 {
   "mcpServers": {
@@ -103,6 +120,21 @@ Update your configuration file:
       "args": ["node", "server.js"],
       "env": {
         "API_KEY": "your-key"
+      }
+    }
+  }
+}
+```
+
+**Claude Desktop** (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+```json
+{
+  "mcpServers": {
+    "my-server": {
+      "command": "mcpmon",
+      "args": ["python", "server.py"],
+      "env": {
+        "PYTHONPATH": "/path/to/your/modules"
       }
     }
   }
