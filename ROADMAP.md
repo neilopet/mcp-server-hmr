@@ -16,46 +16,98 @@ This roadmap outlines planned features and improvements for mcpmon, focusing on 
 
 ### v0.4.0 - MCP Protocol Integration (Q1 2025)
 
-**Goal**: Transform mcpmon into an active development assistant by exposing its internal state through MCP Resources and Prompts
+**Goal**: Transform mcpmon into an active development assistant by exposing its internal state through native MCP Resources and Prompts
 
 **Features**:
 
 **MCP Resources** - Expose proxy internals as readable resources:
-- `mcpmon://logs/proxy` - Proxy operational logs
-- `mcpmon://logs/server` - Captured server stdout/stderr  
-- `mcpmon://logs/combined` - Interleaved view with timestamps
-- `mcpmon://config` - Current proxy configuration
-- `mcpmon://stats` - Restart count, uptime, message counts
-- `mcpmon://file-watch` - Active file watch patterns and triggers
+- `mcpmon://logs/proxy` - Proxy operational logs with timestamps
+- `mcpmon://logs/server` - Captured server stdout/stderr
+- `mcpmon://logs/server/{pid}` - Logs for specific server process
+- `mcpmon://logs/combined` - Interleaved view with correlation IDs
+- `mcpmon://config` - Current proxy configuration (sanitized)
+- `mcpmon://stats` - Restart count, uptime, message counts (JSON format)
+- `mcpmon://stats?format=json` - Queryable statistics endpoint
+- `mcpmon://file-watch` - Active file watch patterns and last trigger times
+
+**Resource Features**:
+- Pagination support for large log files via cursor parameter
+- MIME types: `text/plain` for logs, `application/json` for structured data
+- Automatic log rotation and size limits (configurable)
+- Sensitive data sanitization (tokens, passwords, API keys)
 
 **MCP Prompts** - Interactive troubleshooting workflows:
 - `debug_startup_failure` - Analyze why MCP server won't start
+  - Arguments: `include_env` (boolean), `time_range` (string, e.g. "5m", "1h")
+  - Embeds recent error logs as resources
 - `analyze_restart_loop` - Diagnose continuous restart issues
+  - Arguments: `threshold` (number of restarts), `time_window` (string)
+  - Provides pattern analysis and common causes
 - `check_file_watch` - Verify which files trigger restarts
-- `performance_analysis` - Analyze restart times and latency
+  - Shows active patterns and recent trigger history
+- `performance_analysis` - Analyze restart times and message latency
+  - Arguments: `time_period` (string), `include_metrics` (boolean)
+  - Returns statistical analysis with visualizations
 - `fix_common_issues` - Auto-detect problems and suggest fixes
+  - Reads logs, analyzes patterns, provides actionable solutions
 - `configure_auth` - Help set up authentication for future HTTP monitoring
+  - Arguments: `auth_type` (oauth2, bearer, mtls)
+
+**Capability Integration**:
+```json
+{
+  "capabilities": {
+    "prompts": { "listChanged": true },
+    "resources": { "listChanged": true },
+    // Merged with proxied server capabilities
+  }
+}
+```
+
+**Message Interception Strategy**:
+1. **Resources**:
+   - Intercept `resources/list` → inject mcpmon resources + forward server resources
+   - Intercept `resources/read` → handle `mcpmon://` URIs directly, forward others
+   - Support pagination for large resources using cursor tokens
+
+2. **Prompts**:
+   - Intercept `prompts/list` → inject diagnostic prompts + forward server prompts
+   - Intercept `prompts/get` → handle mcpmon prompts, forward others
+   - Prompts can embed resources directly in responses
+
+3. **Notifications**:
+   - Emit `resources/list_changed` when server restarts (new stats/logs)
+   - Emit `prompts/list_changed` if dynamic prompts are added
+
+**Security Considerations**:
+- Log sanitization removes secrets, tokens, and sensitive data
+- Resources are read-only (no write operations)
+- No token passthrough in exposed logs
+- Configurable log retention and size limits
+- Rate limiting on resource access
 
 **Implementation Benefits**:
+- **Native MCP integration** - Uses standard protocol features
+- **Zero additional complexity** - No new transports or auth needed
 - **In-context debugging** - Access logs without leaving Claude Desktop
 - **Self-documenting** - The tool explains itself through MCP protocol
-- **Proactive assistance** - Prompts analyze logs and suggest solutions
-- **No context switching** - Everything accessible in one interface
+- **Embedded resources** - Prompts can include relevant logs directly
 
 **Technical Approach**:
-- Intercept resource/prompt requests in message forwarding
-- Maintain circular buffer for log history (configurable size)
-- Log analyzer for pattern detection and suggestions
-- ~3 days implementation (1 day resources, 2 days prompts)
+- Message interceptor for resources/prompts requests
+- Circular buffer for log history (default 10MB, configurable)
+- Log analyzer with pattern matching and heuristics
+- ~3-4 days implementation (1.5 days resources, 2 days prompts, 0.5 days testing)
 
 **Example Usage**:
 ```bash
-# mcpmon exposes its own resources and prompts
+# mcpmon exposes its own resources and prompts alongside server's
 mcpmon node server.js
 
 # In Claude Desktop:
 # "Show me mcpmon://logs/server"
-# "Run the debug_startup_failure prompt"
+# "Read the last error from mcpmon://logs/server?level=error"
+# "Run the debug_startup_failure prompt with include_env=true"
 ```
 
 ### v0.5.0 - HTTP/SSE Tool Discovery (Q2 2025)
