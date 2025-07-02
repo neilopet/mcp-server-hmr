@@ -1,5 +1,5 @@
 /**
- * MCP Server Hot-Reload (Node.js) - Library Entry Point
+ * mcpmon - Hot-reload monitor for MCP servers (Node.js) - Library Entry Point
  *
  * This package provides hot-reload capabilities for MCP (Model Context Protocol) servers.
  * It offers both a CLI tool and programmatic API for integrating hot-reload functionality
@@ -8,17 +8,17 @@
  * @example CLI Usage
  * ```bash
  * # Install globally
- * npm install -g mcp-server-hmr
+ * npm install -g mcpmon
  *
- * # Use with existing MCP server configs
- * mcp-hmr --server my-server
- * mcp-hmr --list
- * mcp-hmr --setup my-server
+ * # Simple nodemon-like usage
+ * mcpmon node server.js
+ * mcpmon python server.py
+ * mcpmon deno run --allow-all server.ts
  * ```
  *
  * @example Programmatic Usage
  * ```typescript
- * import { MCPProxy, NodeProcessManager, NodeFileSystem } from 'mcp-server-hmr';
+ * import { MCPProxy, NodeProcessManager, NodeFileSystem } from 'mcpmon';
  *
  * // Create a helper function for easy setup
  * function createMCPProxy(config: {
@@ -89,7 +89,7 @@
  *
  * @example Custom ProcessManager
  * ```typescript
- * import { NodeProcessManager, ProcessManager, ManagedProcess } from 'mcp-server-hmr';
+ * import { NodeProcessManager, ProcessManager, ManagedProcess } from 'mcpmon';
  *
  * class CustomProcessManager extends NodeProcessManager {
  *   spawn(command: string, args: string[], options?: any): ManagedProcess {
@@ -116,7 +116,7 @@ export { NodeFileSystem } from "./node/NodeFileSystem.js";
  *
  * @example
  * ```typescript
- * import { createMCPProxy } from 'mcp-server-hmr';
+ * import { createMCPProxy } from 'mcpmon';
  *
  * const proxy = await createMCPProxy({
  *   command: 'node',

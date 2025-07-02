@@ -1,6 +1,6 @@
 # API Documentation
 
-MCP Hot-Reload provides both programmatic APIs and command-line interfaces for hot-reloading MCP servers during development.
+mcpmon provides both command-line interfaces and programmatic APIs for hot-reloading MCP servers during development.
 
 ## Table of Contents
 
@@ -15,262 +15,245 @@ MCP Hot-Reload provides both programmatic APIs and command-line interfaces for h
 ### Basic Usage
 
 ```bash
-# Start with environment variables
-npm start
+# Simple nodemon-like usage
+mcpmon node server.js
+mcpmon python server.py
+mcpmon deno run --allow-all server.ts
 
-# Start with explicit configuration
-mcp-hmr node my-server.js
+# With arguments
+mcpmon node --inspect server.js
+mcpmon python server.py --port 3000
 ```
 
-### Configuration Launcher
+### Usage with MCP Inspector
 
 ```bash
-# Use configuration file
-mcp-hmr --config config.json --server my-server
+# Direct command
+npx @modelcontextprotocol/inspector mcpmon node server.js
+
+# With environment variables
+API_KEY=your-key npx @modelcontextprotocol/inspector mcpmon node server.js
 ```
 
-Example `config.json`:
+### Help and Version
 
-```json
-{
-  "command": "node",
-  "args": ["my-server.js"],
-  "watchFile": "my-server.js",
-  "debounceMs": 2000,
-  "logLevel": "info"
-}
+```bash
+# Show help
+mcpmon --help
+mcpmon -h
+
+# Show version
+mcpmon --version
+mcpmon -v
 ```
 
 ## Environment Variables
 
-### Required Variables
+### Configuration Variables
 
-| Variable             | Description                      | Example                     |
-| -------------------- | -------------------------------- | --------------------------- |
-| `MCP_SERVER_COMMAND` | Command to start MCP server      | `node`, `python`, `deno`    |
-| `MCP_SERVER_ARGS`    | Arguments for the server command | `server.js`, `-m my_server` |
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MCPMON_WATCH` | Auto-detected | Override files/directories to watch (comma-separated) |
+| `MCPMON_DELAY` | `1000` | Restart delay in milliseconds |
+| `MCPMON_VERBOSE` | `false` | Enable verbose logging |
 
-### Optional Variables
+### Usage Examples
 
-| Variable                  | Default                       | Description                                     |
-| ------------------------- | ----------------------------- | ----------------------------------------------- |
-| `MCP_WATCH_FILE`          | Last arg of `MCP_SERVER_ARGS` | File/directory to watch                         |
-| `MCP_DEBOUNCE_MS`         | `2000`                        | Debounce delay (milliseconds)                   |
-| `MCP_STARTUP_TIMEOUT_MS`  | `30000`                       | Server startup timeout                          |
-| `MCP_SHUTDOWN_TIMEOUT_MS` | `10000`                       | Server shutdown timeout                         |
-| `MCP_LOG_LEVEL`           | `info`                        | Logging level: `debug`, `info`, `warn`, `error` |
+```bash
+# Override which files to watch
+MCPMON_WATCH="server.js,config.json" mcpmon node server.js
+
+# Change restart delay
+MCPMON_DELAY=500 mcpmon node server.js
+
+# Enable verbose logging
+MCPMON_VERBOSE=1 mcpmon node server.js
+
+# Combine multiple options
+MCPMON_VERBOSE=1 MCPMON_DELAY=2000 mcpmon node server.js
+```
 
 ## Programmatic API
 
 ### Main Module (`src/index.ts`)
 
 ```typescript
-import { createHotReloadProxy } from "@neilopet/mcp-server-hmr";
+import { createMCPProxy } from "mcpmon";
 
 // Create and start proxy
-const proxy = await createHotReloadProxy({
+const proxy = await createMCPProxy({
   command: "node",
   args: ["server.js"],
   watchFile: "server.js",
-  debounceMs: 2000,
+  restartDelay: 1000,
 });
 
+// Start the proxy
+await proxy.start();
+
 // Handle shutdown
-process.on("SIGTERM", () => proxy.stop());
+process.on("SIGTERM", () => proxy.shutdown());
 ```
 
 ### Configuration Interface
 
 ```typescript
-interface McpServerConfig {
+interface MCPProxyConfig {
   /** Command to execute (e.g., 'node', 'python', 'deno') */
   command: string;
 
   /** Arguments passed to the command */
-  args: string[];
+  commandArgs: string[];
 
   /** File or directory to watch for changes */
-  watchFile?: string;
+  entryFile?: string;
 
-  /** Debounce delay in milliseconds */
-  debounceMs?: number;
+  /** Restart delay in milliseconds */
+  restartDelay?: number;
 
-  /** Maximum startup time in milliseconds */
-  startupTimeoutMs?: number;
+  /** Environment variables to pass to server */
+  env?: Record<string, string>;
 
-  /** Maximum shutdown time in milliseconds */
-  shutdownTimeoutMs?: number;
+  /** Maximum time to wait for graceful shutdown */
+  killDelay?: number;
 
-  /** Logging level */
-  logLevel?: "debug" | "info" | "warn" | "error";
+  /** Delay after server starts before considering it ready */
+  readyDelay?: number;
 }
 ```
 
 ### Proxy Methods
 
 ```typescript
-class HotReloadProxy {
+class MCPProxy {
   /** Start the proxy and initial server */
   async start(): Promise<void>;
 
   /** Stop the proxy and server */
-  async stop(): Promise<void>;
-
-  /** Restart the server manually */
-  async restart(): Promise<void>;
+  async shutdown(): Promise<void>;
 
   /** Get current server status */
-  getStatus(): "starting" | "running" | "stopping" | "stopped";
-
-  /** Get server process ID */
-  getServerPid(): number | null;
+  isRunning(): boolean;
 }
 ```
 
-### Event Listeners
+### Helper Function
 
 ```typescript
-proxy.on("server-starting", () => {
-  console.log("Server is starting...");
-});
+import { createMCPProxy } from 'mcpmon';
 
-proxy.on("server-started", (pid: number) => {
-  console.log(`Server started with PID: ${pid}`);
-});
-
-proxy.on("server-stopped", (code: number) => {
-  console.log(`Server stopped with code: ${code}`);
-});
-
-proxy.on("file-change", (path: string) => {
-  console.log(`File changed: ${path}`);
-});
-
-proxy.on("restart-triggered", (reason: string) => {
-  console.log(`Restart triggered: ${reason}`);
-});
-
-proxy.on("error", (error: Error) => {
-  console.error("Proxy error:", error);
+const proxy = await createMCPProxy({
+  command: 'node',
+  args: ['server.js'],
+  watchFile: 'server.js',
+  restartDelay: 1000,
+  env: { API_KEY: 'your-key' },
+  killDelay: 1000,
+  readyDelay: 2000,
 });
 ```
 
 ## Events and Logging
 
-### Log Levels
+### Verbose Logging
 
-- **debug**: Detailed debugging information
-- **info**: General operational messages (default)
-- **warn**: Warning conditions
-- **error**: Error conditions
-
-### Log Format
+Enable verbose logging with `MCPMON_VERBOSE=1`:
 
 ```
-[TIMESTAMP] [LEVEL] [COMPONENT] Message
+🔧 mcpmon starting...
+📟 Command: node server.js
+👀 Watching: /path/to/server.js
+📝 File change detected: server.js
+🔄 File change detected, restarting server...
+🛑 Killing server process...
+✅ Server restarted successfully
 ```
 
-Example:
+### Log Prefixes
 
-```
-[2024-12-01T10:30:45.123Z] [INFO] [Proxy] Server started with PID: 12345
-[2024-12-01T10:31:02.456Z] [DEBUG] [FileWatcher] File change detected: server.js
-[2024-12-01T10:31:02.789Z] [WARN] [Server] Server took 3.2s to start (slow)
-```
+- 🔧 **Startup**: mcpmon initialization
+- 📟 **Command**: Server command and arguments  
+- 👀 **Watching**: Files being monitored
+- 📝 **File changes**: Change events detected
+- 🔄 **Restart**: Server restart sequence
+- 🛑 **Shutdown**: Graceful shutdown process
+- ✅ **Success**: Operations completed
+- ❌ **Errors**: Detailed error information
 
 ### Standard Output vs Error Output
 
 - **stdout**: JSON-RPC messages only (for MCP communication)
-- **stderr**: All logging and status messages
+- **stderr**: All logging and status messages (when verbose enabled)
 
 ## Error Handling
 
 ### Common Error Scenarios
 
-1. **Server startup timeout**
+1. **Command not found**
    ```
-   Error: Server failed to start within 30000ms
-   ```
-
-2. **Server command not found**
-   ```
-   Error: Command 'node' not found in PATH
+   Error: spawn node ENOENT
    ```
 
-3. **Watch file not found**
+2. **File not found**
    ```
-   Error: Watch file does not exist: server.js
+   Error: No file to watch detected
    ```
 
-4. **Invalid JSON-RPC**
+3. **Server startup failure**
    ```
-   Warning: Received invalid JSON-RPC message
+   Error: Server process exited with code 1
+   ```
+
+4. **Permission denied**
+   ```
+   Error: EACCES: permission denied
    ```
 
 ### Error Recovery
 
-The proxy automatically handles many error conditions:
+mcpmon automatically handles many error conditions:
 
 - **Server crashes**: Automatically restarts the server
-- **Malformed messages**: Logs warning and continues
 - **File watch errors**: Attempts to re-establish file watching
 - **Process cleanup**: Ensures proper cleanup on shutdown
+- **Signal handling**: Graceful shutdown on SIGINT/SIGTERM
 
 ### Exit Codes
 
-| Code | Meaning                |
-| ---- | ---------------------- |
-| 0    | Normal shutdown        |
-| 1    | Configuration error    |
-| 2    | Server startup failure |
-| 3    | File watching failure  |
-| 130  | Interrupted (Ctrl+C)   |
+| Code | Meaning |
+|------|---------|
+| 0 | Normal shutdown |
+| 1 | General error |
+| 130 | Interrupted (Ctrl+C) |
 
 ## Advanced Usage
 
-### Custom Server Implementations
+### File Detection
 
-For servers that need special handling:
+mcpmon automatically detects which files to watch:
 
-```typescript
-import { McpServerProcess } from "@neilopet/mcp-server-hmr";
-
-class CustomServer extends McpServerProcess {
-  protected async startServer(): Promise<void> {
-    // Custom startup logic
-    await super.startServer();
-    // Post-startup initialization
-  }
-
-  protected async stopServer(): Promise<void> {
-    // Custom cleanup logic
-    await super.stopServer();
-  }
-}
-```
+1. Looks for the first script file in your arguments (`.js`, `.mjs`, `.ts`, `.py`, `.rb`, `.php`)
+2. Falls back to current directory if no script file found
+3. Can be overridden with `MCPMON_WATCH` environment variable
 
 ### Multiple File Watching
 
 Watch multiple files or directories:
 
 ```bash
-MCP_WATCH_FILE="src/,config/settings.json,package.json"
+MCPMON_WATCH="src/,config/settings.json,package.json" mcpmon node server.js
 ```
 
-### Development vs Production
+### Custom Restart Delays
 
-Development configuration:
-
-```bash
-MCP_DEBOUNCE_MS=500
-MCP_LOG_LEVEL=debug
-```
-
-Production configuration:
+Adjust timing for different server types:
 
 ```bash
-MCP_DEBOUNCE_MS=5000
-MCP_LOG_LEVEL=error
+# Fast restart for simple servers
+MCPMON_DELAY=500 mcpmon node server.js
+
+# Slower restart for complex initialization
+MCPMON_DELAY=3000 mcpmon python heavy_server.py
 ```
 
 ## Integration Examples
@@ -280,12 +263,27 @@ MCP_LOG_LEVEL=error
 ```json
 {
   "mcpServers": {
-    "my-dev-server": {
-      "command": "mcp-hmr",
-      "args": ["node", "/path/to/my-server.js"]
+    "my-server": {
+      "command": "mcpmon",
+      "args": ["node", "/absolute/path/to/server.js"],
+      "env": { 
+        "API_KEY": "your-key",
+        "MCPMON_VERBOSE": "1"
+      }
     }
   }
 }
+```
+
+### MCP Inspector Integration
+
+```bash
+# Direct usage
+npx @modelcontextprotocol/inspector mcpmon node server.js
+
+# With custom environment
+API_KEY=your-key MCPMON_VERBOSE=1 \
+  npx @modelcontextprotocol/inspector mcpmon node server.js
 ```
 
 ### Docker Integration
@@ -296,21 +294,76 @@ FROM node:18-alpine
 COPY . /app
 WORKDIR /app
 
-RUN npm install -g mcp-server-hmr
+RUN npm install -g mcpmon
 
-ENV MCP_SERVER_COMMAND=node
-ENV MCP_SERVER_ARGS=server.js
-ENV MCP_WATCH_FILE=server.js
+# Set environment for development
+ENV MCPMON_VERBOSE=1
+ENV MCPMON_DELAY=1000
 
-CMD ["npm", "start"]
+CMD ["mcpmon", "node", "server.js"]
 ```
 
 ### CI/CD Testing
 
 ```bash
-# Test configuration without starting
-mcp-hmr --config config.json --validate-only
+# Test without hot-reload in CI
+node server.js
 
-# Test server startup without hot-reload
-MCP_DEBOUNCE_MS=0 npm start
+# Test with mcpmon but no file watching
+MCPMON_WATCH="" mcpmon node server.js
+```
+
+## Migration from mcp-hmr
+
+### Command Changes
+
+| Old (mcp-hmr) | New (mcpmon) |
+|---------------|--------------|
+| `mcp-hmr --server my-server` | `mcpmon node server.js` |
+| `mcp-hmr --list` | Not needed |
+| `mcp-hmr --setup my-server` | Not needed |
+
+### Configuration Changes
+
+**Old config file approach:**
+```json
+{
+  "mcpServers": {
+    "my-server": {
+      "command": "mcp-hmr",
+      "args": ["--server", "my-server", "--config", "config.json"]
+    }
+  }
+}
+```
+
+**New direct command approach:**
+```json
+{
+  "mcpServers": {
+    "my-server": {
+      "command": "mcpmon",
+      "args": ["node", "server.js"],
+      "env": { "API_KEY": "your-key" }
+    }
+  }
+}
+```
+
+### Environment Variables
+
+**Old (mcp-hmr):**
+```bash
+MCP_SERVER_COMMAND=node
+MCP_SERVER_ARGS=server.js
+MCP_WATCH_FILE=server.js
+```
+
+**New (mcpmon):**
+```bash
+# Most settings auto-detected from command
+mcpmon node server.js
+
+# Override if needed
+MCPMON_WATCH=server.js mcpmon node server.js
 ```

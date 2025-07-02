@@ -9,15 +9,15 @@ async function testHotReload() {
   // Kill any existing proxy
   try {
     const { execSync } = require("child_process");
-    execSync("pkill -f mcp-hmr");
+    execSync("pkill -f mcpmon");
     await new Promise(resolve => setTimeout(resolve, 1000));
   } catch (e) {
     // Ignore if no process to kill
   }
 
   // Start the proxy
-  console.log("🚀 Starting mcp-hmr proxy...");
-  const proxy = spawn("mcp-hmr", ["--server", "test-server"], {
+  console.log("🚀 Starting mcpmon proxy...");
+  const proxy = spawn("mcpmon", ["node", "test_server.cjs"], {
     stdio: ["pipe", "pipe", "pipe"]
   });
 

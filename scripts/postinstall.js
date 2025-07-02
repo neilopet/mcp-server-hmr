@@ -1,4 +1,4 @@
-// Post-install script for mcp-server-hmr
+// Post-install script for mcpmon
 // This script runs after npm install to build the project if needed
 
 import { existsSync } from 'fs';
