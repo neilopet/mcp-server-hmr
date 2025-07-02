@@ -15,6 +15,11 @@ export default {
           moduleResolution: "Node",
           allowSyntheticDefaultImports: true,
           esModuleInterop: true,
+          // Note: We use ESNext/Node instead of NodeNext/NodeNext here because:
+          // 1. ts-jest doesn't fully support NodeNext module resolution
+          // 2. Jest's ESM support has limitations with import.meta.url
+          // 3. This combination works for tests while maintaining ESM compatibility
+          // The source code uses NodeNext/NodeNext for proper Node.js ESM support
         },
       },
     ],
