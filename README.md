@@ -134,42 +134,30 @@ mcpmon acts as a transparent proxy between your MCP client and server, providing
 ```mermaid
 sequenceDiagram
     participant Client as MCP Client<br/>(Claude Code)
-    participant Proxy as mcpmon<br/>(Proxy)
+    participant mcpmon
     participant Server as MCP Server<br/>(Your Code)
-    participant FS as File System
-
-    Note over Client,FS: Initial Setup
-    Client->>+Proxy: Connect via stdio
-    Proxy->>+Server: Launch subprocess
-    Proxy->>FS: Watch server files
     
-    Note over Client,FS: Normal Operation
-    Client->>Proxy: MCP requests
-    Proxy->>Server: Forward requests
-    Server->>Proxy: MCP responses
-    Proxy->>Client: Forward responses
+    rect rgb(240, 250, 240)
+        Note over Client,Server: Normal Development Flow
+        Client->>mcpmon: MCP messages
+        mcpmon->>Server: Forward messages
+        Server->>mcpmon: Responses
+        mcpmon->>Client: Forward responses
+    end
     
-    Note over Client,FS: Hot Reload Triggered
-    FS-->>Proxy: File change detected!
-    Note over Proxy: Debounce changes
-    Proxy->>Proxy: Buffer incoming messages
+    rect rgb(255, 240, 240)
+        Note over Client,Server: You edit server code...
+        Server->>Server: 📝 File changed!
+        mcpmon->>Server: Restart automatically
+        Note over Client: Still connected! ✨
+    end
     
-    Note over Proxy,Server: Restart Process
-    Proxy->>Server: SIGTERM (graceful shutdown)
-    Proxy->>Server: SIGKILL if needed
-    deactivate Server
-    Proxy->>+Server: Launch new process
-    
-    Note over Client,Server: Restore State
-    Proxy->>Server: Replay buffered messages
-    Proxy->>Server: Request tools/list
-    Server->>Proxy: Updated tool list
-    Proxy->>Client: notifications/tools/list_changed
-    
-    Note over Client,FS: Resume Normal Operation
-    Client->>Proxy: Continue working
-    Proxy->>Server: Forward requests
-    Note over Client: Never disconnected! 🎉
+    rect rgb(240, 250, 240)
+        Note over Client,Server: Continue working seamlessly
+        Client->>mcpmon: More messages
+        mcpmon->>Server: Forward to new server
+        Note over Client,Server: No reconnection needed! 🎉
+    end
 ```
 
 **The magic:** Your MCP client stays connected while your server reloads. No need to reconnect Claude Code or restart MCP Inspector!
