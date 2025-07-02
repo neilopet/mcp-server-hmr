@@ -97,6 +97,14 @@ export function setupProxyTest(config: TestProxyConfig = {}): TestContext {
     teardown: async () => {
       // Clean shutdown sequence
       try {
+        // First ensure all mock processes exit cleanly
+        const allProcesses = procManager.getAllSpawnedProcesses();
+        for (const proc of allProcesses) {
+          if (!proc.hasExited()) {
+            proc.simulateExit(0);
+          }
+        }
+        
         await proxy.shutdown();
       } catch {
         // Ignore shutdown errors in tests

@@ -9,21 +9,13 @@
  */
 
 import { describe, it, expect } from "@jest/globals";
-import { MCPProxy } from "../../src/proxy.js";
-import { MockManagedProcess, MockProcessManager } from "../mocks/MockProcessManager.js";
-import { MockFileSystem } from "../mocks/MockFileSystem.js";
-import { setupProxyTest, simulateRestart, waitForSpawns } from "./test_helper.js";
+import { setupProxyTest, simulateRestart, waitForSpawns, waitForStable } from "./test_helper.js";
 
 describe("Test Suite", () => {
   it("Proxy restart - file change triggers server restart sequence", async () => {
     const { proxy, procManager, fs, teardown } = setupProxyTest({
       restartDelay: 100,
     });
-
-    // Set a manual timeout to prevent infinite hanging
-    const testTimeout = setTimeout(() => {
-      throw new Error("Test manually timed out after 25 seconds");
-    }, 25000);
 
     try {
       // Start proxy and wait for initial spawn
@@ -86,16 +78,6 @@ describe("Test Suite", () => {
       // Should have spawned third server
       expect(procManager.getSpawnCallCount()).toBe(3); // Should spawn third server after second file change
     } finally {
-      clearTimeout(testTimeout);
-      
-      // Make sure all processes exit cleanly for teardown
-      const allProcesses = procManager.getAllSpawnedProcesses();
-      for (const proc of allProcesses) {
-        if (!proc.hasExited()) {
-          proc.simulateExit(0);
-        }
-      }
-      
       await teardown();
     }
   }, 35000); // Increase Jest timeout to 35 seconds
@@ -103,170 +85,88 @@ describe("Test Suite", () => {
 
 describe("Test Suite", () => {
   it("Proxy restart - multiple rapid file changes are debounced", async () => {
-    const mockProcessManager = new MockProcessManager();
-    const mockFileSystem = new MockFileSystem();
-
-    const watchFile = "/test/server.js";
-    mockFileSystem.setFileExists(watchFile, true);
-
-    globalThis.command = "node";
-    globalThis.commandArgs = [watchFile];
-    globalThis.entryFile = watchFile;
-    globalThis.restartDelay = 200; // Longer debounce for this test
-
-    // Create mock I/O streams for testing
-    const { readable: mockStdin, writable: stdinWrite } = new TransformStream();
-    const { readable: stdoutRead, writable: mockStdout } = new TransformStream();
-    const { readable: stderrRead, writable: mockStderr } = new TransformStream();
-
-    const proxy = new MCPProxy(
-      {
-        procManager: mockProcessManager,
-        fs: mockFileSystem,
-        stdin: mockStdin,
-        stdout: mockStdout,
-        stderr: mockStderr,
-        exit: (code: number) => {
-          /* Mock exit - don't actually exit during tests */
-        },
-      },
-      {
-        command: globalThis.command!,
-        commandArgs: globalThis.commandArgs!,
-        entryFile: globalThis.entryFile!,
-        restartDelay: globalThis.restartDelay!,
-        killDelay: 50, // Fast test timing
-        readyDelay: 50, // Fast test timing
-      }
-    );
+    const { proxy, procManager, fs, teardown } = setupProxyTest({
+      restartDelay: 200, // Longer debounce for this test
+    });
 
     try {
       // Start proxy
-      const proxyStartPromise = proxy.start();
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      proxy.start(); // Don't await - it has an infinite loop
+      await waitForSpawns(procManager, 1);
 
       // Verify initial spawn
-      expect(mockProcessManager.getSpawnCallCount()).toBe(1); // Should spawn initial server
-
-      const initialProcess = mockProcessManager.getLastSpawnedProcess();
+      const initialProcess = procManager.getLastSpawnedProcess();
       expect(initialProcess).toBeTruthy();
-      if (!initialProcess) throw new Error("Initial process should exist"); // Should have initial process
       if (!initialProcess) throw new Error("Initial process should exist");
 
       // Simulate rapid file changes (should be debounced)
-      mockFileSystem.triggerFileEvent(watchFile, "modify");
-      await new Promise((resolve) => setTimeout(resolve, 10));
-      mockFileSystem.triggerFileEvent(watchFile, "modify");
-      await new Promise((resolve) => setTimeout(resolve, 10));
-      mockFileSystem.triggerFileEvent(watchFile, "modify");
-      await new Promise((resolve) => setTimeout(resolve, 10));
-      mockFileSystem.triggerFileEvent(watchFile, "modify");
+      fs.triggerFileEvent("/test/server.js", "modify");
+      await waitForStable(10);
+      fs.triggerFileEvent("/test/server.js", "modify");
+      await waitForStable(10);
+      fs.triggerFileEvent("/test/server.js", "modify");
+      await waitForStable(10);
+      fs.triggerFileEvent("/test/server.js", "modify");
 
       // Wait for debounce to begin, then simulate process exit
-      await new Promise((resolve) => setTimeout(resolve, 150));
+      await waitForStable(150);
       initialProcess.simulateExit(0); // Allow killServer() to complete
 
       // Wait for restart to complete
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      await waitForStable(300);
 
       // Should only have triggered one restart despite multiple changes
-      expect(mockProcessManager.getSpawnCallCount()).toBe(2); // Multiple rapid changes should be debounced to single restart
-
-      mockFileSystem.closeAllWatchers();
+      expect(procManager.getSpawnCallCount()).toBe(2); // Multiple rapid changes should be debounced to single restart
     } finally {
-      delete globalThis.command;
-      delete globalThis.commandArgs;
-      delete globalThis.entryFile;
-      delete globalThis.restartDelay;
+      await teardown();
     }
   });
 });
 
 describe("Test Suite", () => {
   it("Proxy restart - handles process that fails to start", async () => {
-    const mockProcessManager = new MockProcessManager();
-    const mockFileSystem = new MockFileSystem();
-
-    const watchFile = "/test/server.js";
-    mockFileSystem.setFileExists(watchFile, true);
-
-    globalThis.command = "node";
-    globalThis.commandArgs = [watchFile];
-    globalThis.entryFile = watchFile;
-    globalThis.restartDelay = 100;
-
-    // Create mock I/O streams for testing
-    const { readable: mockStdin, writable: stdinWrite } = new TransformStream();
-    const { readable: stdoutRead, writable: mockStdout } = new TransformStream();
-    const { readable: stderrRead, writable: mockStderr } = new TransformStream();
-
-    const proxy = new MCPProxy(
-      {
-        procManager: mockProcessManager,
-        fs: mockFileSystem,
-        stdin: mockStdin,
-        stdout: mockStdout,
-        stderr: mockStderr,
-        exit: (code: number) => {
-          /* Mock exit - don't actually exit during tests */
-        },
-      },
-      {
-        command: globalThis.command!,
-        commandArgs: globalThis.commandArgs!,
-        entryFile: globalThis.entryFile!,
-        restartDelay: globalThis.restartDelay!,
-        killDelay: 50, // Fast test timing
-        readyDelay: 50, // Fast test timing
-      }
-    );
+    const { proxy, procManager, fs, teardown } = setupProxyTest({
+      restartDelay: 100,
+    });
 
     try {
       // Start proxy
-      const proxyStartPromise = proxy.start();
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      proxy.start(); // Don't await - it has an infinite loop
+      await waitForSpawns(procManager, 1);
 
-      const initialProcess = mockProcessManager.getLastSpawnedProcess();
+      const initialProcess = procManager.getLastSpawnedProcess();
       expect(initialProcess).toBeTruthy();
-      if (!initialProcess) throw new Error("Initial process should exist"); // Should spawn initial process
+      if (!initialProcess) throw new Error("Initial process should exist");
 
       // Simulate initial process starting
       initialProcess.simulateStdout('{"jsonrpc":"2.0","id":1,"result":{}}\n');
 
-      // Configure next spawn to succeed but immediately fail
-      const nextProcess = new MockProcessManager();
-
       // Trigger restart
-      mockFileSystem.triggerFileEvent(watchFile, "modify");
+      fs.triggerFileEvent("/test/server.js", "modify");
 
       // Wait for restart to begin, then simulate process exit
-      await new Promise((resolve) => setTimeout(resolve, 120));
+      await waitForStable(120);
       initialProcess.simulateExit(0); // Allow killServer() to complete
 
-      await new Promise((resolve) => setTimeout(resolve, 150));
+      await waitForStable(150);
 
       // Should have attempted new spawn
-      expect(mockProcessManager.getSpawnCallCount()).toBe(2); // Should attempt to spawn new server
+      expect(procManager.getSpawnCallCount()).toBe(2); // Should attempt to spawn new server
 
-      const newProcess = mockProcessManager.getLastSpawnedProcess();
+      const newProcess = procManager.getLastSpawnedProcess();
       expect(newProcess).toBeTruthy();
-      if (!newProcess) throw new Error("New process should exist"); // Should have new process
+      if (!newProcess) throw new Error("New process should exist");
 
       // Simulate new process failing quickly
       newProcess.simulateExit(1, null);
 
       // Wait a bit for error handling
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await waitForStable(100);
 
       // Should eventually try to restart again (error recovery)
       // This tests the resilience of the proxy
-
-      mockFileSystem.closeAllWatchers();
     } finally {
-      delete globalThis.command;
-      delete globalThis.commandArgs;
-      delete globalThis.entryFile;
-      delete globalThis.restartDelay;
+      await teardown();
     }
   });
 });
