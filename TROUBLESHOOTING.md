@@ -167,6 +167,25 @@ process.on("SIGTERM", () => {
 });
 ```
 
+### 10. GitHub Actions Test Failures
+
+**Symptom**: Tests fail in GitHub Actions with "log too large" errors
+
+**Cause**: The proxy outputs console.error logs during normal operation which can make CI logs exceed size limits
+
+**Solutions**:
+
+1. **Tests run with `--silent` by default in CI** to suppress console output
+2. **For debugging**, manually run the workflow with console logs enabled:
+   ```
+   GitHub Actions → Test workflow → Run workflow → ✓ Show console logs
+   ```
+3. **Local development is unaffected** - console logs show normally
+4. **Environment differences**:
+   - CI uses direct `mcpmon` command
+   - Local uses full Node.js path from nvm
+   - Setup tests handle both cases automatically
+
 ## Debug Mode
 
 For verbose logging, enable debug output:
