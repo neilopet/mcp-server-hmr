@@ -7,21 +7,21 @@ This directory contains platform-agnostic behavioral tests that verify MCPProxy 
 All behavioral tests follow this pattern:
 
 ```typescript
-import { setupProxyTest, simulateRestart } from "./test_helper.ts";
+import { setupProxyTest, simulateRestart } from "./test_helper.js";
+import { describe, it, expect } from "@jest/globals";
 
-Deno.test({
-  name: "Feature - what it should do",
-  async fn() {
+describe("Test Suite", () => {
+  it("Feature - what it should do", async () => {
     const { proxy, procManager, fs, teardown } = setupProxyTest();
 
     try {
       // Your test logic here
+      await proxy.start();
+      // Add assertions...
     } finally {
       await teardown();
     }
-  },
-  sanitizeOps: false,
-  sanitizeResources: false,
+  });
 });
 ```
 

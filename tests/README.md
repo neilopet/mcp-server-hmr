@@ -29,6 +29,8 @@ Platform-agnostic tests using mock implementations and the `test_helper.js` patt
 - **message_buffering.test.ts** - Message queuing during restart
 - **initialization_replay.test.ts** - MCP handshake preservation
 - **error_handling.test.ts** - Fault tolerance and recovery
+- **generic_interfaces.test.ts** - TDD tests for new generic monitoring interfaces
+- **error_handling.test.ts** - Fault tolerance and recovery
 - **config_transformation.test.ts** - Config launcher functionality
 
 #### Test Helper Pattern
