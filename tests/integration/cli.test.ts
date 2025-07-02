@@ -246,7 +246,13 @@ setInterval(() => {}, 1000);`
       proc.on("exit", (code: number | null) => resolve(code));
     });
 
-    expect(exitCode).toBe(0);
+    // On Windows, SIGINT often results in null exit code
+    // On Unix, it should be 0
+    if (process.platform === "win32") {
+      expect(exitCode).toBeNull();
+    } else {
+      expect(exitCode).toBe(0);
+    }
   });
 
   it("should forward stdin to the server process", async () => {
