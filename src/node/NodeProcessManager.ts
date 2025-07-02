@@ -81,12 +81,23 @@ class NodeManagedProcess implements ManagedProcess {
     this.child = child;
 
     // Create the status promise immediately
-    this._status = new Promise((resolve) => {
+    this._status = new Promise((resolve, reject) => {
       this.child.on("exit", (code, signal) => {
         resolve({
           code: code,
           signal: signal,
         });
+      });
+
+      this.child.on("error", (error: Error) => {
+        // Check for common spawn errors
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+          reject(
+            new Error(`Command not found: ${(this.child as any).spawnargs?.[0] || "unknown"}`)
+          );
+        } else {
+          reject(new Error(`Failed to spawn process: ${error.message}`));
+        }
       });
     });
   }
@@ -170,15 +181,7 @@ export class NodeProcessManager implements ProcessManager {
       // Create the child process
       const child = spawn(command, args, nodeOptions);
 
-      // Handle spawn errors
-      child.on("error", (error: Error) => {
-        // Check for common spawn errors
-        if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-          throw new Error(`Command not found: ${command}`);
-        } else {
-          throw new Error(`Failed to spawn process '${command}': ${error.message}`);
-        }
-      });
+      // Note: spawn errors are handled in NodeManagedProcess via the status promise
 
       return new NodeManagedProcess(child);
     } catch (error) {

@@ -303,12 +303,11 @@ describe("NodeProcessManager Integration Tests", () => {
     }
   });
 
-  it.skip("should handle spawn errors gracefully", async () => {
-    // TODO: This test needs to be fixed - the error is thrown asynchronously
-    // in an event handler, so it can't be caught with expect().toThrow()
-    expect(() => {
-      pm.spawn("nonexistent-command-that-should-not-exist", ["--version"]);
-    }).toThrow();
+  it("should handle spawn errors gracefully", async () => {
+    const proc = pm.spawn("nonexistent-command-that-should-not-exist", ["--version"]);
+
+    // The spawn error should reject the status promise
+    await expect(proc.status).rejects.toThrow("Command not found");
   });
 
   it("should handle multiple concurrent processes", async () => {
