@@ -89,7 +89,7 @@ This roadmap outlines planned features and improvements for mcpmon, focusing on 
 **Implementation Benefits**:
 - **Native MCP integration** - Uses standard protocol features
 - **Zero additional complexity** - No new transports or auth needed
-- **In-context debugging** - Access logs without leaving Claude Desktop
+- **In-context debugging** - Access logs without leaving Claude Code
 - **Self-documenting** - The tool explains itself through MCP protocol
 - **Embedded resources** - Prompts can include relevant logs directly
 
@@ -104,7 +104,7 @@ This roadmap outlines planned features and improvements for mcpmon, focusing on 
 # mcpmon exposes its own resources and prompts alongside server's
 mcpmon node server.js
 
-# In Claude Desktop:
+# In Claude Code:
 # "Show me mcpmon://logs/server"
 # "Read the last error from mcpmon://logs/server?level=error"
 # "Run the debug_startup_failure prompt with include_env=true"

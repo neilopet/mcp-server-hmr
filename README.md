@@ -11,7 +11,7 @@ Make changes to your MCP server code and see them instantly without restarting y
 
 ## What it is
 
-mcpmon is a **transparent proxy** that sits between your MCP client (Claude Desktop, MCP Inspector, etc.) and your MCP server. When you modify your server code, mcpmon automatically restarts the server while keeping your client connected.
+mcpmon is a **transparent proxy** that sits between your MCP client (Claude Code, Claude Desktop, MCP Inspector, etc.) and your MCP server. When you modify your server code, mcpmon automatically restarts the server while keeping your client connected.
 
 **Key benefits:**
 
@@ -46,7 +46,7 @@ mcpmon is a **transparent proxy** that sits between your MCP client (Claude Desk
    # MCP Inspector
    npx @modelcontextprotocol/inspector mcpmon node server.js
 
-   # Or in Claude Desktop config:
+   # Or in Claude Code config:
    {
      "mcpServers": {
        "my-server": {
@@ -91,9 +91,9 @@ npx @modelcontextprotocol/inspector mcpmon node server.js
 API_KEY=your-key npx @modelcontextprotocol/inspector mcpmon node server.js
 ```
 
-### With Claude Desktop
+### With Claude Code or Claude Desktop
 
-Update your Claude Desktop configuration:
+Update your configuration file:
 
 ```json
 {
@@ -133,7 +133,7 @@ mcpmon acts as a transparent proxy between your MCP client and server, providing
 
 ```mermaid
 sequenceDiagram
-    participant Client as MCP Client<br/>(Claude Desktop)
+    participant Client as MCP Client<br/>(Claude Code)
     participant Proxy as mcpmon<br/>(Proxy)
     participant Server as MCP Server<br/>(Your Code)
     participant FS as File System
@@ -172,7 +172,7 @@ sequenceDiagram
     Note over Client: Never disconnected! 🎉
 ```
 
-**The magic:** Your MCP client stays connected while your server reloads. No need to reconnect Claude Desktop or restart MCP Inspector!
+**The magic:** Your MCP client stays connected while your server reloads. No need to reconnect Claude Code or restart MCP Inspector!
 
 | Feature | Without mcpmon | With mcpmon |
 |---------|---------|---------|
