@@ -14,7 +14,51 @@ This roadmap outlines planned features and improvements for mcpmon, focusing on 
 
 ## Upcoming Releases
 
-### v0.4.0 - HTTP/SSE Tool Discovery (Q1 2025)
+### v0.4.0 - MCP Protocol Integration (Q1 2025)
+
+**Goal**: Transform mcpmon into an active development assistant by exposing its internal state through MCP Resources and Prompts
+
+**Features**:
+
+**MCP Resources** - Expose proxy internals as readable resources:
+- `mcpmon://logs/proxy` - Proxy operational logs
+- `mcpmon://logs/server` - Captured server stdout/stderr  
+- `mcpmon://logs/combined` - Interleaved view with timestamps
+- `mcpmon://config` - Current proxy configuration
+- `mcpmon://stats` - Restart count, uptime, message counts
+- `mcpmon://file-watch` - Active file watch patterns and triggers
+
+**MCP Prompts** - Interactive troubleshooting workflows:
+- `debug_startup_failure` - Analyze why MCP server won't start
+- `analyze_restart_loop` - Diagnose continuous restart issues
+- `check_file_watch` - Verify which files trigger restarts
+- `performance_analysis` - Analyze restart times and latency
+- `fix_common_issues` - Auto-detect problems and suggest fixes
+- `configure_auth` - Help set up authentication for future HTTP monitoring
+
+**Implementation Benefits**:
+- **In-context debugging** - Access logs without leaving Claude Desktop
+- **Self-documenting** - The tool explains itself through MCP protocol
+- **Proactive assistance** - Prompts analyze logs and suggest solutions
+- **No context switching** - Everything accessible in one interface
+
+**Technical Approach**:
+- Intercept resource/prompt requests in message forwarding
+- Maintain circular buffer for log history (configurable size)
+- Log analyzer for pattern detection and suggestions
+- ~3 days implementation (1 day resources, 2 days prompts)
+
+**Example Usage**:
+```bash
+# mcpmon exposes its own resources and prompts
+mcpmon node server.js
+
+# In Claude Desktop:
+# "Show me mcpmon://logs/server"
+# "Run the debug_startup_failure prompt"
+```
+
+### v0.5.0 - HTTP/SSE Tool Discovery (Q2 2025)
 
 **Goal**: Support monitoring of HTTP/SSE-based MCP servers without proxying their connections
 
@@ -52,7 +96,7 @@ mcpmon --sse http://localhost:3000/sse --watch "server.js"
 - Integrate with existing file watcher
 - ~2-3 days core implementation + 2 days for security features
 
-### v0.5.0 - Enhanced Authentication Support (Q2 2025)
+### v0.6.0 - Enhanced Authentication Support (Q2 2025)
 
 **Goal**: Robust authentication for enterprise HTTP/SSE monitoring
 
@@ -72,7 +116,7 @@ mcpmon auth login --provider github
 mcpmon --http https://api.example.com/mcp --watch "src/**"
 ```
 
-### v0.6.0 - Package Monitoring Support (Q2 2025)
+### v0.7.0 - Package Monitoring Support (Q3 2025)
 
 **Goal**: Leverage generic interfaces for monitoring npm/PyPI/crates.io packages
 
@@ -90,7 +134,7 @@ mcpmon --npm @mycompany/mcp-tools --watch-interval 60s
 mcpmon --watch "src/**" --npm "@mycompany/*" --pypi "mcp-tools"
 ```
 
-### v0.7.0 - Performance Optimizations (Q3 2025)
+### v0.8.0 - Performance Optimizations (Q3 2025)
 
 **Goal**: Scale to larger codebases and more complex monitoring scenarios
 
@@ -100,7 +144,7 @@ mcpmon --watch "src/**" --npm "@mycompany/*" --pypi "mcp-tools"
 - Caching layer for HTTP responses
 - Configurable health checks to avoid polling dead servers
 
-### v0.8.0 - Developer Experience (Q3 2025)
+### v0.9.0 - Developer Experience (Q4 2025)
 
 **Goal**: Enhanced debugging and troubleshooting capabilities
 
@@ -175,9 +219,9 @@ All features will follow these security principles:
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for how to contribute to these roadmap items. Priority will be given to:
 
-1. Security improvements
-2. Performance optimizations  
-3. Developer experience enhancements
+1. Developer experience enhancements (MCP Resources/Prompts)
+2. Security improvements
+3. Performance optimizations  
 4. New transport support (in that order)
 
 ## Version Support
