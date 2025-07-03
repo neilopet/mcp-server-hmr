@@ -6,7 +6,8 @@
  */
 
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { StreamingBuffer, type StreamingConfig } from '../streaming.js';
+import { StreamingBuffer } from '../streaming.js';
+import type { StreamingConfig } from '../streaming.js';
 import type { ExtensionLogger } from '../../interfaces.js';
 
 // Mock logger for testing

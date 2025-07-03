@@ -124,6 +124,10 @@ export default class LargeResponseHandlerExtension implements Extension {
      */
     private shouldHandleResponse;
     /**
+     * Safely stringify JSON, handling circular references
+     */
+    private safeJsonStringify;
+    /**
      * Process large response (placeholder for actual implementation)
      */
     private processLargeResponse;

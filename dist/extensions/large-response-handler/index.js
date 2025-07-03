@@ -238,8 +238,29 @@ export default class LargeResponseHandlerExtension {
     shouldHandleResponse(response) {
         if (!response)
             return false;
-        const size = Buffer.byteLength(JSON.stringify(response), 'utf8');
-        return size > this.config.threshold;
+        try {
+            const size = Buffer.byteLength(this.safeJsonStringify(response), 'utf8');
+            return size > this.config.threshold;
+        }
+        catch {
+            // If we can't serialize it, assume it's large
+            return true;
+        }
+    }
+    /**
+     * Safely stringify JSON, handling circular references
+     */
+    safeJsonStringify(obj) {
+        const seen = new WeakSet();
+        return JSON.stringify(obj, (key, value) => {
+            if (typeof value === 'object' && value !== null) {
+                if (seen.has(value)) {
+                    return '[Circular]';
+                }
+                seen.add(value);
+            }
+            return value;
+        });
     }
     /**
      * Process large response (placeholder for actual implementation)
@@ -250,7 +271,7 @@ export default class LargeResponseHandlerExtension {
         // - Generate schema
         // - Create DuckDB if enabled
         // - Return metadata
-        this.context?.logger.info(`Large response detected: ${Buffer.byteLength(JSON.stringify(response), 'utf8')} bytes`);
+        this.context?.logger.info(`Large response detected: ${Buffer.byteLength(this.safeJsonStringify(response), 'utf8')} bytes`);
         return message;
     }
     /**

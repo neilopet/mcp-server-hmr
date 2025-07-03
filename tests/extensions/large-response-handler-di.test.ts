@@ -8,7 +8,8 @@
 import 'reflect-metadata';
 import { LargeResponseHandlerTestSuite } from '../../src/extensions/large-response-handler/tests/index.js';
 import { createMockMCPMon } from '../../src/testing/MockMCPMon.js';
-import type { MockMCPMon, TestHarness } from '../../src/testing/types.js';
+import type { MockMCPMon } from '../../src/testing/types.js';
+import type { TestHarness } from '../../src/testing/types.js';
 
 // Simple mock implementations for DI dependencies
 const mockMCPMon: MockMCPMon = createMockMCPMon();

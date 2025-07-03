@@ -9,7 +9,8 @@
  * Implements full MCP protocol flow with realistic delays, error handling,
  * and client-specific behaviors for thorough end-to-end testing.
  */
-import type { MCPRequest, MCPResponse, MCPNotification, ProgressNotification, E2ETestContext, MCPClientSimulator, E2EScenario, ScenarioResult, ClientConfig } from '../types.js';
+import type { MCPRequest, MCPResponse, MCPNotification, ProgressNotification, E2ETestContext, MCPClientSimulator, E2EScenario, ScenarioResult, ScenarioStep, ScenarioAssertion, ClientConfig, CapturedMessage } from '../types.js';
+export type { E2EScenario, ScenarioResult, ScenarioStep, ScenarioAssertion, ClientConfig, CapturedMessage, E2ETestContext, MCPClientSimulator, };
 /**
  * MCP protocol message types
  */
