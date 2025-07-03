@@ -25,6 +25,18 @@ import type {
   CapturedMessage,
 } from '../types.js';
 
+// Re-export types for external use
+export type {
+  E2EScenario,
+  ScenarioResult,
+  ScenarioStep,
+  ScenarioAssertion,
+  ClientConfig,
+  CapturedMessage,
+  E2ETestContext,
+  MCPClientSimulator,
+};
+
 /**
  * MCP protocol message types
  */

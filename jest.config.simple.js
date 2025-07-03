@@ -17,6 +17,8 @@ export default {
   ],
   testMatch: [
     "**/tests/behavior/**/*.test.ts",
+    "**/tests/integration/**/*.test.ts",
+    "**/tests/extensions/**/*.test.ts",
     "**/src/**/*.test.ts"
   ],
   testEnvironment: "node",

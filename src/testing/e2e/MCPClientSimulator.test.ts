@@ -458,8 +458,13 @@ describe('E2E MCP Client Simulator', () => {
 
       await new Promise(resolve => setTimeout(resolve, 50));
 
-      const token1Progress = client.getProgressNotifications(token1);
-      const token2Progress = client.getProgressNotifications(token2);
+      const allNotifications = client.getNotifications();
+      const token1Progress = allNotifications.filter(n => 
+        n.method === 'notifications/progress' && n.params.progressToken === token1
+      );
+      const token2Progress = allNotifications.filter(n => 
+        n.method === 'notifications/progress' && n.params.progressToken === token2
+      );
 
       expect(token1Progress).toHaveLength(2);
       expect(token2Progress).toHaveLength(1);
