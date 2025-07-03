@@ -175,6 +175,118 @@ That's it! mcpmon is designed to work with zero configuration.
 - `MCPMON_WATCH` - Override files/directories to watch (comma-separated)
 - `MCPMON_DELAY` - Restart delay in milliseconds (default: 1000)
 - `MCPMON_VERBOSE` - Enable verbose logging
+- `MCPMON_EXTENSIONS_DIR` - Extension data directory (default: ./mcpmon-data)
+
+## Extensions
+
+mcpmon supports a powerful extension system that can enhance functionality without modifying core code. Extensions can intercept messages, add new tools, handle large responses, and more.
+
+### List Available Extensions
+
+```bash
+# See all available extensions
+mcpmon --list-extensions
+```
+
+### Enable/Disable Extensions
+
+```bash
+# Enable specific extension
+mcpmon --enable-extension large-response-handler node server.js
+
+# Disable specific extension  
+mcpmon --disable-extension request-logger node server.js
+
+# Enable multiple extensions
+mcpmon --enable-extension ext1 --enable-extension ext2 node server.js
+```
+
+### Extension Configuration
+
+```bash
+# Set extension data directory
+mcpmon --extensions-data-dir ./my-data node server.js
+
+# Pass JSON configuration to extensions
+mcpmon --extension-config '{"threshold":25000,"format":"parquet"}' node server.js
+
+# Combine extension options
+mcpmon --enable-extension large-response-handler \
+       --extensions-data-dir ./data \
+       --extension-config '{"threshold":10000}' \
+       node server.js
+```
+
+### Built-in Extensions
+
+**Large Response Handler** (`large-response-handler`)
+- Automatically handles MCP tool responses that exceed token limits
+- Persists large data to disk and returns metadata instead
+- Generates JSON schemas and creates queryable DuckDB databases
+- Adds `mcpmon.analyze-with-duckdb` and `mcpmon.list-saved-datasets` tools
+
+```bash
+# Enable large response handling
+mcpmon --enable-extension large-response-handler node server.js
+
+# Configure response size threshold (in bytes)
+mcpmon --enable-extension large-response-handler \
+       --extension-config '{"threshold":20000}' \
+       node server.js
+```
+
+### Extension Examples
+
+```bash
+# Development with large data processing
+mcpmon --enable-extension large-response-handler \
+       --extensions-data-dir ./session-data \
+       python data_server.py
+
+# Multiple extensions for monitoring
+mcpmon --enable-extension request-logger \
+       --enable-extension large-response-handler \
+       --extension-config '{"logLevel":"debug","threshold":15000}' \
+       node server.js
+
+# Production monitoring
+mcpmon --enable-extension metrics \
+       --extensions-data-dir /var/log/mcpmon \
+       --extension-config '{"metricsPort":9090}' \
+       node server.js
+```
+
+### Creating Custom Extensions
+
+Extensions are TypeScript/JavaScript modules that implement the Extension interface:
+
+```typescript
+// my-extension/index.ts
+export class MyExtension implements Extension {
+  readonly id = 'my-extension';
+  readonly name = 'My Custom Extension';
+  readonly version = '1.0.0';
+  readonly defaultEnabled = false;
+  
+  async initialize(context: ExtensionContext): Promise<void> {
+    // Setup extension with hooks, tools, etc.
+    context.hooks.beforeStdinForward = this.interceptRequest;
+    context.hooks.getAdditionalTools = this.getTools;
+  }
+  
+  async shutdown(): Promise<void> {
+    // Cleanup resources
+  }
+}
+```
+
+Extensions can:
+- **Intercept messages** before forwarding to server or after receiving responses
+- **Add new MCP tools** that appear alongside server tools
+- **Handle large responses** by persisting to disk and returning metadata
+- **Monitor and log** all request/response activity
+- **Transform data** on the fly
+- **Add authentication** or rate limiting
 
 ## How It Works
 

@@ -7,8 +7,8 @@
  */
 
 import { MCPProxy, MCPProxyConfig } from "../../src/proxy.js";
-import { MockProcessManager } from "../mocks/MockProcessManager.js";
-import { MockFileSystem } from "../mocks/MockFileSystem.js";
+import { MockProcessManager } from "../mocks/MockProcessManager";
+import { MockFileSystem } from "../mocks/MockFileSystem";
 
 export interface TestContext {
   proxy: MCPProxy;
@@ -29,6 +29,7 @@ export interface TestProxyConfig {
   killDelay?: number;
   readyDelay?: number;
   env?: Record<string, string>;
+  dataDir?: string;
 }
 
 const DEFAULT_CONFIG: Required<TestProxyConfig> = {
@@ -40,6 +41,7 @@ const DEFAULT_CONFIG: Required<TestProxyConfig> = {
   killDelay: 50, // Fast test timing
   readyDelay: 50, // Fast test timing
   env: {},
+  dataDir: "/tmp/test-mcpmon",
 };
 
 /**
@@ -87,6 +89,7 @@ export function setupProxyTest(config: TestProxyConfig = {}): TestContext {
       killDelay: testConfig.killDelay,
       readyDelay: testConfig.readyDelay,
       env: testConfig.env,
+      dataDir: testConfig.dataDir,
     }
   );
 

@@ -1,0 +1,38 @@
+# Build outputs
+dist/
+build/
+
+# Deno cache
+.deno/
+
+# Log files
+*.log
+logs/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Coverage reports
+coverage/
+.nyc_output/
+
+# Test artifacts
+test-results/
+test-reports/
+
+# Temporary files
+tmp/
+temp/
+.tmp/

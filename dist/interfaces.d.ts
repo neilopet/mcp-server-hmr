@@ -5,6 +5,7 @@
  * file system operations, and event handling. They enable dependency
  * injection and cross-platform compatibility between Deno and Node.js.
  */
+import type { ExtensionRegistry } from "./extensions/interfaces.js";
 /**
  * Options for spawning a managed process
  */
@@ -214,6 +215,8 @@ export interface ProxyDependencies {
     changeSource?: ChangeSource;
     /** @deprecated Use changeSource instead. File system interface for config and file watching */
     fs?: FileSystem;
+    /** Extension registry for managing proxy extensions */
+    extensionRegistry?: ExtensionRegistry;
     /** Standard input stream for receiving client messages */
     stdin: ReadableStream<Uint8Array>;
     /** Standard output stream for sending responses to client */

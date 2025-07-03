@@ -28,6 +28,15 @@ import type { LRHTestUtilities } from './providers.js';
 export class LargeResponseHandlerTestSuite implements ExtensionTestSuite {
   readonly extensionId = 'large-response-handler';
   readonly extension = new LargeResponseHandlerExtension();
+  readonly metadata = {
+    extensionId: 'large-response-handler' as const,
+    name: 'Large Response Handler Tests',
+    description: 'Test suite for large response handling, streaming, and buffering functionality',
+    version: '1.0.0',
+    tags: ['streaming', 'performance', 'large-data'],
+    timeout: 90000,
+    enabled: true
+  };
 
   constructor(
     @inject(TEST_TYPES.MockMCPMon) private mockMCPMon: MockMCPMon,

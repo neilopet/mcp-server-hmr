@@ -1,0 +1,315 @@
+/**
+ * Large Response Handler Extension for mcpmon
+ *
+ * Automatically detects and handles MCP tool responses that exceed configurable
+ * thresholds by persisting data to disk and providing streaming support.
+ */
+import { StreamingBuffer } from './streaming.js';
+const DEFAULT_CONFIG = {
+    threshold: 50000,
+    dataDir: './data',
+    enableDuckDB: true,
+    compressionLevel: 6,
+    maxStoredResponses: 100,
+    retentionDays: 7,
+    enableStreaming: true,
+    progressUpdateInterval: 500,
+    maxBufferSize: 100 * 1024 * 1024, // 100MB
+    streamingTimeout: 5 * 60 * 1000, // 5 minutes
+};
+export default class LargeResponseHandlerExtension {
+    id = 'large-response-handler';
+    name = 'Large Response Handler';
+    version = '1.0.0';
+    defaultEnabled = false;
+    configSchema = {
+        type: 'object',
+        properties: {
+            threshold: {
+                type: 'number',
+                minimum: 1000,
+                default: 50000,
+                description: 'Response size threshold in bytes'
+            },
+            dataDir: {
+                type: 'string',
+                default: './data',
+                description: 'Directory to store large responses'
+            },
+            enableDuckDB: {
+                type: 'boolean',
+                default: true,
+                description: 'Enable DuckDB analysis features'
+            },
+            compressionLevel: {
+                type: 'number',
+                minimum: 0,
+                maximum: 9,
+                default: 6,
+                description: 'Gzip compression level (0-9)'
+            },
+            maxStoredResponses: {
+                type: 'number',
+                minimum: 1,
+                default: 100,
+                description: 'Maximum number of stored responses'
+            },
+            retentionDays: {
+                type: 'number',
+                minimum: 1,
+                default: 7,
+                description: 'Number of days to retain stored responses'
+            },
+            enableStreaming: {
+                type: 'boolean',
+                default: true,
+                description: 'Enable streaming support for large responses'
+            },
+            progressUpdateInterval: {
+                type: 'number',
+                minimum: 100,
+                default: 500,
+                description: 'Minimum milliseconds between progress updates'
+            },
+            maxBufferSize: {
+                type: 'number',
+                minimum: 1024 * 1024, // 1MB minimum
+                default: 100 * 1024 * 1024, // 100MB
+                description: 'Maximum bytes before disk fallback'
+            },
+            streamingTimeout: {
+                type: 'number',
+                minimum: 60 * 1000, // 1 minute minimum
+                default: 5 * 60 * 1000, // 5 minutes
+                description: 'Milliseconds before abandoned request cleanup'
+            }
+        }
+    };
+    context;
+    config = DEFAULT_CONFIG;
+    streamingBuffer;
+    progressTokens = new Map(); // Track progress tokens by request ID
+    async initialize(context) {
+        this.context = context;
+        this.config = { ...DEFAULT_CONFIG, ...context.config };
+        // Initialize streaming buffer with configuration
+        if (this.config.enableStreaming) {
+            this.streamingBuffer = new StreamingBuffer({
+                maxBufferSize: this.config.maxBufferSize,
+                progressUpdateInterval: this.config.progressUpdateInterval,
+                requestTimeout: this.config.streamingTimeout,
+                enableDiskFallback: true
+            }, context.logger);
+            // Set up progress notification handler
+            this.streamingBuffer.setProgressHandler(async (notification) => {
+                // Send MCP progress notification through the proxy
+                await this.sendProgressNotification(notification);
+            });
+        }
+        // Register hooks for message interception
+        context.hooks.beforeStdinForward = this.trackProgressToken.bind(this);
+        context.hooks.afterStdoutReceive = this.handleServerResponse.bind(this);
+        context.hooks.getAdditionalTools = this.getAdditionalTools.bind(this);
+        context.hooks.handleToolCall = this.handleToolCall.bind(this);
+        context.logger.info('Large Response Handler initialized');
+    }
+    async shutdown() {
+        // Clean up resources
+        this.context = undefined;
+        this.streamingBuffer = undefined;
+    }
+    /**
+     * Track progress tokens from incoming requests
+     */
+    async trackProgressToken(message) {
+        // Check if request has a progress token
+        if (message.id && message.params?._meta?.progressToken) {
+            this.progressTokens.set(message.id, message.params._meta.progressToken);
+            this.context?.logger.debug(`Tracked progress token ${message.params._meta.progressToken} for request ${message.id}`);
+        }
+        return message;
+    }
+    /**
+     * Send MCP progress notification through the proxy
+     */
+    async sendProgressNotification(notification) {
+        if (!this.context)
+            return;
+        // Create MCP progress notification message
+        const progressMessage = {
+            jsonrpc: '2.0',
+            method: 'notifications/progress',
+            params: notification
+        };
+        // Inject the notification into the output stream
+        // The proxy needs to handle this specially to interleave with responses
+        if (this.context.dependencies?.stdout) {
+            const encoder = new TextEncoder();
+            const writer = this.context.dependencies.stdout.getWriter();
+            try {
+                await writer.write(encoder.encode(JSON.stringify(progressMessage) + '\n'));
+            }
+            finally {
+                writer.releaseLock();
+            }
+        }
+    }
+    /**
+     * Handle server responses, detecting and buffering streaming responses
+     */
+    async handleServerResponse(message) {
+        // Check if this is a streaming response
+        if (this.isStreamingResponse(message)) {
+            const requestId = message.id;
+            const progressToken = this.getProgressToken(requestId);
+            // Start buffering if this is the first chunk
+            if (!this.streamingBuffer?.isBuffering(requestId)) {
+                this.streamingBuffer?.startBuffering(requestId, message.result?.method, progressToken);
+            }
+            // Add chunk to buffer
+            await this.streamingBuffer?.addChunk(requestId, message.result);
+            // If this is the final chunk, process the complete response
+            if (this.isStreamingComplete(message)) {
+                const chunks = this.streamingBuffer?.completeBuffering(requestId) || [];
+                const completeResponse = this.assembleStreamedResponse(chunks);
+                // Clean up progress token
+                this.progressTokens.delete(requestId);
+                // Apply large response handling if needed
+                if (this.shouldHandleResponse(completeResponse)) {
+                    return this.processLargeResponse(message, completeResponse);
+                }
+                // Return the assembled response
+                return {
+                    ...message,
+                    result: completeResponse
+                };
+            }
+            // For intermediate chunks, return as-is
+            return message;
+        }
+        // For non-streaming responses, check if they need handling
+        if (this.shouldHandleResponse(message.result)) {
+            return this.processLargeResponse(message, message.result);
+        }
+        return message;
+    }
+    /**
+     * Check if a message is a streaming response
+     */
+    isStreamingResponse(message) {
+        return message.result?.isPartial === true ||
+            message.result?.isPartial === false;
+    }
+    /**
+     * Check if streaming is complete
+     */
+    isStreamingComplete(message) {
+        return message.result?.isPartial === false;
+    }
+    /**
+     * Get progress token for a request
+     */
+    getProgressToken(requestId) {
+        return this.progressTokens.get(requestId);
+    }
+    /**
+     * Assemble chunks into complete response
+     */
+    assembleStreamedResponse(chunks) {
+        // If chunks contain partial data arrays, concatenate them
+        if (chunks.length === 0)
+            return null;
+        const firstChunk = chunks[0];
+        if (Array.isArray(firstChunk?.data)) {
+            // Concatenate all data arrays
+            const allData = chunks.flatMap(chunk => chunk.data || []);
+            return {
+                ...firstChunk,
+                data: allData,
+                isPartial: false
+            };
+        }
+        // For other formats, return the last chunk as complete
+        return chunks[chunks.length - 1];
+    }
+    /**
+     * Check if response should be handled as large
+     */
+    shouldHandleResponse(response) {
+        if (!response)
+            return false;
+        const size = Buffer.byteLength(JSON.stringify(response), 'utf8');
+        return size > this.config.threshold;
+    }
+    /**
+     * Process large response (placeholder for actual implementation)
+     */
+    async processLargeResponse(message, response) {
+        // TODO: Implement actual large response processing
+        // - Persist to disk
+        // - Generate schema
+        // - Create DuckDB if enabled
+        // - Return metadata
+        this.context?.logger.info(`Large response detected: ${Buffer.byteLength(JSON.stringify(response), 'utf8')} bytes`);
+        return message;
+    }
+    /**
+     * Provide additional MCP tools
+     */
+    async getAdditionalTools() {
+        return [
+            {
+                name: 'mcpmon.analyze-with-duckdb',
+                description: 'Analyze persisted large response data using DuckDB SQL queries',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        datasetId: {
+                            type: 'string',
+                            description: 'ID of the persisted dataset'
+                        },
+                        query: {
+                            type: 'string',
+                            description: 'SQL query to run against the dataset'
+                        }
+                    },
+                    required: ['datasetId', 'query']
+                }
+            },
+            {
+                name: 'mcpmon.list-saved-datasets',
+                description: 'List all saved large response datasets',
+                inputSchema: {
+                    type: 'object',
+                    properties: {
+                        limit: {
+                            type: 'number',
+                            description: 'Maximum number of datasets to return'
+                        }
+                    }
+                }
+            }
+        ];
+    }
+    /**
+     * Handle tool calls for LRH-specific tools
+     */
+    async handleToolCall(toolName, args) {
+        switch (toolName) {
+            case 'mcpmon.analyze-with-duckdb':
+                // TODO: Implement DuckDB query execution
+                return {
+                    error: 'DuckDB analysis not yet implemented'
+                };
+            case 'mcpmon.list-saved-datasets':
+                // TODO: Implement dataset listing
+                return {
+                    datasets: [],
+                    message: 'Dataset listing not yet implemented'
+                };
+            default:
+                // Not our tool
+                return null;
+        }
+    }
+}

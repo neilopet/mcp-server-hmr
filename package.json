@@ -38,7 +38,9 @@
   },
   "dependencies": {
     "chokidar": "^3.5.3",
-    "commander": "^11.1.0"
+    "commander": "^11.1.0",
+    "inversify": "^6.0.2",
+    "reflect-metadata": "^0.2.2"
   },
   "devDependencies": {
     "@jest/globals": "^29.7.0",
@@ -58,8 +60,13 @@
     "test": "npm run clean && npm run build && jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "test:unit": "jest tests/behavior",
-    "test:integration": "jest tests/integration",
+    "test:unit": "jest --selectProjects unit",
+    "test:integration": "jest --selectProjects integration",
+    "test:extensions": "jest --selectProjects extensions",
+    "test:behavior": "jest tests/behavior",
+    "test:extensions-only": "jest tests/extensions-integration.test.ts",
+    "test:all": "npm run clean && npm run build && jest --selectProjects unit integration extensions",
+    "test:ci": "npm run clean && npm run build && jest --ci --coverage --selectProjects unit integration extensions",
     "lint": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",

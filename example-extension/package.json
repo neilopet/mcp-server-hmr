@@ -1,0 +1,31 @@
+{
+  "name": "request-logger-extension",
+  "version": "1.0.0",
+  "description": "MCP request/response logging extension with comprehensive testing",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "deno task build",
+    "test": "deno task test",
+    "test:unit": "deno test tests/unit.test.ts",
+    "test:integration": "deno test tests/integration.test.ts",
+    "test:e2e": "deno test tests/e2e.test.ts",
+    "test:watch": "deno test --watch tests/",
+    "dev": "deno task dev"
+  },
+  "keywords": ["mcp", "extension", "logging", "mcpmon"],
+  "author": "Your Name",
+  "license": "MIT",
+  "mcpmon": {
+    "extension": true,
+    "hooks": ["beforeStdinForward", "afterStdoutReceive"],
+    "tools": ["get_request_logs", "clear_request_logs", "get_request_stats"],
+    "configSchema": "src/config.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0"
+  },
+  "peerDependencies": {
+    "mcpmon": "^1.0.0"
+  }
+}

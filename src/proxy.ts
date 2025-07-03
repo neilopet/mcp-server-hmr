@@ -16,6 +16,7 @@ import type {
   ProcessManager,
   ProxyDependencies,
 } from "./interfaces.js";
+import type { ExtensionRegistry, ExtensionContext, ExtensionHooks } from "./extensions/interfaces.js";
 
 // Simple debounce implementation for Node.js
 type DebouncedFunction<T extends (...args: any[]) => any> = T & {
@@ -83,6 +84,10 @@ export interface MCPProxyConfig {
   killDelay?: number;
   /** Delay in ms after starting server before declaring ready (default: 2000) */
   readyDelay?: number;
+  /** Extension-specific configurations for custom functionality */
+  extensions?: Record<string, any>;
+  /** Base directory for extension data storage */
+  dataDir?: string;
 }
 
 /**
@@ -128,6 +133,8 @@ export class MCPProxy {
   private stdout: WritableStream<Uint8Array>;
   private stderr: WritableStream<Uint8Array>;
   private exit: (code: number) => void;
+  private extensionRegistry?: ExtensionRegistry;
+  private extensionHooks: ExtensionHooks = {};
 
   constructor(dependencies: ProxyDependencies, config: MCPProxyConfig) {
     this.procManager = dependencies.procManager;
@@ -147,6 +154,7 @@ export class MCPProxy {
     this.stderr = dependencies.stderr;
     this.exit = dependencies.exit;
     this.config = this.normalizeConfig(config);
+    this.extensionRegistry = dependencies.extensionRegistry;
 
     // Initialize restart function with config
     this.restart = debounce(async () => {
@@ -251,7 +259,52 @@ export class MCPProxy {
     return this.managedProcess !== null && this.serverPid !== null && !this.restarting;
   }
 
+  /**
+   * Initialize extensions with context
+   */
+  private async initializeExtensions(): Promise<void> {
+    if (!this.extensionRegistry) return;
+
+    try {
+      console.error("🔌 Initializing extensions...");
+      
+      // Create extension context
+      const context: Omit<ExtensionContext, 'config'> = {
+        sessionId: `mcpmon-${Date.now()}`,
+        dataDir: this.config.dataDir || `${process.cwd()}/mcpmon-data`,
+        logger: {
+          info: (message: string) => console.error(`[Extension] ℹ️  ${message}`),
+          debug: (message: string) => console.error(`[Extension] 🐛 ${message}`),
+          error: (message: string) => console.error(`[Extension] ❌ ${message}`),
+          warn: (message: string) => console.error(`[Extension] ⚠️  ${message}`)
+        },
+        hooks: this.extensionHooks,
+        dependencies: {
+          procManager: this.procManager,
+          changeSource: this.changeSource,
+          stdin: this.stdin,
+          stdout: this.stdout,
+          stderr: this.stderr,
+          exit: this.exit
+        }
+      };
+
+      // Initialize all enabled extensions
+      await this.extensionRegistry.initializeAll(context);
+      
+      console.error("✅ Extensions initialized");
+    } catch (error) {
+      console.error(`❌ Failed to initialize extensions: ${error}`);
+      // Continue without extensions rather than failing completely
+    }
+  }
+
   async start() {
+    // Initialize extensions if registry is available
+    if (this.extensionRegistry) {
+      await this.initializeExtensions();
+    }
+
     // Start initial server
     try {
       await this.startServer();
@@ -413,12 +466,59 @@ export class MCPProxy {
           for (const line of lines) {
             if (line.trim()) {
               try {
-                const message: Message = JSON.parse(line);
+                let message: Message = JSON.parse(line);
+
+                // Apply beforeStdinForward hook if available
+                if (this.extensionHooks.beforeStdinForward) {
+                  try {
+                    message = await this.extensionHooks.beforeStdinForward(message);
+                  } catch (hookError) {
+                    console.error("Extension hook error (beforeStdinForward):", hookError);
+                    // Continue with original message if hook fails
+                  }
+                }
 
                 // Capture initialize params for replay
                 if (message.method === "initialize") {
                   this.initializeParams = message.params;
                   console.error("📋 Captured initialize params for replay");
+                }
+
+                // Check if this is a tool call that should be handled by extensions
+                if (message.method === "tools/call" && this.extensionHooks.handleToolCall) {
+                  const toolName = (message.params as any)?.name;
+                  if (toolName && toolName.startsWith("mcpmon.")) {
+                    try {
+                      const result = await this.extensionHooks.handleToolCall(toolName, (message.params as any)?.arguments || {});
+                      if (result !== null) {
+                        // Send response directly back to client
+                        const response: Message = {
+                          jsonrpc: "2.0",
+                          id: message.id,
+                          result
+                        };
+                        const writer = this.stdout.getWriter();
+                        await writer.write(new TextEncoder().encode(JSON.stringify(response) + "\n"));
+                        writer.releaseLock();
+                        continue; // Don't forward to server
+                      }
+                    } catch (error) {
+                      // Send error response
+                      const errorResponse: Message = {
+                        jsonrpc: "2.0",
+                        id: message.id,
+                        error: {
+                          code: -32603,
+                          message: `Extension tool error: ${error}`,
+                          data: { toolName }
+                        }
+                      };
+                      const writer = this.stdout.getWriter();
+                      await writer.write(new TextEncoder().encode(JSON.stringify(errorResponse) + "\n"));
+                      writer.releaseLock();
+                      continue; // Don't forward to server
+                    }
+                  }
                 }
 
                 // During restart, buffer all messages
@@ -432,7 +532,7 @@ export class MCPProxy {
                 } else if (this.managedProcess) {
                   // Forward to server
                   const writer = this.managedProcess.stdin.getWriter();
-                  await writer.write(new TextEncoder().encode(line + "\n"));
+                  await writer.write(new TextEncoder().encode(JSON.stringify(message) + "\n"));
                   writer.releaseLock();
                 }
               } catch (e) {
@@ -461,13 +561,8 @@ export class MCPProxy {
           const { done, value } = await reader.read();
           if (done) break;
 
-          // During restart, we still forward output to maintain connection
+          // Parse messages first to allow hook modifications
           const text = decoder.decode(value, { stream: true });
-          const writer = this.stdout.getWriter();
-          await writer.write(value);
-          writer.releaseLock();
-
-          // Also parse messages to handle responses
           buffer += text;
           const lines = buffer.split("\n");
           buffer = lines.pop() || "";
@@ -475,15 +570,38 @@ export class MCPProxy {
           for (const line of lines) {
             if (line.trim()) {
               try {
-                const message: Message = JSON.parse(line);
-                if (message.id && this.pendingRequests.has(message.id)) {
-                  const pending = this.pendingRequests.get(message.id)!;
+                let message: Message = JSON.parse(line);
+                let modifiedMessage = message;
+                
+                // Apply afterStdoutReceive hook if available
+                if (this.extensionHooks.afterStdoutReceive) {
+                  try {
+                    modifiedMessage = await this.extensionHooks.afterStdoutReceive(message);
+                  } catch (hookError) {
+                    console.error("Extension hook error (afterStdoutReceive):", hookError);
+                    // Continue with original message if hook fails
+                    modifiedMessage = message;
+                  }
+                }
+                
+                // Forward the modified message to stdout
+                const writer = this.stdout.getWriter();
+                const modifiedText = JSON.stringify(modifiedMessage) + "\n";
+                await writer.write(new TextEncoder().encode(modifiedText));
+                writer.releaseLock();
+                
+                // Handle pending requests
+                if (modifiedMessage.id && this.pendingRequests.has(modifiedMessage.id)) {
+                  const pending = this.pendingRequests.get(modifiedMessage.id)!;
                   clearTimeout(pending.timeoutId);
-                  this.pendingRequests.delete(message.id);
-                  pending.resolve(message);
+                  this.pendingRequests.delete(modifiedMessage.id);
+                  pending.resolve(modifiedMessage);
                 }
               } catch {
-                // Not JSON, ignore
+                // Not JSON, forward as-is
+                const writer = this.stdout.getWriter();
+                await writer.write(new TextEncoder().encode(line + "\n"));
+                writer.releaseLock();
               }
             }
           }
@@ -587,8 +705,20 @@ export class MCPProxy {
         return [];
       }
 
-      const tools = (response.result as { tools?: unknown[] })?.tools || [];
-      console.error(`✅ Found ${tools.length} tools`);
+      let tools = (response.result as { tools?: unknown[] })?.tools || [];
+      
+      // Add extension tools if available
+      if (this.extensionHooks.getAdditionalTools) {
+        try {
+          const additionalTools = await this.extensionHooks.getAdditionalTools();
+          tools = [...tools, ...additionalTools];
+          console.error(`🔌 Added ${additionalTools.length} extension tools`);
+        } catch (error) {
+          console.error(`❌ Error getting extension tools: ${error}`);
+        }
+      }
+      
+      console.error(`✅ Found ${tools.length} tools total`);
 
       // Log tool names for debugging
       if (tools.length > 0) {
@@ -646,6 +776,15 @@ export class MCPProxy {
 
     // Clear any pending restart
     this.restart.clear();
+
+    // Shutdown extensions
+    if (this.extensionRegistry) {
+      try {
+        await this.extensionRegistry.shutdownAll();
+      } catch (error) {
+        console.error("❌ Error shutting down extensions:", error);
+      }
+    }
 
     // Clear monitoring timeouts
     if (this.monitoringTimeout) {

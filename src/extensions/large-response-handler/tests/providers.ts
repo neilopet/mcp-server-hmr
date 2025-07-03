@@ -448,7 +448,7 @@ class LRHMockMCPMonImpl implements LRHMockMCPMon {
 
   expectHookRegistered(hookName: keyof ExtensionHooks): void {
     if (!this.registeredHooks[hookName]) {
-      throw new Error(`Expected hook '${hookName}' to be registered`);
+      throw new Error(`Expected hook '${String(hookName)}' to be registered`);
     }
   }
 
@@ -516,11 +516,4 @@ export const LRHTestModule = new ContainerModule((bind) => {
   bind('MockMCPMon').toService('LRHMockMCPMon');
 });
 
-// Re-export types and interfaces
-export type {
-  MockDataset,
-  MockDatasetOptions,
-  DuckDBMock,
-  StreamSimulator,
-  LRHMockMCPMon
-};
+// Types and interfaces are already exported inline

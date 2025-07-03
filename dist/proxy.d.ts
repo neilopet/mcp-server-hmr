@@ -23,6 +23,10 @@ export interface MCPProxyConfig {
     killDelay?: number;
     /** Delay in ms after starting server before declaring ready (default: 2000) */
     readyDelay?: number;
+    /** Extension-specific configurations for custom functionality */
+    extensions?: Record<string, any>;
+    /** Base directory for extension data storage */
+    dataDir?: string;
 }
 /**
  * MCPProxy - A hot-reloadable proxy for MCP servers
@@ -58,6 +62,8 @@ export declare class MCPProxy {
     private stdout;
     private stderr;
     private exit;
+    private extensionRegistry?;
+    private extensionHooks;
     constructor(dependencies: ProxyDependencies, config: MCPProxyConfig);
     /**
      * Normalize config to handle backward compatibility between entryFile and watchTargets
@@ -71,6 +77,10 @@ export declare class MCPProxy {
      * Check if the proxy and server are currently running
      */
     isRunning(): boolean;
+    /**
+     * Initialize extensions with context
+     */
+    private initializeExtensions;
     start(): Promise<void>;
     private startServer;
     private killServer;

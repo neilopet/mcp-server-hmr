@@ -1,0 +1,36 @@
+{
+  "tasks": {
+    "dev": "deno run --allow-all --watch src/index.ts",
+    "build": "deno compile --allow-all --output dist/request-logger-extension src/index.ts",
+    "test": "deno test --allow-all tests/",
+    "test:unit": "deno test --allow-all tests/unit.test.ts",
+    "test:integration": "deno test --allow-all tests/integration.test.ts",
+    "test:e2e": "deno test --allow-all tests/e2e.test.ts",
+    "test:watch": "deno test --allow-all --watch tests/",
+    "lint": "deno lint",
+    "fmt": "deno fmt",
+    "check": "deno check src/index.ts"
+  },
+  "compilerOptions": {
+    "allowJs": true,
+    "lib": ["deno.window"],
+    "strict": true
+  },
+  "fmt": {
+    "files": {
+      "include": ["src/", "tests/"],
+      "exclude": ["dist/"]
+    }
+  },
+  "lint": {
+    "files": {
+      "include": ["src/", "tests/"],
+      "exclude": ["dist/"]
+    }
+  },
+  "test": {
+    "files": {
+      "include": ["tests/"]
+    }
+  }
+}

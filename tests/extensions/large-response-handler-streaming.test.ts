@@ -3,7 +3,8 @@
  */
 
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { StreamingBuffer, type StreamingConfig } from '../../src/extensions/large-response-handler/streaming.js';
+import { StreamingBuffer } from '../../src/extensions/large-response-handler/streaming.js';
+import type { StreamingConfig } from '../../src/extensions/large-response-handler/streaming.js';
 import type { ExtensionLogger } from '../../src/extensions/interfaces.js';
 
 // Mock logger

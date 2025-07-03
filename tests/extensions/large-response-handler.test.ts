@@ -3,7 +3,7 @@
  */
 
 import { jest, describe, it, beforeEach, expect } from '@jest/globals';
-import type { ExtensionContext, MessageHook, ToolDefinition } from '../../src/extensions/interfaces';
+import type { ExtensionContext, MessageHook, ToolDefinition } from '../../src/extensions/interfaces.js';
 
 // Create a mock implementation of the extension
 class MockLargeResponseHandlerExtension {
