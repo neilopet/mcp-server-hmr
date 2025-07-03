@@ -37,8 +37,31 @@ const mockLRHUtilities = {
   simulateProgressToken: () => `progress-${Math.random().toString(36).substr(2, 9)}`,
   mockDuckDBQuery: () => {},
   mockDatasetListing: () => {},
-  createMockDataset: (rows: number, cols: number) => 
-    Array(rows).fill(null).map(() => Array(cols).fill('data')),
+  createMockDataset: (options?: any) => ({
+    status: 'success',
+    originalTool: options?.tool || 'test-tool',
+    count: options?.itemCount || 100,
+    dataFile: 'mock-data.json',
+    database: {
+      path: 'mock.db',
+      tables: [{
+        name: 'mock_table',
+        rowCount: options?.itemCount || 100,
+        columns: [{
+          table_name: 'mock_table',
+          column_name: 'id',
+          data_type: 'INTEGER'
+        }]
+      }],
+      sampleQueries: ['SELECT * FROM mock_table']
+    },
+    metadata: {
+      sizeKB: options?.sizeKB || 1024,
+      estimatedTokens: (options?.sizeKB || 1024) * 200,
+      timestamp: options?.timestamp || Date.now(),
+      sessionId: options?.sessionId || 'test-session'
+    }
+  }),
   formatBytes: (bytes: number) => `${bytes} bytes`
 };
 

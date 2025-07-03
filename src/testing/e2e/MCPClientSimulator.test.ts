@@ -146,7 +146,10 @@ describe('E2E MCP Client Simulator', () => {
       await client.callTool('test-tool', { input: 'test' }, progressToken);
 
       // In a real implementation, we'd verify progress notifications
-      const progressNotifications = client.getProgressNotifications(progressToken);
+      const progressNotifications = client.getNotifications().filter(n => 
+        n.method === 'notifications/progress' && 
+        n.params?.progressToken === progressToken
+      );
       expect(Array.isArray(progressNotifications)).toBe(true);
     });
   });
@@ -193,7 +196,10 @@ describe('E2E MCP Client Simulator', () => {
       // Wait for notifications to be processed
       await new Promise(resolve => setTimeout(resolve, 50));
 
-      const progressNotifications = client.getProgressNotifications(progressToken);
+      const progressNotifications = client.getNotifications().filter(n => 
+        n.method === 'notifications/progress' && 
+        n.params?.progressToken === progressToken
+      );
       expect(progressNotifications).toHaveLength(2);
       expect(progressNotifications[0].params.progress).toBe(50);
       expect(progressNotifications[1].params.progress).toBe(100);
