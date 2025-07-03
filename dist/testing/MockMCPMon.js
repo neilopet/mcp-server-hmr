@@ -212,7 +212,7 @@ export class MockMCPMonImpl {
         }
         // Call the hook with provided arguments
         if (typeof hook === 'function') {
-            return await hook(...args);
+            return await hook.apply(null, args);
         }
         throw new Error(`Hook '${hookName}' is not a function`);
     }

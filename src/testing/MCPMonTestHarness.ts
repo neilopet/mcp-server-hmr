@@ -15,19 +15,103 @@ import type {
 import type { Extension, ExtensionContext, ExtensionRegistry } from '../extensions/interfaces.js';
 import type { ProxyDependencies } from '../interfaces.js';
 import { MCPProxy, MCPProxyConfig } from '../proxy.js';
-// Import the mock implementations
-// Note: In a real implementation, these would be in the testing package
-// For now, we'll create local interfaces
-interface MockProcessManager {
-  getSpawnCallCount(): number;
-  setSpawnShouldFail(shouldFail: boolean): void;
-  // Add other methods as needed
+// Import process and file system interfaces
+import type { ProcessManager, FileSystem } from '../interfaces.js';
+
+// Create simple mock implementations for testing
+class MockProcessManager implements ProcessManager {
+  private spawnCount = 0;
+  private spawnShouldFail = false;
+  private spawnedProcesses: any[] = [];
+  
+  getSpawnCallCount(): number {
+    return this.spawnCount;
+  }
+  
+  setSpawnShouldFail(shouldFail: boolean): void {
+    this.spawnShouldFail = shouldFail;
+  }
+  
+  getAllSpawnedProcesses(): any[] {
+    return [...this.spawnedProcesses];
+  }
+  
+  spawn(command: string, args: string[], options?: any): any {
+    this.spawnCount++;
+    
+    if (this.spawnShouldFail) {
+      throw new Error('Spawn failed');
+    }
+    
+    const processState = {
+      exited: false,
+      exitCode: null as number | null
+    };
+    
+    const process = {
+      pid: 1000 + this.spawnCount,
+      stdin: new WritableStream(),
+      stdout: new ReadableStream(),
+      stderr: new ReadableStream(),
+      status: Promise.resolve({ success: true, code: 0 }),
+      kill: () => {},
+      hasExited: () => processState.exited,
+      simulateExit: (code: number) => {
+        processState.exited = true;
+        processState.exitCode = code;
+      }
+    };
+    
+    this.spawnedProcesses.push(process);
+    return process;
+  }
 }
 
-interface MockFileSystem {
-  setFileExists(path: string, exists: boolean): void;
-  triggerFileEvent(path: string, eventType: string): void;
-  // Add other methods as needed
+class MockFileSystem implements FileSystem {
+  private fileExists = new Map<string, boolean>();
+  private fileContent = new Map<string, string>();
+  private watchers: any[] = [];
+  
+  setFileExists(path: string, exists: boolean): void {
+    this.fileExists.set(path, exists);
+  }
+  
+  setFileContent(path: string, content: string): void {
+    this.fileContent.set(path, content);
+  }
+  
+  triggerFileEvent(path: string, eventType: string): void {
+    // Trigger events on active watchers
+  }
+  
+  closeAllWatchers(): void {
+    this.watchers = [];
+  }
+  
+  async *watch(paths: string[]): AsyncIterable<any> {
+    // Mock file watching
+  }
+  
+  async readFile(path: string): Promise<string> {
+    if (!this.fileExists.get(path)) {
+      throw new Error(`File not found: ${path}`);
+    }
+    return this.fileContent.get(path) || '';
+  }
+  
+  async writeFile(path: string, content: string): Promise<void> {
+    this.fileContent.set(path, content);
+    this.fileExists.set(path, true);
+  }
+  
+  async exists(path: string): Promise<boolean> {
+    return this.fileExists.get(path) || false;
+  }
+  
+  async copyFile(src: string, dest: string): Promise<void> {
+    const content = await this.readFile(src);
+    await this.writeFile(dest, content);
+  }
 }
 
 interface NotificationWaiter {
@@ -451,14 +535,20 @@ export class MCPMonTestHarness implements TestHarness {
       isEnabled: (extensionId: string) => enabledExtensions.has(extensionId),
 
       initializeAll: async (context: Omit<ExtensionContext, 'config'>) => {
-        for (const extension of this.getEnabled()) {
+        const enabled = Array.from(extensionMap.values()).filter(ext => 
+          enabledExtensions.has(ext.id)
+        );
+        for (const extension of enabled) {
           const fullContext = this.createExtensionContext(extension, context);
           await extension.initialize(fullContext);
         }
       },
 
       shutdownAll: async () => {
-        for (const extension of this.getEnabled()) {
+        const enabled = Array.from(extensionMap.values()).filter(ext => 
+          enabledExtensions.has(ext.id)
+        );
+        for (const extension of enabled) {
           await extension.shutdown();
         }
       },

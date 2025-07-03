@@ -5,6 +5,83 @@
  * infrastructure while maintaining isolation and deterministic behavior.
  */
 import { MCPProxy } from '../proxy.js';
+// Create simple mock implementations for testing
+class MockProcessManager {
+    spawnCount = 0;
+    spawnShouldFail = false;
+    spawnedProcesses = [];
+    getSpawnCallCount() {
+        return this.spawnCount;
+    }
+    setSpawnShouldFail(shouldFail) {
+        this.spawnShouldFail = shouldFail;
+    }
+    getAllSpawnedProcesses() {
+        return [...this.spawnedProcesses];
+    }
+    spawn(command, args, options) {
+        this.spawnCount++;
+        if (this.spawnShouldFail) {
+            throw new Error('Spawn failed');
+        }
+        const processState = {
+            exited: false,
+            exitCode: null
+        };
+        const process = {
+            pid: 1000 + this.spawnCount,
+            stdin: new WritableStream(),
+            stdout: new ReadableStream(),
+            stderr: new ReadableStream(),
+            status: Promise.resolve({ success: true, code: 0 }),
+            kill: () => { },
+            hasExited: () => processState.exited,
+            simulateExit: (code) => {
+                processState.exited = true;
+                processState.exitCode = code;
+            }
+        };
+        this.spawnedProcesses.push(process);
+        return process;
+    }
+}
+class MockFileSystem {
+    fileExists = new Map();
+    fileContent = new Map();
+    watchers = [];
+    setFileExists(path, exists) {
+        this.fileExists.set(path, exists);
+    }
+    setFileContent(path, content) {
+        this.fileContent.set(path, content);
+    }
+    triggerFileEvent(path, eventType) {
+        // Trigger events on active watchers
+    }
+    closeAllWatchers() {
+        this.watchers = [];
+    }
+    async *watch(paths) {
+        // Mock file watching
+    }
+    async readFile(path) {
+        if (!this.fileExists.get(path)) {
+            throw new Error(`File not found: ${path}`);
+        }
+        return this.fileContent.get(path) || '';
+    }
+    async writeFile(path, content) {
+        this.fileContent.set(path, content);
+        this.fileExists.set(path, true);
+    }
+    async exists(path) {
+        return this.fileExists.get(path) || false;
+    }
+    async copyFile(src, dest) {
+        const content = await this.readFile(src);
+        await this.writeFile(dest, content);
+    }
+}
 /**
  * Real MCPMon proxy test harness for integration testing
  */
@@ -352,13 +429,15 @@ export class MCPMonTestHarness {
             get: (extensionId) => extensionMap.get(extensionId),
             isEnabled: (extensionId) => enabledExtensions.has(extensionId),
             initializeAll: async (context) => {
-                for (const extension of this.getEnabled()) {
+                const enabled = Array.from(extensionMap.values()).filter(ext => enabledExtensions.has(ext.id));
+                for (const extension of enabled) {
                     const fullContext = this.createExtensionContext(extension, context);
                     await extension.initialize(fullContext);
                 }
             },
             shutdownAll: async () => {
-                for (const extension of this.getEnabled()) {
+                const enabled = Array.from(extensionMap.values()).filter(ext => enabledExtensions.has(ext.id));
+                for (const extension of enabled) {
                     await extension.shutdown();
                 }
             },

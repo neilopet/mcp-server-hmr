@@ -16,7 +16,8 @@ export default {
     "node_modules/(?!.*\\.mjs$)"
   ],
   testMatch: [
-    "**/tests/behavior/**/*.test.ts"
+    "**/tests/behavior/**/*.test.ts",
+    "**/src/**/*.test.ts"
   ],
   testEnvironment: "node",
   testTimeout: 60000,
