@@ -19,8 +19,8 @@ const mockTestHarness: TestHarness = {
   enableExtension: async () => {},
   disableExtension: async () => {},
   withExtension: async (id, test) => test(),
-  sendRequest: async () => ({ id: 'test', result: {} }),
-  expectNotification: async () => ({ method: 'test', params: {} }),
+  sendRequest: async () => ({ jsonrpc: '2.0' as const, id: 'test', result: {} }),
+  expectNotification: async () => ({ jsonrpc: '2.0' as const, method: 'test', params: {} }),
   callTool: async () => ({}),
   streamResponse: async () => {},
   getProxy: () => ({} as any),
@@ -36,17 +36,16 @@ const mockLRHUtilities = {
     })),
   simulateProgressToken: () => `progress-${Math.random().toString(36).substr(2, 9)}`,
   mockDuckDBQuery: () => {},
-  mockDatasetListing: () => {}
+  mockDatasetListing: () => {},
+  createMockDataset: (rows: number, cols: number) => 
+    Array(rows).fill(null).map(() => Array(cols).fill('data')),
+  formatBytes: (bytes: number) => `${bytes} bytes`
 };
 
 // Create test suite instance directly (bypassing DI for now)
 const testSuite = new (class extends LargeResponseHandlerTestSuite {
   constructor() {
-    super();
-    // Set mock dependencies
-    (this as any).mockMCPMon = mockMCPMon;
-    (this as any).testHarness = mockTestHarness;
-    (this as any).lrhUtils = mockLRHUtilities;
+    super(mockMCPMon, mockTestHarness, mockLRHUtilities);
   }
 })();
 

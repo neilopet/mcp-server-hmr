@@ -159,9 +159,9 @@ describe('StreamingBuffer', () => {
       const largeData = 'x'.repeat(200);
       await buffer.addChunk(requestId, { data: largeData });
       
-      // Should log warning about disk fallback not implemented
-      expect(mockLogger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('Buffer size limit exceeded')
+      // Should log info about switching to disk fallback
+      expect(mockLogger.info).toHaveBeenCalledWith(
+        expect.stringContaining('Switching to disk fallback')
       );
     });
     
