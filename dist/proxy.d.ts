@@ -66,6 +66,11 @@ export declare class MCPProxy {
     private extensionHooks;
     constructor(dependencies: ProxyDependencies, config: MCPProxyConfig);
     /**
+     * Auto-detect files to watch from command and arguments
+     * Used as fallback when no explicit watchTargets are provided
+     */
+    private autoDetectWatchTargets;
+    /**
      * Normalize config to handle backward compatibility between entryFile and watchTargets
      */
     private normalizeConfig;

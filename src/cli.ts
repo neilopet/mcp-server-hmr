@@ -19,6 +19,7 @@ import { NodeProcessManager } from "./node/NodeProcessManager.js";
 import { MCPProxy } from "./proxy.js";
 import { setupCommand } from "./setup.js";
 import { ExtensionRegistry } from "./extensions/index.js";
+import { parseWatchAndCommand } from "./cli-utils.js";
 
 // Check if we're running on an outdated Node.js version
 const nodeVersion = process.version;
@@ -45,7 +46,7 @@ program
 program
   .argument('[command]', 'Command to run (node, python, deno, etc.)')
   .argument('[args...]', 'Arguments to pass to command')
-  .option('--watch <paths>', 'Override files/directories to watch (comma-separated)')
+  .option('--watch <path>', 'Add file/directory to watch (can be used multiple times)')
   .option('--delay <ms>', 'Restart delay in milliseconds', '1000')
   .option('--verbose', 'Enable verbose logging')
   .option('--enable-extension <name>', 'Enable specific extension', [])
@@ -60,6 +61,22 @@ Examples:
   mcpmon deno run server.ts
   mcpmon node --inspect server.js
   
+Watch Mode Examples:
+  mcpmon --watch ./src --watch ./config node server.js  # Watch multiple paths
+  mcpmon --watch ./files node server.js                  # Explicit watch directory
+  mcpmon --watch ./src --watch ./config docker run -i my-app  # Docker with explicit paths
+  
+  Auto-detection mode (default):
+    mcpmon node server.js                 # Automatically watches server.js
+    mcpmon python app.py                  # Automatically watches app.py
+  
+  Explicit watch mode (recommended for containers):
+    mcpmon --watch ./app docker run -i my-mcp-server
+    mcpmon --watch /code/src docker compose exec app python server.py
+  
+  Mixed mode (both explicit and auto-detected):
+    mcpmon --watch ./lib node server.js   # Watches both ./lib and server.js
+
 Extension Examples:
   mcpmon --list-extensions                           # List available extensions
   mcpmon --enable-extension large-response-handler node server.js
@@ -74,6 +91,12 @@ Environment Variables:
 
 Like nodemon, but for Model Context Protocol servers.
 Automatically restarts your server when files change.
+
+Watch Modes:
+  • Auto-detection: Automatically detects files from command arguments
+  • Explicit: Use --watch flags for full control over what to monitor
+  • Mixed: Combines explicit paths with auto-detected files
+  • Use explicit mode for Docker containers and complex setups
 `)
   .action(async (command, args, options) => {
     // Handle list extensions command (doesn't require a command)
@@ -87,7 +110,10 @@ Automatically restarts your server when files change.
       return;
     }
 
-    await runProxy(command, args, options);
+    // Get explicit watch targets from pre-processed arguments
+    const explicitWatchTargets = (program as any)._watchTargetsFromArgs || [];
+    
+    await runProxy(command, args, options, explicitWatchTargets);
   });
 
 // Setup subcommand
@@ -181,28 +207,54 @@ function autoDetectWatchFile(command: string, args: string[]): string | null {
   return null;
 }
 
-async function runProxy(command: string, args: string[], options: any) {
-  // Auto-detect what file to watch
-  let watchFile = autoDetectWatchFile(command, args);
 
-  // Override with CLI option or environment variable
+async function runProxy(command: string, args: string[], options: any, explicitWatchTargets: string[] = []) {
+  // Build watch targets array from multiple sources
+  let watchTargets: string[] = [];
+  
+  // 1. Start with explicit --watch targets from command line
+  if (explicitWatchTargets.length > 0) {
+    watchTargets = [...explicitWatchTargets];
+  }
+  
+  // 2. Add from legacy --watch option (comma-separated) 
   if (options.watch) {
     const watchPaths = options.watch.split(",").map((p: string) => p.trim());
-    watchFile = watchPaths[0]; // Use first path for now
-  } else if (process.env.MCPMON_WATCH) {
-    const watchPaths = process.env.MCPMON_WATCH.split(",").map((p) => p.trim());
-    watchFile = watchPaths[0]; // Use first path for now
+    watchTargets.push(...watchPaths);
   }
-
+  
+  // 3. Add from environment variable
+  if (process.env.MCPMON_WATCH) {
+    const watchPaths = process.env.MCPMON_WATCH.split(",").map((p) => p.trim());
+    watchTargets.push(...watchPaths);
+  }
+  
+  // 4. Auto-detect if no explicit targets, or always add auto-detected for mixed mode
+  const autoDetectedFile = autoDetectWatchFile(command, args);
+  if (autoDetectedFile) {
+    if (watchTargets.length === 0) {
+      // Pure auto-detection mode (backward compatibility)
+      watchTargets.push(autoDetectedFile);
+    } else {
+      // Mixed mode: add auto-detected to explicit targets (avoid duplicates)
+      if (!watchTargets.includes(autoDetectedFile)) {
+        watchTargets.push(autoDetectedFile);
+      }
+    }
+  }
+  
+  // Deduplicate watch targets
+  watchTargets = [...new Set(watchTargets)];
+  
   // Set verbose mode from CLI option or environment variable
   const verbose = options.verbose || process.env.MCPMON_VERBOSE;
   if (verbose) {
     console.error(`🔧 mcpmon starting...`);
     console.error(`📟 Command: ${command} ${args.join(" ")}`);
-    if (watchFile) {
-      console.error(`👀 Watching: ${watchFile}`);
+    if (watchTargets.length > 0) {
+      console.error(`👀 Watching: ${watchTargets.join(", ")}`);
     } else {
-      console.error(`⚠️  No file to watch detected`);
+      console.error(`⚠️  No files to watch detected`);
     }
   }
 
@@ -316,7 +368,7 @@ async function runProxy(command: string, args: string[], options: any) {
     {
       command,
       commandArgs: args,
-      entryFile: watchFile,
+      watchTargets: watchTargets,
       restartDelay,
       env: Object.fromEntries(
         Object.entries(process.env).filter(([_, value]) => value !== undefined)
@@ -356,7 +408,42 @@ process.on("unhandledRejection", (reason, promise) => {
 
 // Parse command line arguments and run
 try {
-  await program.parseAsync();
+  // Pre-process arguments to extract --watch flags before Commander.js processes them
+  let watchTargetsFromArgs: string[] = [];
+  let processedArgs = process.argv.slice(2);
+  
+  try {
+    const parsed = parseWatchAndCommand(process.argv.slice(2));
+    if (parsed.watchTargets.length > 0) {
+      watchTargetsFromArgs = parsed.watchTargets;
+      
+      // Remove --watch flags from arguments before passing to Commander.js
+      // This prevents conflicts with the existing --watch option
+      processedArgs = [];
+      const originalArgs = process.argv.slice(2);
+      
+      for (let i = 0; i < originalArgs.length; i++) {
+        const arg = originalArgs[i];
+        if (arg === '--watch') {
+          // Skip --watch and its value
+          i++; // Skip the path argument too
+        } else {
+          processedArgs.push(arg);
+        }
+      }
+    }
+  } catch (parseError: any) {
+    // If parsing fails, show help message
+    console.error("❌ CLI parsing error:", parseError.message);
+    program.help();
+    process.exit(1);
+  }
+  
+  // Store watch targets for use in action handler
+  (program as any)._watchTargetsFromArgs = watchTargetsFromArgs;
+  
+  // Parse with processed arguments
+  await program.parseAsync([process.argv[0], process.argv[1], ...processedArgs]);
 } catch (error: any) {
   console.error("❌ mcpmon failed to start:", error.message);
   if (process.env.MCPMON_VERBOSE) {

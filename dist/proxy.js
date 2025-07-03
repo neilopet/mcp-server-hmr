@@ -139,6 +139,27 @@ export class MCPProxy {
         }, this.config.restartDelay);
     }
     /**
+     * Auto-detect files to watch from command and arguments
+     * Used as fallback when no explicit watchTargets are provided
+     */
+    autoDetectWatchTargets(command, commandArgs) {
+        const watchTargets = [];
+        // Look for the first file argument that looks like a script
+        for (const arg of commandArgs) {
+            // Skip flags
+            if (arg.startsWith("-"))
+                continue;
+            // Check for common script extensions
+            const scriptExtensions = [".js", ".mjs", ".ts", ".py", ".rb", ".php"];
+            const hasScriptExtension = scriptExtensions.some(ext => arg.endsWith(ext));
+            if (hasScriptExtension) {
+                watchTargets.push(arg);
+                break; // Only auto-detect the first script file for now
+            }
+        }
+        return watchTargets;
+    }
+    /**
      * Normalize config to handle backward compatibility between entryFile and watchTargets
      */
     normalizeConfig(config) {
@@ -147,7 +168,13 @@ export class MCPProxy {
         if (!normalized.watchTargets && normalized.entryFile) {
             normalized.watchTargets = [normalized.entryFile];
         }
-        // Ensure we have something to watch (can be empty for non-file-based monitoring)
+        // Auto-detect files to watch if no explicit targets provided
+        // This supports library usage where users create MCPProxy directly
+        if (!normalized.watchTargets || normalized.watchTargets.length === 0) {
+            const autoDetected = this.autoDetectWatchTargets(normalized.command, normalized.commandArgs);
+            normalized.watchTargets = autoDetected;
+        }
+        // Ensure we have an array (can be empty for non-file-based monitoring)
         if (!normalized.watchTargets) {
             normalized.watchTargets = [];
         }
