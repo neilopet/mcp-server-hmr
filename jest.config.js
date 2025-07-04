@@ -33,6 +33,7 @@ export default {
   testTimeout: 60000,
   verbose: true,
   passWithNoTests: true,
+  setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
   collectCoverageFrom: [
     "src/**/*.ts", 
     "!src/**/*.test.ts", 

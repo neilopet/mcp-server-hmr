@@ -377,7 +377,6 @@ export class BaseMCPClientSimulator implements MCPClientSimulator {
     };
 
     await this.sendRequest(initRequest);
-    
     // Simulate initialization delay
     await this.delay(this.config.initializationDelay || 100);
     this.initialized = true;
