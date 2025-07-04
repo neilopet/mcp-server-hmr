@@ -105,11 +105,18 @@ export class LargeResponseHandlerTestSuite implements ExtensionTestSuite {
           expect.stringContaining('Large Response Handler initialized')
         );
 
-        // Verify hooks are registered
-        this.mockMCPMon.expectHookRegistered('beforeStdinForward');
-        this.mockMCPMon.expectHookRegistered('afterStdoutReceive');
-        this.mockMCPMon.expectHookRegistered('getAdditionalTools');
-        this.mockMCPMon.expectHookRegistered('handleToolCall');
+        // Verify hooks are registered on context
+        expect(context.hooks.beforeStdinForward).toBeDefined();
+        expect(typeof context.hooks.beforeStdinForward).toBe('function');
+        
+        expect(context.hooks.afterStdoutReceive).toBeDefined();
+        expect(typeof context.hooks.afterStdoutReceive).toBe('function');
+        
+        expect(context.hooks.getAdditionalTools).toBeDefined();
+        expect(typeof context.hooks.getAdditionalTools).toBe('function');
+        
+        expect(context.hooks.handleToolCall).toBeDefined();
+        expect(typeof context.hooks.handleToolCall).toBe('function');
       });
 
       it('should initialize streaming buffer when enabled', async () => {
@@ -270,13 +277,32 @@ export class LargeResponseHandlerTestSuite implements ExtensionTestSuite {
       });
 
       it('should handle buffer size limits', async () => {
-        // Create chunks that exceed buffer limit
+        // Create a context with a very small buffer limit that will be exceeded
+        const smallBufferContext = this.mockMCPMon.createContext({
+          sessionId: 'test-session-123',
+          dataDir: '/tmp/test-mcpmon',
+          config: {
+            threshold: 25000,
+            tokenThreshold: 20000,
+            enableDuckDB: true,
+            enableSchemaGeneration: true,
+            enableStreaming: true,
+            progressUpdateInterval: 100,
+            maxBufferSize: 2000, // 2KB - small enough to be exceeded by a few chunks
+            streamingTimeout: 5000
+          }
+        });
+        
+        // Re-initialize extension with small buffer config
+        await this.extension.initialize(smallBufferContext);
+        
+        // Create chunks that will exceed the small buffer limit
         const largeChunks = this.lrhUtils.createStreamingChunks(200, 100);
         const requestId = 'buffer-limit-789';
 
-        const hooks = this.mockMCPMon.getRegisteredHooks();
+        const hooks = smallBufferContext.hooks;
 
-        // Should switch to disk fallback when buffer limit exceeded
+        // Process chunks until buffer limit is exceeded
         for (const chunk of largeChunks.slice(0, 10)) {
           const chunkMessage = {
             id: requestId,
@@ -286,8 +312,8 @@ export class LargeResponseHandlerTestSuite implements ExtensionTestSuite {
           await hooks.afterStdoutReceive!(chunkMessage);
         }
 
-        // Should log warning about disk fallback
-        expect(getContext().logger.warn).toHaveBeenCalledWith(
+        // Should log warning about buffer limit exceeded
+        expect(smallBufferContext.logger.warn).toHaveBeenCalledWith(
           expect.stringContaining('Buffer size limit exceeded')
         );
       });
@@ -303,30 +329,35 @@ export class LargeResponseHandlerTestSuite implements ExtensionTestSuite {
         await this.extension.initialize(getContext());
       });
 
-      it('should inject LRH tools into tools/list response', async () => {
-        const listRequest = { method: 'tools/list', id: 'list-123' };
-        const hooks = this.mockMCPMon.getRegisteredHooks();
+      it('should provide LRH tools through getAdditionalTools', async () => {
+        // Initialize extension with context
+        const context = getContext();
+        await this.extension.initialize(context);
 
-        // Track tools/list request
-        await hooks.beforeStdinForward!(listRequest);
+        // Get the registered getAdditionalTools hook
+        const getAdditionalTools = context.hooks.getAdditionalTools;
+        expect(getAdditionalTools).toBeDefined();
+        expect(typeof getAdditionalTools).toBe('function');
 
-        // Simulate tools/list response
-        const listResponse = {
-          id: 'list-123',
-          result: {
-            tools: [
-              { name: 'existing-tool', description: 'Existing tool' }
-            ]
-          }
-        };
+        // Call the hook to get additional tools
+        const additionalTools = await getAdditionalTools!();
 
-        const result = await hooks.afterStdoutReceive!(listResponse);
-
-        expect(result.result.tools).toHaveLength(3); // 1 existing + 2 injected
+        // Verify the extension provides exactly 2 tools
+        expect(additionalTools).toHaveLength(2);
         
-        // Verify LRH tools are injected
-        this.mockMCPMon.expectToolRegistered('mcpmon.analyze-with-duckdb');
-        this.mockMCPMon.expectToolRegistered('mcpmon.list-saved-datasets');
+        // Verify the tool names
+        const toolNames = additionalTools.map(t => t.name);
+        expect(toolNames).toContain('mcpmon.analyze-with-duckdb');
+        expect(toolNames).toContain('mcpmon.list-saved-datasets');
+        
+        // Verify each tool has required properties
+        additionalTools.forEach(tool => {
+          expect(tool).toHaveProperty('name');
+          expect(tool).toHaveProperty('description');
+          expect(tool).toHaveProperty('inputSchema');
+          expect(tool.inputSchema).toHaveProperty('type', 'object');
+          expect(tool.inputSchema).toHaveProperty('properties');
+        });
       });
 
       it('should provide correct tool schemas', async () => {

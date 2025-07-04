@@ -16,6 +16,8 @@ export declare class MockMCPMonImpl implements MockMCPMon {
     private progressNotifications;
     private hookCalls;
     private contextInstance;
+    private notificationService;
+    constructor();
     /**
      * Create a mock extension context with test helpers
      */

@@ -135,23 +135,13 @@ export default class LargeResponseHandlerExtension {
     async sendProgressNotification(notification) {
         if (!this.context)
             return;
-        // Create MCP progress notification message
-        const progressMessage = {
-            jsonrpc: '2.0',
-            method: 'notifications/progress',
-            params: notification
-        };
-        // Inject the notification into the output stream
-        // The proxy needs to handle this specially to interleave with responses
-        if (this.context.dependencies?.stdout) {
-            const encoder = new TextEncoder();
-            const writer = this.context.dependencies.stdout.getWriter();
-            try {
-                await writer.write(encoder.encode(JSON.stringify(progressMessage) + '\n'));
-            }
-            finally {
-                writer.releaseLock();
-            }
+        // Use the injected notification service if available
+        if (this.context.notificationService) {
+            await this.context.notificationService.sendProgress(notification);
+        }
+        else {
+            // Fallback warning when service is not available
+            this.context.logger.warn('NotificationService not available, progress notification dropped');
         }
     }
     /**

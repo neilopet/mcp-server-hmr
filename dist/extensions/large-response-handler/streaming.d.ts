@@ -58,6 +58,7 @@ export declare class StreamingBuffer {
     private logger?;
     private progressHandler?;
     private tempDir;
+    private bufferLimitWarned;
     constructor(config?: Partial<StreamingConfig>, logger?: ExtensionLogger);
     /**
      * Set the progress notification handler

@@ -5,6 +5,7 @@
  * with realistic behavior simulation and comprehensive verification capabilities.
  */
 import { jest } from '@jest/globals';
+import { createMockNotificationService } from './mocks/MockNotificationService.js';
 /**
  * Mock implementation of MCPMon for unit testing
  */
@@ -15,6 +16,10 @@ export class MockMCPMonImpl {
     progressNotifications = [];
     hookCalls = new Map();
     contextInstance = null;
+    notificationService;
+    constructor() {
+        this.notificationService = createMockNotificationService();
+    }
     /**
      * Create a mock extension context with test helpers
      */
@@ -28,6 +33,7 @@ export class MockMCPMonImpl {
             dataDir: options.dataDir ?? '/tmp/mock-mcpmon-data',
             logger: mockLogger,
             sessionId: options.sessionId ?? `mock-session-${Date.now()}`,
+            notificationService: this.notificationService,
             testHelpers: {
                 triggerHook: this.triggerHook.bind(this),
                 getHookCalls: this.getHookCalls.bind(this)
@@ -185,7 +191,17 @@ export class MockMCPMonImpl {
      * Get progress notifications
      */
     getProgressNotifications() {
-        return [...this.progressNotifications];
+        // Convert simple progress notifications to full MCP format
+        return this.notificationService.getNotifications().map(notification => ({
+            jsonrpc: '2.0',
+            method: 'notifications/progress',
+            params: {
+                progressToken: notification.progressToken,
+                progress: notification.progress,
+                total: notification.total,
+                message: notification.message
+            }
+        }));
     }
     /**
      * Reset all captured data
@@ -197,6 +213,7 @@ export class MockMCPMonImpl {
         this.progressNotifications = [];
         this.hookCalls.clear();
         this.contextInstance = null;
+        this.notificationService.clear();
     }
     /**
      * Trigger a hook manually for testing

@@ -6,6 +6,26 @@
  */
 import type { ProxyDependencies } from '../interfaces.js';
 /**
+ * Progress notification for MCP protocol
+ */
+export interface ProgressNotification {
+    progressToken: string;
+    progress: number;
+    total?: number;
+    message?: string;
+}
+/**
+ * Service for sending notifications
+ * Allows extensions to send progress notifications without direct stdout access
+ */
+export interface NotificationService {
+    /**
+     * Send a progress notification
+     * @param notification The progress notification to send
+     */
+    sendProgress(notification: ProgressNotification): Promise<void>;
+}
+/**
  * Base interface for all mcpmon extensions
  */
 export interface Extension {
@@ -40,6 +60,11 @@ export interface ExtensionContext {
     logger: ExtensionLogger;
     /** Session ID for this proxy instance */
     sessionId: string;
+    /**
+     * Notification service for sending progress notifications
+     * Optional for backward compatibility - extensions should check if available
+     */
+    notificationService?: NotificationService;
 }
 /**
  * Hooks that extensions can register

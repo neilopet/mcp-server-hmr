@@ -67,6 +67,7 @@ export class StreamingBuffer {
   private logger?: ExtensionLogger;
   private progressHandler?: ProgressNotificationHandler;
   private tempDir = join(process.cwd(), '.mcpmon-streaming-temp');
+  private bufferLimitWarned: Record<string | number, boolean> = {};
   
   constructor(
     config: Partial<StreamingConfig> = {},
@@ -145,6 +146,15 @@ export class StreamingBuffer {
     
     // Check buffer size limit
     if (buffer.totalBytes + byteSize > this.config.maxBufferSize) {
+      // Log warning if not already warned for this request
+      if (!this.bufferLimitWarned[requestId]) {
+        this.logger?.warn(
+          `Buffer size limit exceeded for request ${requestId}: ` +
+          `${buffer.totalBytes + byteSize} > ${this.config.maxBufferSize}`
+        );
+        this.bufferLimitWarned[requestId] = true;
+      }
+      
       if (this.config.enableDiskFallback) {
         // Switch to disk-based buffering
         await this.switchToDiskFallback(buffer, chunk, byteSize);
@@ -199,6 +209,9 @@ export class StreamingBuffer {
     if (buffer.progressToken) {
       this.lastProgressUpdate.delete(buffer.progressToken);
     }
+    
+    // Clean up warning tracking
+    delete this.bufferLimitWarned[requestId];
     
     const totalChunks = buffer.diskFallback?.enabled 
       ? buffer.diskFallback.chunksOnDisk 

@@ -29,6 +29,7 @@ import type {
 } from '../extensions/interfaces.js';
 
 import type { ProxyDependencies } from '../interfaces.js';
+import { MockNotificationService, createMockNotificationService } from './mocks/MockNotificationService.js';
 
 /**
  * Mock implementation of MCPMon for unit testing
@@ -40,6 +41,11 @@ export class MockMCPMonImpl implements MockMCPMon {
   private progressNotifications: ProgressNotification[] = [];
   private hookCalls: Map<keyof ExtensionHooks, any[]> = new Map();
   private contextInstance: MockExtensionContext | null = null;
+  private notificationService: MockNotificationService;
+
+  constructor() {
+    this.notificationService = createMockNotificationService();
+  }
 
   /**
    * Create a mock extension context with test helpers
@@ -55,6 +61,7 @@ export class MockMCPMonImpl implements MockMCPMon {
       dataDir: options.dataDir ?? '/tmp/mock-mcpmon-data',
       logger: mockLogger,
       sessionId: options.sessionId ?? `mock-session-${Date.now()}`,
+      notificationService: this.notificationService,
       testHelpers: {
         triggerHook: this.triggerHook.bind(this),
         getHookCalls: this.getHookCalls.bind(this)
@@ -229,7 +236,17 @@ export class MockMCPMonImpl implements MockMCPMon {
    * Get progress notifications
    */
   getProgressNotifications(): ProgressNotification[] {
-    return [...this.progressNotifications];
+    // Convert simple progress notifications to full MCP format
+    return this.notificationService.getNotifications().map(notification => ({
+      jsonrpc: '2.0' as const,
+      method: 'notifications/progress' as const,
+      params: {
+        progressToken: notification.progressToken,
+        progress: notification.progress,
+        total: notification.total,
+        message: notification.message
+      }
+    }));
   }
 
   /**
@@ -242,6 +259,7 @@ export class MockMCPMonImpl implements MockMCPMon {
     this.progressNotifications = [];
     this.hookCalls.clear();
     this.contextInstance = null;
+    this.notificationService.clear();
   }
 
   /**
