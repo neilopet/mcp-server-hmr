@@ -24,7 +24,6 @@ import type { LRHTestUtilities } from './providers.js';
  * Uses DI pattern for clean dependency management and test isolation
  */
 @TestContainer.register('large-response-handler')
-@injectable()
 export class LargeResponseHandlerTestSuite implements ExtensionTestSuite {
   readonly extensionId = 'large-response-handler';
   readonly extension = new LargeResponseHandlerExtension();

@@ -113,6 +113,7 @@ export declare class MockMCPStream implements MCPStream {
     private closeHandlers;
     private messageQueue;
     private closed;
+    private errorSimulation;
     write(data: string): Promise<void>;
     read(): Promise<string>;
     close(): Promise<void>;
@@ -122,6 +123,16 @@ export declare class MockMCPStream implements MCPStream {
     simulateMessage(message: string): void;
     simulateError(error: Error): void;
     simulateClose(): void;
+    simulateConnectionError(shouldFail?: boolean, message?: string): void;
+    simulateInitializationError(shouldFail?: boolean, message?: string): void;
+    simulateToolCallTimeout(shouldTimeout?: boolean, timeoutMs?: number): void;
+    resetErrorSimulation(): void;
+    shouldSimulateConnectionError(): boolean;
+    shouldSimulateInitializationError(): boolean;
+    shouldSimulateToolCallTimeout(): boolean;
+    getConnectionErrorMessage(): string;
+    getInitializationErrorMessage(): string;
+    getToolCallTimeoutMs(): number;
 }
 /**
  * Real stream implementation for actual network communication

@@ -4,6 +4,7 @@
  * Provides a fully controllable mock environment for testing mcpmon extensions
  * with realistic behavior simulation and comprehensive verification capabilities.
  */
+import { jest } from '@jest/globals';
 /**
  * Mock implementation of MCPMon for unit testing
  */
@@ -226,9 +227,10 @@ export class MockMCPMonImpl {
      * Create a hooks proxy that captures registered hooks
      */
     createHooksProxy() {
+        const validHookNames = ['beforeStdinForward', 'afterStdoutReceive', 'getAdditionalTools', 'handleToolCall', 'onError', 'onServerRestart', 'beforeServerStart', 'afterServerStop'];
         const proxy = new Proxy({}, {
             set: (target, prop, value) => {
-                if (typeof prop === 'string' && prop in target) {
+                if (typeof prop === 'string' && validHookNames.includes(prop)) {
                     this.registeredHooks[prop] = value;
                     // Special handling for getAdditionalTools hook
                     if (prop === 'getAdditionalTools' && typeof value === 'function') {
@@ -301,39 +303,44 @@ export class MockMCPMonImpl {
      */
     createMockLogger() {
         const logEntries = [];
+        // Create Jest spy functions that also track log entries
+        const debugSpy = jest.fn((message, ...args) => {
+            logEntries.push({
+                level: 'debug',
+                message,
+                args,
+                timestamp: Date.now()
+            });
+        });
+        const infoSpy = jest.fn((message, ...args) => {
+            logEntries.push({
+                level: 'info',
+                message,
+                args,
+                timestamp: Date.now()
+            });
+        });
+        const warnSpy = jest.fn((message, ...args) => {
+            logEntries.push({
+                level: 'warn',
+                message,
+                args,
+                timestamp: Date.now()
+            });
+        });
+        const errorSpy = jest.fn((message, ...args) => {
+            logEntries.push({
+                level: 'error',
+                message,
+                args,
+                timestamp: Date.now()
+            });
+        });
         const logger = {
-            debug: (message, ...args) => {
-                logEntries.push({
-                    level: 'debug',
-                    message,
-                    args,
-                    timestamp: Date.now()
-                });
-            },
-            info: (message, ...args) => {
-                logEntries.push({
-                    level: 'info',
-                    message,
-                    args,
-                    timestamp: Date.now()
-                });
-            },
-            warn: (message, ...args) => {
-                logEntries.push({
-                    level: 'warn',
-                    message,
-                    args,
-                    timestamp: Date.now()
-                });
-            },
-            error: (message, ...args) => {
-                logEntries.push({
-                    level: 'error',
-                    message,
-                    args,
-                    timestamp: Date.now()
-                });
-            },
+            debug: debugSpy,
+            info: infoSpy,
+            warn: warnSpy,
+            error: errorSpy,
             log: (level, message, ...args) => {
                 logEntries.push({
                     level,
@@ -341,9 +348,31 @@ export class MockMCPMonImpl {
                     args,
                     timestamp: Date.now()
                 });
+                // Also call the appropriate spy for consistency
+                switch (level) {
+                    case 'debug':
+                        debugSpy(message, ...args);
+                        break;
+                    case 'info':
+                        infoSpy(message, ...args);
+                        break;
+                    case 'warn':
+                        warnSpy(message, ...args);
+                        break;
+                    case 'error':
+                        errorSpy(message, ...args);
+                        break;
+                }
             },
             getLogs: () => [...logEntries],
-            clear: () => logEntries.length = 0
+            clear: () => {
+                logEntries.length = 0;
+                // Clear Jest spy call history
+                debugSpy.mockClear();
+                infoSpy.mockClear();
+                warnSpy.mockClear();
+                errorSpy.mockClear();
+            }
         };
         return logger;
     }

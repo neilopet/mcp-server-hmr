@@ -16,7 +16,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 var __param = (this && this.__param) || function (paramIndex, decorator) {
     return function (target, key) { decorator(target, key, paramIndex); }
 };
-import { inject, injectable } from 'inversify';
+import { inject } from 'inversify';
 import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
 import { TestContainer } from '../../../testing/TestContainer.js';
 import { TEST_TYPES } from '../../../testing/types.js';
@@ -458,7 +458,6 @@ let LargeResponseHandlerTestSuite = class LargeResponseHandlerTestSuite {
 };
 LargeResponseHandlerTestSuite = __decorate([
     TestContainer.register('large-response-handler'),
-    injectable(),
     __param(0, inject(TEST_TYPES.MockMCPMon)),
     __param(1, inject(TEST_TYPES.TestHarness)),
     __param(2, inject('LRHTestUtilities')),

@@ -68,6 +68,7 @@ describe('StreamingBuffer - Unit Tests', () => {
     it('should accumulate chunks and track statistics', async () => {
       const requestId = 'test-accumulate-002';
       buffer.startBuffering(requestId);
+      await new Promise(resolve => setTimeout(resolve, 1));
       
       // Add test chunks
       const chunk1 = { data: Array(10).fill({ id: 1, value: 'test' }) };

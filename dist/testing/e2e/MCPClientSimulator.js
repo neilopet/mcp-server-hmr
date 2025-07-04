@@ -18,6 +18,15 @@ export class MockMCPStream {
     closeHandlers = [];
     messageQueue = [];
     closed = false;
+    // Error simulation configuration (opt-in)
+    errorSimulation = {
+        connectShouldFail: false,
+        initializeShouldFail: false,
+        toolCallShouldTimeout: false,
+        connectionErrorMessage: 'Connection failed',
+        initializationErrorMessage: 'Initialization failed',
+        toolCallTimeoutMs: 5000,
+    };
     async write(data) {
         if (this.closed) {
             throw new Error('Stream is closed');
@@ -68,6 +77,54 @@ export class MockMCPStream {
     simulateClose() {
         this.closed = true;
         this.closeHandlers.forEach(handler => handler());
+    }
+    // Error simulation control methods (opt-in)
+    simulateConnectionError(shouldFail = true, message) {
+        this.errorSimulation.connectShouldFail = shouldFail;
+        if (message) {
+            this.errorSimulation.connectionErrorMessage = message;
+        }
+    }
+    simulateInitializationError(shouldFail = true, message) {
+        this.errorSimulation.initializeShouldFail = shouldFail;
+        if (message) {
+            this.errorSimulation.initializationErrorMessage = message;
+        }
+    }
+    simulateToolCallTimeout(shouldTimeout = true, timeoutMs) {
+        this.errorSimulation.toolCallShouldTimeout = shouldTimeout;
+        if (timeoutMs) {
+            this.errorSimulation.toolCallTimeoutMs = timeoutMs;
+        }
+    }
+    resetErrorSimulation() {
+        this.errorSimulation = {
+            connectShouldFail: false,
+            initializeShouldFail: false,
+            toolCallShouldTimeout: false,
+            connectionErrorMessage: 'Connection failed',
+            initializationErrorMessage: 'Initialization failed',
+            toolCallTimeoutMs: 5000,
+        };
+    }
+    // Methods to check error simulation state (for testing)
+    shouldSimulateConnectionError() {
+        return this.errorSimulation.connectShouldFail;
+    }
+    shouldSimulateInitializationError() {
+        return this.errorSimulation.initializeShouldFail;
+    }
+    shouldSimulateToolCallTimeout() {
+        return this.errorSimulation.toolCallShouldTimeout;
+    }
+    getConnectionErrorMessage() {
+        return this.errorSimulation.connectionErrorMessage;
+    }
+    getInitializationErrorMessage() {
+        return this.errorSimulation.initializationErrorMessage;
+    }
+    getToolCallTimeoutMs() {
+        return this.errorSimulation.toolCallTimeoutMs;
     }
 }
 /**
@@ -189,6 +246,10 @@ export class BaseMCPClientSimulator {
         if (this.connected) {
             throw new Error('Already connected');
         }
+        // Check for error simulation (opt-in)
+        if (this.stream instanceof MockMCPStream && this.stream.shouldSimulateConnectionError()) {
+            throw new Error(this.stream.getConnectionErrorMessage());
+        }
         // Simulate connection delay
         await this.delay(this.config.initializationDelay || 50);
         this.connected = true;
@@ -199,6 +260,10 @@ export class BaseMCPClientSimulator {
         }
         if (this.initialized) {
             throw new Error('Already initialized');
+        }
+        // Check for error simulation (opt-in)
+        if (this.stream instanceof MockMCPStream && this.stream.shouldSimulateInitializationError()) {
+            throw new Error(this.stream.getInitializationErrorMessage());
         }
         const initRequest = {
             jsonrpc: '2.0',
@@ -273,6 +338,16 @@ export class BaseMCPClientSimulator {
     async sendRequest(request) {
         await this.stream.write(JSON.stringify(request));
         return new Promise((resolve, reject) => {
+            // Check for tool call timeout simulation (opt-in)
+            if (this.stream instanceof MockMCPStream &&
+                request.method === 'tools/call' &&
+                this.stream.shouldSimulateToolCallTimeout()) {
+                const timeoutMs = this.stream.getToolCallTimeoutMs();
+                setTimeout(() => {
+                    reject(new Error(`Tool call timeout after ${timeoutMs}ms`));
+                }, timeoutMs);
+                return;
+            }
             const timeout = setTimeout(() => {
                 reject(new Error(`Request timeout after ${this.config.responseTimeout || 5000}ms`));
             }, this.config.responseTimeout || 5000);

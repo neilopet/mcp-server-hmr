@@ -12,7 +12,7 @@ export class TestContainer {
     static container;
     constructor() {
         TestContainer.container = new Container({
-            defaultScope: 'Singleton',
+            defaultScope: 'Transient',
             skipBaseClassChecks: true
         });
     }
@@ -133,7 +133,7 @@ export class TestContainer {
     reset() {
         TestContainer.container.unbindAll();
         TestContainer.container = new Container({
-            defaultScope: 'Singleton',
+            defaultScope: 'Transient',
             skipBaseClassChecks: true
         });
     }

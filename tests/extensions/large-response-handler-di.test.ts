@@ -6,8 +6,10 @@
  */
 
 import 'reflect-metadata';
+import { jest, beforeEach } from '@jest/globals';
 import { LargeResponseHandlerTestSuite } from '../../src/extensions/large-response-handler/tests/index.js';
 import { createMockMCPMon } from '../../src/testing/MockMCPMon.js';
+import LargeResponseHandlerExtension from '../../src/extensions/large-response-handler/index.js';
 import type { MockMCPMon } from '../../src/testing/types.js';
 import type { TestHarness } from '../../src/testing/types.js';
 
@@ -15,29 +17,29 @@ import type { TestHarness } from '../../src/testing/types.js';
 const mockMCPMon: MockMCPMon = createMockMCPMon();
 
 const mockTestHarness: TestHarness = {
-  initialize: async () => {},
-  enableExtension: async () => {},
-  disableExtension: async () => {},
-  withExtension: async (id, test) => test(),
-  sendRequest: async () => ({ jsonrpc: '2.0' as const, id: 'test', result: {} }),
-  expectNotification: async () => ({ jsonrpc: '2.0' as const, method: 'test', params: {} }),
-  callTool: async () => ({}),
-  streamResponse: async () => {},
-  getProxy: () => ({} as any),
-  verifyExtensionState: () => {},
-  cleanup: async () => {}
+  initialize: jest.fn(async (extensions: any[]) => undefined) as any,
+  enableExtension: jest.fn(async (extensionId: string) => undefined) as any,
+  disableExtension: jest.fn(async (extensionId: string) => undefined) as any,
+  withExtension: jest.fn(async (extensionId: string, test: () => Promise<any>) => test()) as any,
+  sendRequest: jest.fn(async (request: any) => ({ jsonrpc: '2.0' as const, id: 'test', result: {} })) as any,
+  expectNotification: jest.fn(async (method: string, timeout?: number) => ({ jsonrpc: '2.0' as const, method: 'test', params: {} })) as any,
+  callTool: jest.fn(async (toolName: string, args: any, progressToken?: string) => ({})) as any,
+  streamResponse: jest.fn(async (chunks: any[], progressToken?: string) => undefined) as any,
+  getProxy: jest.fn(() => ({} as any)) as any,
+  verifyExtensionState: jest.fn((extensionId: string, expectedState: string) => undefined) as any,
+  cleanup: jest.fn(async () => undefined) as any
 };
 
 const mockLRHUtilities = {
-  createLargeResponse: (sizeKB: number) => ({ data: 'x'.repeat(sizeKB * 1024) }),
-  createStreamingChunks: (count: number, chunkSize: number) => 
+  createLargeResponse: jest.fn((sizeKB: number) => ({ data: 'x'.repeat(sizeKB * 1024) })),
+  createStreamingChunks: jest.fn((count: number, chunkSize: number) => 
     Array.from({ length: count }, (_, i) => ({
       data: Array.from({ length: chunkSize }, (_, j) => i * chunkSize + j)
-    })),
-  simulateProgressToken: () => `progress-${Math.random().toString(36).substr(2, 9)}`,
-  mockDuckDBQuery: () => {},
-  mockDatasetListing: () => {},
-  createMockDataset: (options?: any) => ({
+    }))),
+  simulateProgressToken: jest.fn(() => `progress-123`),
+  mockDuckDBQuery: jest.fn(),
+  mockDatasetListing: jest.fn(),
+  createMockDataset: jest.fn((options?: any) => ({
     status: 'success',
     originalTool: options?.tool || 'test-tool',
     count: options?.itemCount || 100,
@@ -61,9 +63,14 @@ const mockLRHUtilities = {
       timestamp: options?.timestamp || Date.now(),
       sessionId: options?.sessionId || 'test-session'
     }
-  }),
-  formatBytes: (bytes: number) => `${bytes} bytes`
+  })),
+  formatBytes: jest.fn((bytes: number) => `${bytes} bytes`)
 };
+
+// Add mock cleanup for each test
+beforeEach(() => {
+  jest.clearAllMocks();
+});
 
 // Create test suite instance directly (bypassing DI for now)
 const testSuite = new (class extends LargeResponseHandlerTestSuite {
@@ -72,9 +79,5 @@ const testSuite = new (class extends LargeResponseHandlerTestSuite {
   }
 })();
 
-// Execute the test suite
-testSuite.setupTests().then(() => {
-  console.log('DI Test suite setup completed');
-}).catch(error => {
-  console.error('DI Test suite setup failed:', error);
-});
+// Execute the test suite - call synchronously for Jest test discovery
+testSuite.setupTests();

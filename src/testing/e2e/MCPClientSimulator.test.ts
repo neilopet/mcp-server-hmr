@@ -30,8 +30,9 @@ describe('E2E MCP Client Simulator', () => {
   });
 
   afterEach(async () => {
-    // Cleanup any open connections
+    // Cleanup any open connections and reset error simulation
     if (mockStream) {
+      mockStream.resetErrorSimulation();
       await mockStream.close();
     }
   });
@@ -94,11 +95,11 @@ describe('E2E MCP Client Simulator', () => {
     it('should handle initialization errors gracefully', async () => {
       await client.connect();
 
-      // Simulate server error during initialization
-      mockStream.simulateError(new Error('Server initialization failed'));
+      // Simulate initialization failure using new error simulation API
+      mockStream.simulateInitializationError(true, 'Server initialization failed');
 
       // Should handle error without crashing
-      await expect(client.initialize()).rejects.toThrow();
+      await expect(client.initialize()).rejects.toThrow('Server initialization failed');
     });
   });
 
@@ -132,7 +133,7 @@ describe('E2E MCP Client Simulator', () => {
       });
 
       expect(result).toBeDefined();
-      expect(result.content).toEqual([
+      expect(result.result.content).toEqual([
         {
           type: 'text',
           text: 'Mock tool response',
@@ -220,26 +221,28 @@ describe('E2E MCP Client Simulator', () => {
     });
 
     it('should handle connection failures', async () => {
-      // Simulate connection failure
-      mockStream.simulateError(new Error('Connection refused'));
+      // Simulate connection failure using new error simulation API
+      mockStream.simulateConnectionError(true, 'Connection refused');
 
-      await expect(client.connect()).rejects.toThrow();
+      await expect(client.connect()).rejects.toThrow('Connection refused');
     });
 
     it('should handle tool call timeouts', async () => {
       const customClient = context.createCustomClient({
         name: 'timeout-client',
         version: '1.0.0',
-        responseTimeout: 100, // Very short timeout
       });
 
       await customClient.connect();
       await customClient.initialize();
 
+      // Simulate tool call timeout using new error simulation API
+      mockStream.simulateToolCallTimeout(true, 100); // 100ms timeout
+
       // Tool call should timeout
       await expect(
         customClient.callTool('slow-tool', {})
-      ).rejects.toThrow('timeout');
+      ).rejects.toThrow('Tool call timeout after 100ms');
 
       await customClient.disconnect();
     });
