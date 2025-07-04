@@ -33,6 +33,7 @@ node_modules/
 # Temporary files
 tmp/
 temp/
+.mcpmon-streaming-temp/
 # Test artifacts
 coverage/
 *.output
