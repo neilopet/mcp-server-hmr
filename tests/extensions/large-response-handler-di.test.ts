@@ -12,9 +12,12 @@ import { createMockMCPMon } from '../../src/testing/MockMCPMon.js';
 import LargeResponseHandlerExtension from '../../src/extensions/large-response-handler/index.js';
 import type { MockMCPMon } from '../../src/testing/types.js';
 import type { TestHarness } from '../../src/testing/types.js';
+import { createMockMCPServer } from '../../src/testing/MockMCPServer.js';
+import type { MockMCPServer } from '../../src/testing/MockMCPServer.js';
 
 // Simple mock implementations for DI dependencies
 const mockMCPMon: MockMCPMon = createMockMCPMon();
+const mockMCPServer: MockMCPServer = createMockMCPServer();
 
 const mockTestHarness: TestHarness = {
   initialize: jest.fn(async (extensions: any[]) => undefined) as any,
@@ -26,7 +29,7 @@ const mockTestHarness: TestHarness = {
   callTool: jest.fn(async (toolName: string, args: any, progressToken?: string) => ({})) as any,
   streamResponse: jest.fn(async (chunks: any[], progressToken?: string) => undefined) as any,
   getProxy: jest.fn(() => ({} as any)) as any,
-  getMockServer: jest.fn(() => null) as any,
+  getMockServer: jest.fn(() => mockMCPServer) as any,
   verifyExtensionState: jest.fn((extensionId: string, expectedState: string) => undefined) as any,
   cleanup: jest.fn(async () => undefined) as any
 };
@@ -71,6 +74,7 @@ const mockLRHUtilities = {
 // Add mock cleanup for each test
 beforeEach(() => {
   jest.clearAllMocks();
+  mockMCPServer.reset();
 });
 
 // Create test suite instance directly (bypassing DI for now)
