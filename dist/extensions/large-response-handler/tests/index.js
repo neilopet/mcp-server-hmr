@@ -29,6 +29,7 @@ let LargeResponseHandlerTestSuite = class LargeResponseHandlerTestSuite {
     mockMCPMon;
     testHarness;
     lrhUtils;
+    config;
     extensionId = 'large-response-handler';
     extension = new LargeResponseHandlerExtension();
     metadata = {
@@ -40,10 +41,11 @@ let LargeResponseHandlerTestSuite = class LargeResponseHandlerTestSuite {
         timeout: 90000,
         enabled: true
     };
-    constructor(mockMCPMon, testHarness, lrhUtils) {
+    constructor(mockMCPMon, testHarness, lrhUtils, config = {}) {
         this.mockMCPMon = mockMCPMon;
         this.testHarness = testHarness;
         this.lrhUtils = lrhUtils;
+        this.config = config;
     }
     async setupTests() {
         describe('LargeResponseHandlerExtension', () => {
@@ -75,13 +77,20 @@ let LargeResponseHandlerTestSuite = class LargeResponseHandlerTestSuite {
             afterEach(async () => {
                 await this.extension.shutdown();
             });
-            this.defineInitializationTests(() => mockContext);
-            this.defineResponseDetectionTests(() => mockContext);
-            this.defineStreamingTests(() => mockContext);
-            this.defineToolInjectionTests(() => mockContext);
-            this.defineToolCallTests(() => mockContext);
-            this.defineProgressNotificationTests(() => mockContext);
-            this.defineIntegrationTests(() => mockContext);
+            // In soak mode, only run integration tests
+            if (this.config.soakMode) {
+                this.defineIntegrationTests(() => mockContext);
+            }
+            else {
+                // Run all tests in normal mode
+                this.defineInitializationTests(() => mockContext);
+                this.defineResponseDetectionTests(() => mockContext);
+                this.defineStreamingTests(() => mockContext);
+                this.defineToolInjectionTests(() => mockContext);
+                this.defineToolCallTests(() => mockContext);
+                this.defineProgressNotificationTests(() => mockContext);
+                this.defineIntegrationTests(() => mockContext);
+            }
         });
     }
     async teardownTests() {
@@ -454,8 +463,11 @@ let LargeResponseHandlerTestSuite = class LargeResponseHandlerTestSuite {
     defineIntegrationTests(getContext) {
         describe('integration scenarios', () => {
             beforeEach(async () => {
-                await this.testHarness.initialize([this.extension]);
-                await this.testHarness.enableExtension('large-response-handler');
+                // In soak mode, harness is already initialized in beforeAll
+                if (!this.config.soakMode) {
+                    await this.testHarness.initialize([this.extension]);
+                    await this.testHarness.enableExtension('large-response-handler');
+                }
             });
             it('should handle complete large response workflow', async () => {
                 await this.testHarness.withExtension('large-response-handler', async () => {
@@ -508,7 +520,7 @@ LargeResponseHandlerTestSuite = __decorate([
     __param(0, inject(TEST_TYPES.MockMCPMon)),
     __param(1, inject(TEST_TYPES.TestHarness)),
     __param(2, inject('LRHTestUtilities')),
-    __metadata("design:paramtypes", [Object, Object, Object])
+    __metadata("design:paramtypes", [Object, Object, Object, Object])
 ], LargeResponseHandlerTestSuite);
 export { LargeResponseHandlerTestSuite };
 export default LargeResponseHandlerTestSuite;

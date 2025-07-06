@@ -20,6 +20,13 @@ import { StreamingBuffer } from '../streaming.js';
 import type { LRHTestUtilities } from './providers.js';
 
 /**
+ * Test configuration interface
+ */
+interface TestConfig {
+  soakMode?: boolean;
+}
+
+/**
  * Large Response Handler Test Suite
  * Uses DI pattern for clean dependency management and test isolation
  */
@@ -40,7 +47,8 @@ export class LargeResponseHandlerTestSuite implements ExtensionTestSuite {
   constructor(
     @inject(TEST_TYPES.MockMCPMon) private mockMCPMon: MockMCPMon,
     @inject(TEST_TYPES.TestHarness) private testHarness: TestHarness,
-    @inject('LRHTestUtilities') private lrhUtils: LRHTestUtilities
+    @inject('LRHTestUtilities') private lrhUtils: LRHTestUtilities,
+    private config: TestConfig = {}
   ) {}
 
   async setupTests(): Promise<void> {
@@ -76,13 +84,19 @@ export class LargeResponseHandlerTestSuite implements ExtensionTestSuite {
         await this.extension.shutdown();
       });
 
-      this.defineInitializationTests(() => mockContext);
-      this.defineResponseDetectionTests(() => mockContext);
-      this.defineStreamingTests(() => mockContext);
-      this.defineToolInjectionTests(() => mockContext);
-      this.defineToolCallTests(() => mockContext);
-      this.defineProgressNotificationTests(() => mockContext);
-      this.defineIntegrationTests(() => mockContext);
+      // In soak mode, only run integration tests
+      if (this.config.soakMode) {
+        this.defineIntegrationTests(() => mockContext);
+      } else {
+        // Run all tests in normal mode
+        this.defineInitializationTests(() => mockContext);
+        this.defineResponseDetectionTests(() => mockContext);
+        this.defineStreamingTests(() => mockContext);
+        this.defineToolInjectionTests(() => mockContext);
+        this.defineToolCallTests(() => mockContext);
+        this.defineProgressNotificationTests(() => mockContext);
+        this.defineIntegrationTests(() => mockContext);
+      }
     });
   }
 
@@ -550,8 +564,11 @@ export class LargeResponseHandlerTestSuite implements ExtensionTestSuite {
   private defineIntegrationTests(getContext: () => MockExtensionContext): void {
     describe('integration scenarios', () => {
       beforeEach(async () => {
-        await this.testHarness.initialize([this.extension]);
-        await this.testHarness.enableExtension('large-response-handler');
+        // In soak mode, harness is already initialized in beforeAll
+        if (!this.config.soakMode) {
+          await this.testHarness.initialize([this.extension]);
+          await this.testHarness.enableExtension('large-response-handler');
+        }
       });
 
       it('should handle complete large response workflow', async () => {

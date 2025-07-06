@@ -8,6 +8,12 @@ import type { ExtensionTestSuite, MockMCPMon, TestHarness } from '../../../testi
 import LargeResponseHandlerExtension from '../index.js';
 import type { LRHTestUtilities } from './providers.js';
 /**
+ * Test configuration interface
+ */
+interface TestConfig {
+    soakMode?: boolean;
+}
+/**
  * Large Response Handler Test Suite
  * Uses DI pattern for clean dependency management and test isolation
  */
@@ -15,6 +21,7 @@ export declare class LargeResponseHandlerTestSuite implements ExtensionTestSuite
     private mockMCPMon;
     private testHarness;
     private lrhUtils;
+    private config;
     readonly extensionId = "large-response-handler";
     readonly extension: LargeResponseHandlerExtension;
     readonly metadata: {
@@ -26,7 +33,7 @@ export declare class LargeResponseHandlerTestSuite implements ExtensionTestSuite
         timeout: number;
         enabled: boolean;
     };
-    constructor(mockMCPMon: MockMCPMon, testHarness: TestHarness, lrhUtils: LRHTestUtilities);
+    constructor(mockMCPMon: MockMCPMon, testHarness: TestHarness, lrhUtils: LRHTestUtilities, config?: TestConfig);
     setupTests(): Promise<void>;
     teardownTests(): Promise<void>;
     /**

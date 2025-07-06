@@ -6,7 +6,7 @@
  */
 
 import 'reflect-metadata';
-import { jest, beforeEach } from '@jest/globals';
+import { jest, beforeEach, beforeAll, afterAll } from '@jest/globals';
 import { LargeResponseHandlerTestSuite } from '../../src/extensions/large-response-handler/tests/index.js';
 import { createMockMCPMon } from '../../src/testing/MockMCPMon.js';
 import LargeResponseHandlerExtension from '../../src/extensions/large-response-handler/index.js';
@@ -14,25 +14,17 @@ import type { MockMCPMon } from '../../src/testing/types.js';
 import type { TestHarness } from '../../src/testing/types.js';
 import { createMockMCPServer } from '../../src/testing/MockMCPServer.js';
 import type { MockMCPServer } from '../../src/testing/MockMCPServer.js';
+import { MCPMonTestHarness } from '../../src/testing/MCPMonTestHarness.js';
 
 // Simple mock implementations for DI dependencies
 const mockMCPMon: MockMCPMon = createMockMCPMon();
 const mockMCPServer: MockMCPServer = createMockMCPServer();
 
-const mockTestHarness: TestHarness = {
-  initialize: jest.fn(async (extensions: any[]) => undefined) as any,
-  enableExtension: jest.fn(async (extensionId: string) => undefined) as any,
-  disableExtension: jest.fn(async (extensionId: string) => undefined) as any,
-  withExtension: jest.fn(async (extensionId: string, test: () => Promise<any>) => test()) as any,
-  sendRequest: jest.fn(async (request: any) => ({ jsonrpc: '2.0' as const, id: 'test', result: {} })) as any,
-  expectNotification: jest.fn(async (method: string, timeout?: number) => ({ jsonrpc: '2.0' as const, method: 'test', params: {} })) as any,
-  callTool: jest.fn(async (toolName: string, args: any, progressToken?: string) => ({})) as any,
-  streamResponse: jest.fn(async (chunks: any[], progressToken?: string) => undefined) as any,
-  getProxy: jest.fn(() => ({} as any)) as any,
-  getMockServer: jest.fn(() => mockMCPServer) as any,
-  verifyExtensionState: jest.fn((extensionId: string, expectedState: string) => undefined) as any,
-  cleanup: jest.fn(async () => undefined) as any
-};
+// Create real TestHarness instance
+const realTestHarness = new MCPMonTestHarness();
+
+// Use real TestHarness instead of mock
+const mockTestHarness: TestHarness = realTestHarness;
 
 const mockLRHUtilities = {
   createLargeResponse: jest.fn((sizeKB: number) => ({ data: 'x'.repeat(sizeKB * 1024) })),
@@ -71,16 +63,20 @@ const mockLRHUtilities = {
   formatBytes: jest.fn((bytes: number) => `${bytes} bytes`)
 };
 
-// Add mock cleanup for each test
-beforeEach(() => {
-  jest.clearAllMocks();
-  mockMCPServer.reset();
+// Persistent test harness lifecycle
+beforeAll(async () => {
+  await realTestHarness.initialize([new LargeResponseHandlerExtension()]);
+  await realTestHarness.enableExtension("large-response-handler");
+});
+
+afterAll(async () => {
+  await realTestHarness.cleanup();
 });
 
 // Create test suite instance directly (bypassing DI for now)
 const testSuite = new (class extends LargeResponseHandlerTestSuite {
   constructor() {
-    super(mockMCPMon, mockTestHarness, mockLRHUtilities);
+    super(mockMCPMon, mockTestHarness, mockLRHUtilities, { soakMode: true });
   }
 })();
 
