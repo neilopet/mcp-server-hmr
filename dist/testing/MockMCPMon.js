@@ -191,8 +191,10 @@ export class MockMCPMonImpl {
      * Get progress notifications
      */
     getProgressNotifications() {
+        // Get notifications from the notification service
+        const notifications = this.notificationService.getNotifications();
         // Convert simple progress notifications to full MCP format
-        return this.notificationService.getNotifications().map(notification => ({
+        return notifications.map(notification => ({
             jsonrpc: '2.0',
             method: 'notifications/progress',
             params: {

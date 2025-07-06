@@ -556,13 +556,34 @@ export class LargeResponseHandlerTestSuite implements ExtensionTestSuite {
 
       it('should handle complete large response workflow', async () => {
         await this.testHarness.withExtension('large-response-handler', async () => {
-          // Simulate large tool response
-          const largeResponse = this.lrhUtils.createLargeResponse(100); // 100KB
+          // Get mock server and configure tool handler
+          const mockServer = this.testHarness.getMockServer();
+          expect(mockServer).toBeDefined();
           
+          const progressToken = this.lrhUtils.simulateProgressToken();
+          
+          // Configure mock server to handle test-large-tool with streaming
+          mockServer!.onToolCall('test-large-tool', async (args: any, context: any) => {
+            // Create streaming chunks (each ~5KB to exceed threshold)
+            const chunks = this.lrhUtils.createStreamingChunks(5, 20);
+            
+            // Stream the response with progress notifications
+            await mockServer!.streamResponse(chunks, context.progressToken, {
+              chunkDelay: 10,
+              sendProgress: true,
+              progressInterval: 50
+            });
+            
+            // Return final result - note: this won't be returned as streamResponse handles the response
+            // The extension will assemble the chunks into a complete response
+            return null;
+          });
+          
+          // Call the tool
           const result = await this.testHarness.callTool(
             'test-large-tool',
             { data: 'request' },
-            this.lrhUtils.simulateProgressToken()
+            progressToken
           );
 
           // Should receive progress notifications
@@ -576,6 +597,11 @@ export class LargeResponseHandlerTestSuite implements ExtensionTestSuite {
             progressToken: expect.any(String),
             progress: expect.any(Number)
           });
+          
+          // Verify we got a result
+          expect(result).toBeDefined();
+          expect(result.data).toBeDefined();
+          expect(Array.isArray(result.data)).toBe(true);
         });
       });
 

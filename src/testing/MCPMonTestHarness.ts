@@ -9,20 +9,22 @@ import type {
   TestHarness, 
   MCPRequest, 
   MCPResponse, 
-  MCPNotification,
-  ProgressNotification
+  MCPNotification
 } from './types.js';
-import type { Extension, ExtensionContext, ExtensionRegistry } from '../extensions/interfaces.js';
+import type { Extension, ExtensionContext, ExtensionRegistry, ProgressNotification } from '../extensions/interfaces.js';
 import type { ProxyDependencies } from '../interfaces.js';
 import { MCPProxy, MCPProxyConfig } from '../proxy.js';
 // Import process and file system interfaces
 import type { ProcessManager, FileSystem } from '../interfaces.js';
+import type { MockMCPServer } from './MockMCPServer.js';
+import { createMockMCPServer } from './MockMCPServer.js';
 
 // Create simple mock implementations for testing
 class MockProcessManager implements ProcessManager {
   private spawnCount = 0;
   private spawnShouldFail = false;
   private spawnedProcesses: any[] = [];
+  private mockServer: MockMCPServer | null = null;
   
   getSpawnCallCount(): number {
     return this.spawnCount;
@@ -34,6 +36,14 @@ class MockProcessManager implements ProcessManager {
   
   getAllSpawnedProcesses(): any[] {
     return [...this.spawnedProcesses];
+  }
+  
+  setMockServer(server: MockMCPServer | null): void {
+    this.mockServer = server;
+  }
+  
+  getMockServer(): MockMCPServer | null {
+    return this.mockServer;
   }
   
   spawn(command: string, args: string[], options?: any): any {
@@ -48,17 +58,48 @@ class MockProcessManager implements ProcessManager {
       exitCode: null as number | null
     };
     
+    let stdin: WritableStream<Uint8Array>;
+    let stdout: ReadableStream<Uint8Array>;
+    let stderr: ReadableStream<Uint8Array>;
+    
+    // If mock server is available, create connected streams
+    if (this.mockServer) {
+      // Create paired streams for bidirectional communication
+      const { readable: proxyToServerReadable, writable: proxyToServerWritable } = new TransformStream<Uint8Array, Uint8Array>();
+      const { readable: serverToProxyReadable, writable: serverToProxyWritable } = new TransformStream<Uint8Array, Uint8Array>();
+      
+      // Connect mock server
+      this.mockServer.connect(proxyToServerReadable, serverToProxyWritable);
+      
+      // Process streams from proxy perspective:
+      stdin = proxyToServerWritable;  // Proxy writes to server
+      stdout = serverToProxyReadable; // Proxy reads from server
+      stderr = new ReadableStream();   // Empty stderr stream
+    } else {
+      // Default empty streams for non-mock scenarios
+      stdin = new WritableStream();
+      stdout = new ReadableStream();
+      stderr = new ReadableStream();
+    }
+    
     const process = {
       pid: 1000 + this.spawnCount,
-      stdin: new WritableStream(),
-      stdout: new ReadableStream(),
-      stderr: new ReadableStream(),
+      stdin,
+      stdout,
+      stderr,
       status: Promise.resolve({ success: true, code: 0 }),
-      kill: () => {},
+      kill: () => {
+        if (this.mockServer) {
+          this.mockServer.disconnect();
+        }
+      },
       hasExited: () => processState.exited,
       simulateExit: (code: number) => {
         processState.exited = true;
         processState.exitCode = code;
+        if (this.mockServer) {
+          this.mockServer.disconnect();
+        }
       }
     };
     
@@ -132,6 +173,7 @@ export class MCPMonTestHarness implements TestHarness {
   private stdout: { writable: WritableStream<Uint8Array>; reader: ReadableStreamDefaultReader<Uint8Array> };
   private stderr: { writable: WritableStream<Uint8Array>; reader: ReadableStreamDefaultReader<Uint8Array> };
   private extensionRegistry: ExtensionRegistry | null = null;
+  private mockServer: MockMCPServer | null = null;
   private config: MCPProxyConfig;
   private requestIdCounter = 1;
   private pendingRequests = new Map<number, {
@@ -144,6 +186,7 @@ export class MCPMonTestHarness implements TestHarness {
   private capturedNotifications: MCPNotification[] = [];
   private shuttingDown = false;
   private outputMonitoringActive = false;
+  private extensionContexts = new Map<string, ExtensionContext>();
 
   constructor() {
     this.procManager = new MockProcessManager();
@@ -195,9 +238,13 @@ export class MCPMonTestHarness implements TestHarness {
     // Create extension registry if we have extensions
     if (extensions.length > 0) {
       this.extensionRegistry = this.createMockExtensionRegistry(extensions);
+      
+      // Create and configure mock server for integration tests
+      this.mockServer = createMockMCPServer();
+      this.procManager.setMockServer(this.mockServer);
     }
 
-    // Create dependencies
+    // Create dependencies  
     const dependencies: ProxyDependencies = {
       procManager: this.procManager,
       fs: this.fs,
@@ -207,6 +254,8 @@ export class MCPMonTestHarness implements TestHarness {
       exit: () => { /* Mock exit for tests */ },
       extensionRegistry: this.extensionRegistry || undefined
     };
+
+    // Mock server will be automatically enabled when available in MockProcessManager
 
     // Create proxy
     this.proxy = new MCPProxy(dependencies, this.config);
@@ -239,6 +288,8 @@ export class MCPMonTestHarness implements TestHarness {
     const extension = this.extensionRegistry.get(extensionId);
     if (extension) {
       const context = this.createExtensionContext(extension);
+      // Store the context for later access
+      this.extensionContexts.set(extensionId, context);
       await extension.initialize(context);
     }
   }
@@ -321,12 +372,17 @@ export class MCPMonTestHarness implements TestHarness {
    */
   async expectNotification(method: string, timeout: number = 5000): Promise<MCPNotification> {
     return new Promise((resolve, reject) => {
+      console.log('[TEST HARNESS] expectNotification called for method:', method);
+      console.log('[TEST HARNESS] Current captured notifications:', 
+        this.capturedNotifications.map(n => ({ method: n.method, hasParams: !!n.params })));
+      
       // Check if notification already captured
       const existingNotification = this.capturedNotifications.find(n => n.method === method);
       if (existingNotification) {
         // Remove from captured list and return
         const index = this.capturedNotifications.indexOf(existingNotification);
         this.capturedNotifications.splice(index, 1);
+        console.log('[TEST HARNESS] expectNotification returning:', JSON.stringify(existingNotification, null, 2));
         resolve(existingNotification);
         return;
       }
@@ -341,11 +397,21 @@ export class MCPMonTestHarness implements TestHarness {
 
       this.notificationWaiters.push({
         method,
-        resolve,
+        resolve: (notification: MCPNotification) => {
+          console.log('[TEST HARNESS] expectNotification waiter resolving:', JSON.stringify(notification, null, 2));
+          resolve(notification);
+        },
         reject,
         timeoutId
       });
     });
+  }
+
+  /**
+   * Get the mock MCP server for configuring test behaviors
+   */
+  getMockServer(): MockMCPServer | null {
+    return this.mockServer;
   }
 
   /**
@@ -356,9 +422,10 @@ export class MCPMonTestHarness implements TestHarness {
       this.progressTokens.add(progressToken);
     }
 
+    const requestId = this.requestIdCounter++;
     const request: MCPRequest = {
       jsonrpc: '2.0',
-      id: this.requestIdCounter++,
+      id: requestId,
       method: 'tools/call',
       params: {
         name: toolName,
@@ -367,6 +434,52 @@ export class MCPMonTestHarness implements TestHarness {
       }
     };
 
+    // Call beforeStdinForward hooks from enabled extensions
+    if (this.extensionRegistry) {
+      const enabledExtensions = this.extensionRegistry.getEnabled();
+      for (const extension of enabledExtensions) {
+        const context = this.extensionContexts.get(extension.id);
+        if (context?.hooks.beforeStdinForward) {
+          await context.hooks.beforeStdinForward(request);
+        }
+      }
+    }
+
+    // For testing, simulate a large streaming response if the tool name suggests it
+    if (toolName.includes('large') || toolName.includes('streaming')) {
+      // Simulate streaming response chunks
+      const chunks = this.createTestStreamingChunks(5); // 5 chunks
+      
+      for (let i = 0; i < chunks.length; i++) {
+        const response = {
+          jsonrpc: '2.0',
+          id: requestId,
+          result: {
+            ...chunks[i],
+            isPartial: i < chunks.length - 1
+          }
+        };
+
+        // Call afterStdoutReceive hooks
+        if (this.extensionRegistry) {
+          const enabledExtensions = this.extensionRegistry.getEnabled();
+          for (const extension of enabledExtensions) {
+            const context = this.extensionContexts.get(extension.id);
+            if (context?.hooks.afterStdoutReceive) {
+              await context.hooks.afterStdoutReceive(response);
+            }
+          }
+        }
+
+        // Small delay between chunks
+        await new Promise(resolve => setTimeout(resolve, 20));
+      }
+
+      // Return the final assembled response
+      return { data: chunks.flatMap(c => c.data || []) };
+    }
+
+    // For regular tools, just send the request normally
     const response = await this.sendRequest(request);
     
     if (response.error) {
@@ -374,6 +487,27 @@ export class MCPMonTestHarness implements TestHarness {
     }
 
     return response.result;
+  }
+
+  /**
+   * Create test streaming chunks
+   */
+  private createTestStreamingChunks(count: number): any[] {
+    const chunks = [];
+    const itemsPerChunk = 20;
+    
+    for (let i = 0; i < count; i++) {
+      const data = Array(itemsPerChunk).fill(null).map((_, j) => ({
+        id: i * itemsPerChunk + j,
+        value: `test-item-${i * itemsPerChunk + j}`,
+        chunk: i,
+        largeField: 'x'.repeat(1000) // Make each item ~1KB
+      }));
+      
+      chunks.push({ data });
+    }
+    
+    return chunks;
   }
 
   /**
@@ -388,7 +522,7 @@ export class MCPMonTestHarness implements TestHarness {
     for (let i = 0; i < chunks.length; i++) {
       const progress = Math.round(((i + 1) / chunks.length) * 100);
       
-      const notification: ProgressNotification = {
+      const notification: MCPNotification = {
         jsonrpc: '2.0',
         method: 'notifications/progress',
         params: {
@@ -415,6 +549,23 @@ export class MCPMonTestHarness implements TestHarness {
       throw new Error('TestHarness not initialized');
     }
     return this.proxy;
+  }
+
+  /**
+   * Get extension context for a specific extension
+   */
+  getExtensionContext(extensionId: string): ExtensionContext | undefined {
+    if (!this.extensionRegistry) {
+      return undefined;
+    }
+
+    const extension = this.extensionRegistry.get(extensionId);
+    if (!extension) {
+      return undefined;
+    }
+
+    // Return the context that was created for this extension
+    return this.createExtensionContext(extension);
   }
 
   /**
@@ -474,6 +625,12 @@ export class MCPMonTestHarness implements TestHarness {
     // Clean up mocks
     this.fs.closeAllWatchers();
     
+    // Disconnect mock server
+    if (this.mockServer) {
+      this.mockServer.disconnect();
+      this.mockServer = null;
+    }
+    
     const allProcesses = this.procManager.getAllSpawnedProcesses();
     for (const proc of allProcesses) {
       if (!proc.hasExited()) {
@@ -493,6 +650,7 @@ export class MCPMonTestHarness implements TestHarness {
     // Clear state
     this.progressTokens.clear();
     this.capturedNotifications.length = 0;
+    this.extensionContexts.clear();
     this.extensionRegistry = null;
   }
 
@@ -540,6 +698,8 @@ export class MCPMonTestHarness implements TestHarness {
         );
         for (const extension of enabled) {
           const fullContext = this.createExtensionContext(extension, context);
+          // Store the context for later access
+          this.extensionContexts.set(extension.id, fullContext);
           await extension.initialize(fullContext);
         }
       },
@@ -566,6 +726,24 @@ export class MCPMonTestHarness implements TestHarness {
     extension: Extension, 
     baseContext?: Omit<ExtensionContext, 'config'>
   ): ExtensionContext {
+    // Create a mock notification service that captures notifications
+    const notificationService = {
+      sendProgress: async (notification: ProgressNotification) => {
+        // Create the full MCP notification format
+        const progressNotification: MCPNotification = {
+          jsonrpc: '2.0',
+          method: 'notifications/progress',
+          params: notification
+        };
+        
+        // Debug logging
+        console.log('[TEST HARNESS] Sending progress notification:', JSON.stringify(progressNotification, null, 2));
+        
+        // Handle the notification as if it came from the server
+        this.handleNotification(progressNotification);
+      }
+    };
+
     return {
       sessionId: baseContext?.sessionId || `test-session-${Date.now()}`,
       dataDir: baseContext?.dataDir || this.config.dataDir || '/tmp/mcpmon-test',
@@ -584,7 +762,8 @@ export class MCPMonTestHarness implements TestHarness {
         stdout: this.stdout.writable,
         stderr: this.stderr.writable,
         exit: () => {}
-      }
+      },
+      notificationService: baseContext?.notificationService || notificationService
     };
   }
 
@@ -653,6 +832,9 @@ export class MCPMonTestHarness implements TestHarness {
    * Handle incoming notification
    */
   private handleNotification(notification: MCPNotification): void {
+    // Debug logging
+    console.log('[TEST HARNESS] handleNotification called with:', JSON.stringify(notification, null, 2));
+    
     // Check for waiting notification handlers
     const waiterIndex = this.notificationWaiters.findIndex(w => w.method === notification.method);
     if (waiterIndex >= 0) {
@@ -665,6 +847,8 @@ export class MCPMonTestHarness implements TestHarness {
 
     // Store for later retrieval
     this.capturedNotifications.push(notification);
+    console.log('[TEST HARNESS] Total captured notifications:', this.capturedNotifications.length, 
+                'Methods:', this.capturedNotifications.map(n => n.method));
   }
 
   /**

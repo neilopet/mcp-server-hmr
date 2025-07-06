@@ -5,8 +5,9 @@
  * infrastructure while maintaining isolation and deterministic behavior.
  */
 import type { TestHarness, MCPRequest, MCPResponse, MCPNotification } from './types.js';
-import type { Extension } from '../extensions/interfaces.js';
+import type { Extension, ExtensionContext } from '../extensions/interfaces.js';
 import { MCPProxy } from '../proxy.js';
+import type { MockMCPServer } from './MockMCPServer.js';
 /**
  * Real MCPMon proxy test harness for integration testing
  */
@@ -18,6 +19,7 @@ export declare class MCPMonTestHarness implements TestHarness {
     private stdout;
     private stderr;
     private extensionRegistry;
+    private mockServer;
     private config;
     private requestIdCounter;
     private pendingRequests;
@@ -26,6 +28,7 @@ export declare class MCPMonTestHarness implements TestHarness {
     private capturedNotifications;
     private shuttingDown;
     private outputMonitoringActive;
+    private extensionContexts;
     constructor();
     /**
      * Initialize harness with extensions
@@ -52,9 +55,17 @@ export declare class MCPMonTestHarness implements TestHarness {
      */
     expectNotification(method: string, timeout?: number): Promise<MCPNotification>;
     /**
+     * Get the mock MCP server for configuring test behaviors
+     */
+    getMockServer(): MockMCPServer | null;
+    /**
      * Simulate tool call
      */
     callTool(toolName: string, args: any, progressToken?: string): Promise<any>;
+    /**
+     * Create test streaming chunks
+     */
+    private createTestStreamingChunks;
     /**
      * Simulate streaming response
      */
@@ -63,6 +74,10 @@ export declare class MCPMonTestHarness implements TestHarness {
      * Get proxy instance
      */
     getProxy(): MCPProxy;
+    /**
+     * Get extension context for a specific extension
+     */
+    getExtensionContext(extensionId: string): ExtensionContext | undefined;
     /**
      * Verify extension state
      */

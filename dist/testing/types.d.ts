@@ -141,6 +141,8 @@ export interface TestHarness {
     streamResponse(chunks: any[], progressToken?: string): Promise<void>;
     /** Get proxy instance */
     getProxy(): MCPProxy;
+    /** Get mock MCP server for configuring test behaviors */
+    getMockServer(): import('./MockMCPServer.js').MockMCPServer | null;
     /** Verify extension state */
     verifyExtensionState(extensionId: string, state: 'initialized' | 'shutdown'): void;
     /** Clean up harness */

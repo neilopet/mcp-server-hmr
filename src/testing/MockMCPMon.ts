@@ -14,7 +14,7 @@ import type {
   MCPRequest, 
   MCPResponse, 
   MCPNotification, 
-  ProgressNotification, 
+  ProgressNotification as MCPProgressNotification, 
   CapturedMessage,
   TestLogger,
   LogEntry
@@ -38,7 +38,7 @@ export class MockMCPMonImpl implements MockMCPMon {
   private capturedMessages: CapturedMessage[] = [];
   private registeredHooks: Partial<ExtensionHooks> = {};
   private registeredTools: Map<string, ToolDefinition> = new Map();
-  private progressNotifications: ProgressNotification[] = [];
+  private progressNotifications: MCPProgressNotification[] = [];
   private hookCalls: Map<keyof ExtensionHooks, any[]> = new Map();
   private contextInstance: MockExtensionContext | null = null;
   private notificationService: MockNotificationService;
@@ -193,7 +193,7 @@ export class MockMCPMonImpl implements MockMCPMon {
 
     // Track progress notifications separately
     if (notification.method === 'notifications/progress') {
-      this.progressNotifications.push(notification as ProgressNotification);
+      this.progressNotifications.push(notification as MCPProgressNotification);
     }
 
     // Note: Notifications don't typically have response hooks in MCP
@@ -235,9 +235,12 @@ export class MockMCPMonImpl implements MockMCPMon {
   /**
    * Get progress notifications
    */
-  getProgressNotifications(): ProgressNotification[] {
+  getProgressNotifications(): MCPProgressNotification[] {
+    // Get notifications from the notification service
+    const notifications = this.notificationService.getNotifications();
+    
     // Convert simple progress notifications to full MCP format
-    return this.notificationService.getNotifications().map(notification => ({
+    return notifications.map(notification => ({
       jsonrpc: '2.0' as const,
       method: 'notifications/progress' as const,
       params: {

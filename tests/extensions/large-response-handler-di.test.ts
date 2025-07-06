@@ -26,6 +26,7 @@ const mockTestHarness: TestHarness = {
   callTool: jest.fn(async (toolName: string, args: any, progressToken?: string) => ({})) as any,
   streamResponse: jest.fn(async (chunks: any[], progressToken?: string) => undefined) as any,
   getProxy: jest.fn(() => ({} as any)) as any,
+  getMockServer: jest.fn(() => null) as any,
   verifyExtensionState: jest.fn((extensionId: string, expectedState: string) => undefined) as any,
   cleanup: jest.fn(async () => undefined) as any
 };

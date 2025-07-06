@@ -4,7 +4,7 @@
  * Provides a fully controllable mock environment for testing mcpmon extensions
  * with realistic behavior simulation and comprehensive verification capabilities.
  */
-import type { MockMCPMon, MockExtensionContext, MockContextOptions, MCPRequest, MCPResponse, MCPNotification, ProgressNotification, CapturedMessage } from './types.js';
+import type { MockMCPMon, MockExtensionContext, MockContextOptions, MCPRequest, MCPResponse, MCPNotification, ProgressNotification as MCPProgressNotification, CapturedMessage } from './types.js';
 import type { ExtensionHooks } from '../extensions/interfaces.js';
 /**
  * Mock implementation of MCPMon for unit testing
@@ -53,7 +53,7 @@ export declare class MockMCPMonImpl implements MockMCPMon {
     /**
      * Get progress notifications
      */
-    getProgressNotifications(): ProgressNotification[];
+    getProgressNotifications(): MCPProgressNotification[];
     /**
      * Reset all captured data
      */

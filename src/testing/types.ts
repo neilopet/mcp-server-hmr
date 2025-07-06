@@ -177,6 +177,9 @@ export interface TestHarness {
   /** Get proxy instance */
   getProxy(): MCPProxy;
   
+  /** Get mock MCP server for configuring test behaviors */
+  getMockServer(): import('./MockMCPServer.js').MockMCPServer | null;
+  
   /** Verify extension state */
   verifyExtensionState(extensionId: string, state: 'initialized' | 'shutdown'): void;
   
