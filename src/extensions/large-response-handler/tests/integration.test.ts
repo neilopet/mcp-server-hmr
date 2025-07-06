@@ -1,5 +1,10 @@
 /**
  * Integration tests for Large Response Handler with MCPMonTestHarness
+ * 
+ * TODO: Remove this standalone integration test file once the DI test runner
+ * (tests/extensions/large-response-handler-di.test.ts) is fully functional.
+ * This file exists as a temporary working baseline to prove integration
+ * functionality while the DI framework integration tests are being fixed.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
