@@ -105,7 +105,7 @@ afterEach(() => {
 - **Lifecycle:** Fresh application instance per test
 - **Duration:** Milliseconds to seconds
 
-### Tier 2: System Lifecycle Tests (New)
+### Tier 2: System Lifecycle Tests ✅ **IMPLEMENTED**
 ```javascript
 describe('System Endurance', () => {
   let proxy;
@@ -130,8 +130,9 @@ describe('System Endurance', () => {
 });
 ```
 - **Purpose:** Test system behavior over extended operation
-- **Lifecycle:** Single long-running instance
+- **Lifecycle:** Single long-running instance  
 - **Duration:** Minutes to hours
+- **Implementation:** DI Test Framework soak test runner (`tests/extensions/large-response-handler-di.test.ts`)
 
 ### Tier 3: Endurance Tests (New)
 - **Purpose:** Detect slow leaks and degradation

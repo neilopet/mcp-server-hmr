@@ -18,21 +18,23 @@ A comprehensive dependency injection-based testing framework for MCPMon extensio
 
 ### Architecture
 
-The MCPMon test framework is built around dependency injection and provides three levels of testing:
+The MCPMon test framework is built around dependency injection and provides four levels of testing:
 
 1. **Unit Tests**: Fast, isolated tests using `MockMCPMon` with no external dependencies
 2. **Integration Tests**: Real proxy testing using `TestHarness` with mocked external services
-3. **E2E Tests**: Full client simulation with real network communication
+3. **Soak Tests**: Persistent system testing with real components (NEW - Production Ready ✅)
+4. **E2E Tests**: Full client simulation with real network communication
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    TestContainer (DI)                      │
-├─────────────────────────────────────────────────────────────┤
-│  Unit Tests        │  Integration Tests  │  E2E Tests       │
-│  MockMCPMon       │  TestHarness        │  E2ETestContext  │
-│  MockContext      │  Real MCPProxy      │  ClientSimulator │
-│  Isolated         │  Controlled         │  Full Stack      │
-└─────────────────────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────────────────────────────────┐
+│                         TestContainer (DI)                                   │
+├───────────────────────────────────────────────────────────────────────────────┤
+│  Unit Tests      │  Integration Tests  │  Soak Tests      │  E2E Tests       │
+│  MockMCPMon     │  TestHarness        │  TestHarness     │  E2ETestContext  │
+│  MockContext    │  Real MCPProxy      │  Real MCPProxy   │  ClientSimulator │
+│  Isolated       │  Controlled         │  Persistent      │  Full Stack      │
+│  beforeEach     │  beforeEach         │  beforeAll       │  Real Network    │
+└───────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ### Core Components
@@ -563,6 +565,97 @@ describe('Tool Provider Integration Tests', () => {
   });
 });
 ```
+
+### Soak Tests with Persistent State (NEW)
+
+Soak tests implement the **Tier 2: System Lifecycle Tests** pattern from SYSTEMDESIGN.md, testing "one long-running system" rather than isolated mini-applications.
+
+```typescript
+import { TestHarness, MCPMonTestHarness } from '@mcpmon/testing';
+
+describe('Large Response Handler Soak Tests', () => {
+  let harness: TestHarness;
+  let extension: LargeResponseHandlerExtension;
+  
+  // Persistent lifecycle - single system instance
+  beforeAll(async () => {
+    extension = new LargeResponseHandlerExtension();
+    harness = new MCPMonTestHarness();
+    
+    // Initialize ONCE for entire test run
+    await harness.initialize([extension]);
+    await harness.enableExtension('large-response-handler');
+  });
+  
+  afterAll(async () => {
+    await harness.cleanup();
+  });
+  
+  it('should handle complete large response workflow', async () => {
+    await harness.withExtension('large-response-handler', async () => {
+      const mockServer = harness.getMockServer();
+      const progressToken = 'progress-token-123';
+      
+      // Configure streaming response
+      mockServer.onToolCall('test-large-tool', async (args, context) => {
+        const chunks = createTestChunks(5, 20); // 5 chunks, 20 items each
+        await mockServer.streamResponse(chunks, context.progressToken, {
+          chunkDelay: 10,
+          sendProgress: true,
+          progressInterval: 50
+        });
+        return null;
+      });
+      
+      // Execute tool call - system accumulates state across calls
+      const result = await harness.callTool(
+        'test-large-tool',
+        { data: 'request' },
+        progressToken
+      );
+      
+      // Verify real progress notifications (not mocked)
+      const notification = await harness.expectNotification(
+        'notifications/progress',
+        1000
+      );
+      
+      expect(notification.params.progressToken).toBeDefined();
+      expect(notification.params.progress).toBeGreaterThan(0);
+      expect(result.data).toBeDefined();
+    });
+  });
+  
+  it('should maintain performance across multiple operations', async () => {
+    // Test system endurance - previous test state persists
+    for (let i = 0; i < 10; i++) {
+      const result = await harness.callTool('test-tool', { iteration: i });
+      expect(result).toBeDefined();
+      
+      // System should maintain stable performance
+      if (i % 5 === 0) {
+        // Check system health every 5 iterations
+        const proxy = harness.getProxy();
+        expect(proxy.isRunning()).toBe(true);
+      }
+    }
+  });
+});
+```
+
+**Key Characteristics of Soak Tests:**
+- **beforeAll/afterAll**: Single system initialization
+- **Persistent State**: Extensions maintain state across tests
+- **Real Components**: Uses actual MCPProxy and TestHarness
+- **Production-Like**: Tests system behavior over extended operations
+- **Performance Validation**: Monitors system health during extended usage
+
+**When to Use Soak Tests:**
+- Streaming response handling
+- Progress notification flows
+- Memory leak detection (future enhancement)
+- Performance validation under load
+- Complex multi-step integration scenarios
 
 ### E2E Tests with Client Simulation
 

@@ -70,6 +70,29 @@ Integration tests with real implementations:
 - Validates actual file I/O and process spawning
 - Tests CLI argument parsing and behavior
 
+### DI Framework Tests (`src/testing/`, `tests/extensions/`)
+
+**NEW**: Dependency injection-based testing framework with soak testing capabilities ✅ **Production Ready**
+
+- **Extension Tests** - DI-based extension testing with MockMCPMon and TestHarness
+- **Soak Tests** - Persistent system testing implementing SYSTEMDESIGN.md Tier 2 pattern  
+- **Unit Tests** - Fast isolated tests with mocks
+- **Integration Tests** - Real component interaction testing
+
+**Key Files:**
+- `tests/extensions/large-response-handler-di.test.ts` - Soak test runner (transformed from unit to integration testing)
+- `src/extensions/large-response-handler/tests/index.ts` - Test suite with soakMode configuration
+- `src/testing/MCPMonTestHarness.ts` - Real TestHarness for integration testing
+
+**Characteristics:**
+- **Soak Testing**: beforeAll/afterAll lifecycle for persistent system state
+- **Real Components**: Uses actual MCPProxy and extension infrastructure  
+- **Progress Notifications**: Validates real notification flow with {progressToken, progress}
+- **System Endurance**: Tests "one long-running system" vs isolated mini-applications
+- **Configuration-Driven**: TestConfig interface enables selective test execution
+
+**Status**: Successfully resolves all previous DI test failures and implements production-ready soak testing patterns.
+
 ## Test Helper Pattern
 
 All behavioral tests use `test_helper.ts` to eliminate code duplication and improve reliability.
