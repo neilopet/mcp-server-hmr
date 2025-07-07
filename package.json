@@ -39,7 +39,9 @@
   "dependencies": {
     "chokidar": "^3.5.3",
     "commander": "^11.1.0",
+    "duckdb": "^1.0.0",
     "inversify": "^6.0.2",
+    "quicktype-core": "^23.0.170",
     "reflect-metadata": "^0.2.2"
   },
   "devDependencies": {
