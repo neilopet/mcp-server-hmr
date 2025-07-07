@@ -11,7 +11,9 @@ import { mkdir, writeFile, readFile, readdir, stat } from 'fs/promises';
 import { join, resolve } from 'path';
 import { homedir } from 'os';
 import { createHash } from 'crypto';
-import { Database } from 'duckdb';
+import duckdb from 'duckdb';
+const { Database } = duckdb;
+type DatabaseInstance = InstanceType<typeof Database>;
 
 export interface LargeResponseHandlerConfig {
   threshold: number;  // Response size threshold in bytes
@@ -53,7 +55,7 @@ const DEFAULT_CONFIG: LargeResponseHandlerConfig = {
   streamingTimeout: 5 * 60 * 1000,  // 5 minutes
 };
 
-export default class LargeResponseHandlerExtension implements Extension {
+class LargeResponseHandlerExtension implements Extension {
   readonly id = 'large-response-handler';
   readonly name = 'Large Response Handler';
   readonly version = '1.0.0';
@@ -586,9 +588,9 @@ export default class LargeResponseHandlerExtension implements Extension {
   /**
    * Execute DuckDB query with proper error handling
    */
-  private async executeDuckDBQuery(db: Database, query: string): Promise<any[]> {
+  private async executeDuckDBQuery(db: DatabaseInstance, query: string): Promise<any[]> {
     return new Promise((resolve, reject) => {
-      db.all(query, (error, result) => {
+      db.all(query, (error: any, result: any) => {
         if (error) {
           reject(error);
         } else {
@@ -601,7 +603,7 @@ export default class LargeResponseHandlerExtension implements Extension {
   /**
    * Create indexes on common fields
    */
-  private async createIndexes(db: Database, tableName: string, columns: Array<{name: string, type: string}>): Promise<string[]> {
+  private async createIndexes(db: DatabaseInstance, tableName: string, columns: Array<{name: string, type: string}>): Promise<string[]> {
     const indexes: string[] = [];
     
     // Common field names that benefit from indexing
@@ -1215,3 +1217,6 @@ export default class LargeResponseHandlerExtension implements Extension {
     }
   }
 }
+
+// Export an instance of the extension
+export default new LargeResponseHandlerExtension();

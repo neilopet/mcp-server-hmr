@@ -113,7 +113,7 @@ export class ExtensionRegistry implements IExtensionRegistry {
   async loadBuiltinExtensions(): Promise<void> {
     // List of built-in extensions
     const builtins: string[] = [
-      // 'large-response-handler', // Temporarily disabled - missing dependencies
+      'large-response-handler', // Re-enabled with full implementation
       // Future extensions:
       // 'metrics',
       // 'auth',
