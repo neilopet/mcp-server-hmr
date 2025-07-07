@@ -1,7 +1,5 @@
 # Extension Architecture for mcpmon
 
-> **⚠️ WORK IN PROGRESS**: This extension architecture is currently under development and has not yet been integrated with the main proxy. The design and implementation details described here are subject to change.
-
 ## Overview
 
 The mcpmon extension architecture provides a modular, plugin-based system for extending the functionality of the MCP hot-reload proxy. Extensions can hook into various stages of the request/response lifecycle, modify behavior, and add new capabilities without modifying the core proxy code.
@@ -79,24 +77,47 @@ Extensions integrate with the core proxy through dependency injection, allowing 
 3. **Add Middleware**: Extensions can register middleware functions with the proxy
 4. **Provide New Capabilities**: Extensions can expose new APIs or functionality
 
-Example integration:
+Example integration in `src/proxy.ts`:
 
 ```typescript
-// In the proxy
+// Extension integration in MCPProxy
 class MCPProxy {
-  constructor(
-    private extensionRegistry: ExtensionRegistry,
-    // ... other dependencies
-  ) {}
+  private extensionRegistry?: ExtensionRegistry;
+  private extensionHooks: ExtensionHooks = {};
   
-  async handleRequest(request: any) {
-    // Execute pre-request hooks
-    await this.extensionRegistry.executeHook('beforeRequest', { request });
+  constructor(dependencies: ProxyDependencies, config: MCPProxyConfig) {
+    this.extensionRegistry = dependencies.extensionRegistry;
+  }
+  
+  // Initialize extensions on startup
+  private async initializeExtensions(): Promise<void> {
+    const context: ExtensionContext = {
+      proxy: this,
+      config: this.config,
+      logger: { info, debug, error, warn },
+      hooks: this.extensionHooks,
+      // ... other context
+    };
+    await this.extensionRegistry.initializeAll(context);
+  }
+  
+  // Hook execution during message flow
+  async handleMessage(message: any) {
+    // Before forwarding to server
+    if (this.extensionHooks.beforeStdinForward) {
+      message = await this.extensionHooks.beforeStdinForward(message);
+    }
     
-    // Process request...
+    // Custom tool handling
+    if (message.method === "tools/call" && this.extensionHooks.handleToolCall) {
+      const result = await this.extensionHooks.handleToolCall(toolName, args);
+      // ... handle extension tool result
+    }
     
-    // Execute post-response hooks
-    await this.extensionRegistry.executeHook('afterResponse', { response });
+    // After receiving response
+    if (this.extensionHooks.afterStdoutReceive) {
+      response = await this.extensionHooks.afterStdoutReceive(response);
+    }
   }
 }
 ```
@@ -143,16 +164,26 @@ src/extensions/
 ├── CLAUDE.md                    # This documentation
 ├── interfaces.ts                # Core extension interfaces
 ├── registry.ts                  # Extension registry implementation
-├── large-response-handler/      # Example extension
-│   ├── README.md
-│   ├── handler.ts
-│   └── index.ts
-├── metrics/                     # Metrics collection extension
-│   └── index.ts
-└── [new-extension]/            # Your new extension
+├── index.ts                     # Main exports
+├── large-response-handler/      # Streaming support for large responses
+│   ├── index.ts                # Main extension implementation
+│   ├── streaming.ts            # Streaming buffer implementation
+│   ├── index.test.ts           # Basic tests
+│   └── tests/                  # Comprehensive test suite
+│       ├── index.ts            # DI-based test suite
+│       ├── unit.test.ts        # Unit tests
+│       ├── integration.test.ts # Integration tests
+│       └── streaming.test.ts   # Streaming tests
+├── metrics/                     # Performance metrics collection
+│   └── index.ts                # Metrics extension
+├── request-logger/              # Request/response logging
+│   └── index.ts                # Logger extension
+├── services/                    # Shared extension services
+│   └── StdoutNotificationService.ts
+└── [new-extension]/            # Template for new extensions
     ├── index.ts                # Extension entry point
     ├── README.md               # Extension documentation
-    └── [other-files]           # Implementation files
+    └── tests/                  # Extension tests
 ```
 
 ## Creating New Extensions
@@ -281,26 +312,50 @@ export class RateLimiterExtension implements Extension {
 - Configuration can be validated at startup
 - Runtime configuration updates possible
 
+## Implemented Features ✅
+
+1. **Extension Registry**: Central management of extension lifecycle
+2. **Hook System**: Well-defined integration points throughout request/response flow
+3. **Dependency Injection**: Clean integration with core proxy services
+4. **Extension Testing Framework**: Comprehensive DI-based testing with mocks and real components
+5. **Production Extensions**: Large response handler, metrics, and request logger
+
 ## Future Enhancements
 
-> **Note**: These are planned features not yet implemented
+> **Note**: These features would further enhance the extension system
 
 1. **Extension Discovery**: Automatic discovery of extensions in a plugins directory
 2. **Extension Marketplace**: Central repository for community extensions
 3. **Hot Reloading**: Reload extensions without restarting the proxy
 4. **Extension Dependencies**: Allow extensions to depend on other extensions
 5. **Extension CLI**: Commands for managing extensions (install, remove, list)
-6. **Extension Testing Framework**: Utilities for testing extensions in isolation
+6. **Configuration-based Loading**: Load extensions from config files instead of code
 
 ## Integration Status
 
-**Current Status**: The extension architecture is designed but not yet integrated with the main proxy. The following steps are needed for integration:
+**Current Status**: The extension architecture is fully implemented and integrated with the main proxy. Extensions are actively used in production.
 
-1. [ ] Integrate ExtensionRegistry with MCPProxy class
-2. [ ] Add hook execution points in proxy request/response flow
-3. [ ] Implement extension loading from configuration
-4. [ ] Add CLI commands for extension management
-5. [ ] Create comprehensive test suite
-6. [ ] Document migration path for existing functionality
+### Completed Integration ✅
 
-Once integrated, this architecture will provide a powerful way to extend mcpmon's functionality while maintaining a clean, maintainable codebase.
+1. [x] **ExtensionRegistry integrated with MCPProxy** - Full integration in `src/proxy.ts`
+2. [x] **Hook execution points implemented** - Hooks throughout request/response flow:
+   - `beforeStdinForward` - Modify requests before forwarding
+   - `afterStdoutReceive` - Transform responses before returning
+   - `handleToolCall` - Custom tool implementations
+   - `getAdditionalTools` - Dynamic tool registration
+3. [x] **Extension initialization lifecycle** - Complete startup/shutdown integration
+4. [x] **Comprehensive test suite** - DI-based testing framework with unit, integration, and soak tests
+5. [x] **Production-ready extensions**:
+   - **Large Response Handler** - Streaming support for large responses
+   - **Metrics** - Performance and usage tracking
+   - **Request Logger** - Request/response logging
+
+### Future Enhancements
+
+1. [ ] Extension loading from configuration files
+2. [ ] CLI commands for extension management
+3. [ ] Hot-reloading of extensions without proxy restart
+4. [ ] Extension marketplace/registry
+5. [ ] Extension dependency management
+
+The extension architecture provides a powerful, production-tested way to extend mcpmon's functionality while maintaining a clean, maintainable codebase.
