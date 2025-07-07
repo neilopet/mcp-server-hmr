@@ -399,9 +399,29 @@ async function setupHotReload(
         commandParts = [original.command];
       }
       
+      // Handle Docker environment variables
+      let dockerEnvArgs: string[] = [];
+      if (commandParts[0] === 'docker' && serverConfig.env) {
+        // Convert env vars to docker -e flags
+        for (const [key, value] of Object.entries(serverConfig.env)) {
+          dockerEnvArgs.push('-e', `${key}=${value}`);
+        }
+      }
+      
+      // Insert docker env args after 'docker run' but before image name
+      let finalArgs = [...mcpmonCmd.args, ...commandParts];
+      if (dockerEnvArgs.length > 0) {
+        // Find position after 'run' command
+        const runIndex = finalArgs.findIndex(arg => arg === 'run');
+        if (runIndex !== -1) {
+          finalArgs.splice(runIndex + 1, 0, ...dockerEnvArgs);
+        }
+      }
+      finalArgs.push(...(original.args || []));
+      
       newConfig.mcpServers[name] = {
         command: mcpmonCmd.command,
-        args: [...mcpmonCmd.args, ...commandParts, ...(original.args || [])],
+        args: finalArgs,
         env: serverConfig.env, // Keep existing env
         cwd: serverConfig.cwd,
       };
@@ -424,9 +444,29 @@ async function setupHotReload(
         commandParts = [serverConfig.command];
       }
       
+      // Handle Docker environment variables
+      let dockerEnvArgs: string[] = [];
+      if (commandParts[0] === 'docker' && serverConfig.env) {
+        // Convert env vars to docker -e flags
+        for (const [key, value] of Object.entries(serverConfig.env)) {
+          dockerEnvArgs.push('-e', `${key}=${value}`);
+        }
+      }
+      
+      // Insert docker env args after 'docker run' but before image name
+      let finalArgs = [...mcpmonCmd.args, ...commandParts];
+      if (dockerEnvArgs.length > 0) {
+        // Find position after 'run' command
+        const runIndex = finalArgs.findIndex(arg => arg === 'run');
+        if (runIndex !== -1) {
+          finalArgs.splice(runIndex + 1, 0, ...dockerEnvArgs);
+        }
+      }
+      finalArgs.push(...(serverConfig.args || []));
+      
       newConfig.mcpServers[name] = {
         command: mcpmonCmd.command,
-        args: [...mcpmonCmd.args, ...commandParts, ...(serverConfig.args || [])],
+        args: finalArgs,
         env: serverConfig.env,
         cwd: serverConfig.cwd,
       };
