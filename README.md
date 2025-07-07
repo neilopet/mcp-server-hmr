@@ -1,6 +1,6 @@
 # mcpmon
 
-[![Node.js](https://img.shields.io/badge/node.js-16+-green?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Node.js](https://img.shields.io/badge/node.js-18+-green?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](./tests/)
 [![Code Style](https://img.shields.io/badge/code%20style-prettier-blue.svg)](https://prettier.io/)
