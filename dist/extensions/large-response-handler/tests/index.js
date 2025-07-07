@@ -75,7 +75,8 @@ let LargeResponseHandlerTestSuite = class LargeResponseHandlerTestSuite {
                 });
             });
             afterEach(async () => {
-                await this.extension.shutdown();
+                if (this.extension.shutdown)
+                    await this.extension.shutdown();
             });
             // In soak mode, only run integration tests
             if (this.config.soakMode) {
@@ -301,8 +302,8 @@ let LargeResponseHandlerTestSuite = class LargeResponseHandlerTestSuite {
                 expect(additionalTools).toHaveLength(2);
                 // Verify the tool names
                 const toolNames = additionalTools.map(t => t.name);
-                expect(toolNames).toContain('mcpmon.analyze-with-duckdb');
-                expect(toolNames).toContain('mcpmon.list-saved-datasets');
+                expect(toolNames).toContain('mcpmon_analyze-with-duckdb');
+                expect(toolNames).toContain('mcpmon_list-saved-datasets');
                 // Verify each tool has required properties
                 additionalTools.forEach(tool => {
                     expect(tool).toHaveProperty('name');
@@ -316,9 +317,9 @@ let LargeResponseHandlerTestSuite = class LargeResponseHandlerTestSuite {
                 const hooks = this.mockMCPMon.getRegisteredHooks();
                 const tools = await hooks.getAdditionalTools();
                 expect(tools).toHaveLength(2);
-                const duckdbTool = tools.find(t => t.name === 'mcpmon.analyze-with-duckdb');
+                const duckdbTool = tools.find(t => t.name === 'mcpmon_analyze-with-duckdb');
                 expect(duckdbTool).toMatchObject({
-                    name: 'mcpmon.analyze-with-duckdb',
+                    name: 'mcpmon_analyze-with-duckdb',
                     inputSchema: {
                         type: 'object',
                         properties: {
@@ -328,9 +329,9 @@ let LargeResponseHandlerTestSuite = class LargeResponseHandlerTestSuite {
                         required: ['datasetId', 'query']
                     }
                 });
-                const listTool = tools.find(t => t.name === 'mcpmon.list-saved-datasets');
+                const listTool = tools.find(t => t.name === 'mcpmon_list-saved-datasets');
                 expect(listTool).toMatchObject({
-                    name: 'mcpmon.list-saved-datasets',
+                    name: 'mcpmon_list-saved-datasets',
                     inputSchema: {
                         type: 'object',
                         properties: {
@@ -356,7 +357,7 @@ let LargeResponseHandlerTestSuite = class LargeResponseHandlerTestSuite {
                 ];
                 this.lrhUtils.mockDuckDBQuery(mockQueryResult);
                 const hooks = this.mockMCPMon.getRegisteredHooks();
-                const result = await hooks.handleToolCall('mcpmon.analyze-with-duckdb', {
+                const result = await hooks.handleToolCall('mcpmon_analyze-with-duckdb', {
                     datasetId: 'dataset-123',
                     query: 'SELECT * FROM test_table'
                 });
@@ -376,7 +377,7 @@ let LargeResponseHandlerTestSuite = class LargeResponseHandlerTestSuite {
                 ];
                 this.lrhUtils.mockDatasetListing(mockDatasets);
                 const hooks = this.mockMCPMon.getRegisteredHooks();
-                const result = await hooks.handleToolCall('mcpmon.list-saved-datasets', { limit: 10 });
+                const result = await hooks.handleToolCall('mcpmon_list-saved-datasets', { limit: 10 });
                 expect(result).toMatchObject({
                     datasets: [],
                     message: 'Dataset listing not yet implemented'

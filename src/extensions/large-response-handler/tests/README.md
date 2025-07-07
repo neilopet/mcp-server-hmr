@@ -39,8 +39,8 @@ The test suite includes specialized utilities for LRH testing:
 
 ### Tool Integration
 - ✅ Tool injection into `tools/list` responses
-- ✅ `mcpmon.analyze-with-duckdb` tool handling
-- ✅ `mcpmon.list-saved-datasets` tool handling
+- ✅ `mcpmon_analyze-with-duckdb` tool handling
+- ✅ `mcpmon_list-saved-datasets` tool handling
 - ✅ Tool schema validation
 
 ### Progress Notifications

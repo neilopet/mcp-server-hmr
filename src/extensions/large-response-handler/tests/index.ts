@@ -81,7 +81,7 @@ export class LargeResponseHandlerTestSuite implements ExtensionTestSuite {
       });
 
       afterEach(async () => {
-        await this.extension.shutdown();
+        if (this.extension.shutdown) await this.extension.shutdown();
       });
 
       // In soak mode, only run integration tests
@@ -361,8 +361,8 @@ export class LargeResponseHandlerTestSuite implements ExtensionTestSuite {
         
         // Verify the tool names
         const toolNames = additionalTools.map(t => t.name);
-        expect(toolNames).toContain('mcpmon.analyze-with-duckdb');
-        expect(toolNames).toContain('mcpmon.list-saved-datasets');
+        expect(toolNames).toContain('mcpmon_analyze-with-duckdb');
+        expect(toolNames).toContain('mcpmon_list-saved-datasets');
         
         // Verify each tool has required properties
         additionalTools.forEach(tool => {
@@ -380,9 +380,9 @@ export class LargeResponseHandlerTestSuite implements ExtensionTestSuite {
 
         expect(tools).toHaveLength(2);
 
-        const duckdbTool = tools.find(t => t.name === 'mcpmon.analyze-with-duckdb');
+        const duckdbTool = tools.find(t => t.name === 'mcpmon_analyze-with-duckdb');
         expect(duckdbTool).toMatchObject({
-          name: 'mcpmon.analyze-with-duckdb',
+          name: 'mcpmon_analyze-with-duckdb',
           inputSchema: {
             type: 'object',
             properties: {
@@ -393,9 +393,9 @@ export class LargeResponseHandlerTestSuite implements ExtensionTestSuite {
           }
         });
 
-        const listTool = tools.find(t => t.name === 'mcpmon.list-saved-datasets');
+        const listTool = tools.find(t => t.name === 'mcpmon_list-saved-datasets');
         expect(listTool).toMatchObject({
-          name: 'mcpmon.list-saved-datasets',
+          name: 'mcpmon_list-saved-datasets',
           inputSchema: {
             type: 'object',
             properties: {
@@ -426,7 +426,7 @@ export class LargeResponseHandlerTestSuite implements ExtensionTestSuite {
 
         const hooks = this.mockMCPMon.getRegisteredHooks();
         const result = await hooks.handleToolCall!(
-          'mcpmon.analyze-with-duckdb',
+          'mcpmon_analyze-with-duckdb',
           {
             datasetId: 'dataset-123',
             query: 'SELECT * FROM test_table'
@@ -453,7 +453,7 @@ export class LargeResponseHandlerTestSuite implements ExtensionTestSuite {
 
         const hooks = this.mockMCPMon.getRegisteredHooks();
         const result = await hooks.handleToolCall!(
-          'mcpmon.list-saved-datasets',
+          'mcpmon_list-saved-datasets',
           { limit: 10 }
         );
 

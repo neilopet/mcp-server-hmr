@@ -182,9 +182,9 @@ describe('LargeResponseHandlerExtension - Unit Tests', () => {
 
       expect(tools).toHaveLength(2);
 
-      const duckdbTool = tools.find((t: any) => t.name === 'mcpmon.analyze-with-duckdb');
+      const duckdbTool = tools.find((t: any) => t.name === 'mcpmon_analyze-with-duckdb');
       expect(duckdbTool).toMatchObject({
-        name: 'mcpmon.analyze-with-duckdb',
+        name: 'mcpmon_analyze-with-duckdb',
         description: expect.stringContaining('DuckDB SQL queries'),
         inputSchema: {
           type: 'object',
@@ -196,9 +196,9 @@ describe('LargeResponseHandlerExtension - Unit Tests', () => {
         }
       });
 
-      const listTool = tools.find((t: any) => t.name === 'mcpmon.list-saved-datasets');
+      const listTool = tools.find((t: any) => t.name === 'mcpmon_list-saved-datasets');
       expect(listTool).toMatchObject({
-        name: 'mcpmon.list-saved-datasets',
+        name: 'mcpmon_list-saved-datasets',
         description: expect.stringContaining('List all saved'),
         inputSchema: {
           type: 'object',
@@ -218,7 +218,7 @@ describe('LargeResponseHandlerExtension - Unit Tests', () => {
     it('should handle analyze-with-duckdb tool calls', async () => {
       const handleToolCall = (extension as any).handleToolCall;
       
-      const result = await handleToolCall.call(extension, 'mcpmon.analyze-with-duckdb', {
+      const result = await handleToolCall.call(extension, 'mcpmon_analyze-with-duckdb', {
         datasetId: 'test-dataset-123',
         query: 'SELECT * FROM test_table LIMIT 10'
       });
@@ -232,7 +232,7 @@ describe('LargeResponseHandlerExtension - Unit Tests', () => {
     it('should handle list-saved-datasets tool calls', async () => {
       const handleToolCall = (extension as any).handleToolCall;
       
-      const result = await handleToolCall.call(extension, 'mcpmon.list-saved-datasets', {
+      const result = await handleToolCall.call(extension, 'mcpmon_list-saved-datasets', {
         limit: 10
       });
 
