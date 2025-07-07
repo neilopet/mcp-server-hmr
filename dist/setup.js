@@ -68,7 +68,7 @@ function getMcpmonCommand() {
             if (mcpmonPath && existsSync(mcpmonPath)) {
                 return {
                     command: modernNode,
-                    args: [mcpmonPath]
+                    args: [mcpmonPath, '--enable-extension', 'large-response-handler']
                 };
             }
         }
@@ -79,7 +79,7 @@ function getMcpmonCommand() {
     // Fallback to system mcpmon (may fail on old Node.js)
     return {
         command: 'mcpmon',
-        args: []
+        args: ['--enable-extension', 'large-response-handler']
     };
 }
 /**
@@ -109,6 +109,37 @@ function isStdioServer(serverConfig) {
     }
     // Default to stdio for most servers
     return true;
+}
+/**
+ * Parse a command string into command and args array
+ */
+function parseCommandString(cmdString) {
+    // Simple parsing - split by spaces, handling quoted strings
+    const parts = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < cmdString.length; i++) {
+        const char = cmdString[i];
+        if (char === '"' || char === "'") {
+            inQuotes = !inQuotes;
+        }
+        else if (char === ' ' && !inQuotes) {
+            if (current) {
+                parts.push(current);
+                current = '';
+            }
+        }
+        else {
+            current += char;
+        }
+    }
+    if (current) {
+        parts.push(current);
+    }
+    return {
+        command: parts[0] || '',
+        args: parts.slice(1)
+    };
 }
 /**
  * Check if a server is already configured with mcpmon
@@ -176,7 +207,9 @@ function findConfigFile(providedPath) {
     // 1. Claude Code project config
     const projectMcpPath = resolve('.mcp.json');
     searchPaths.push(projectMcpPath);
-    // 2. Claude Desktop config (platform-specific)
+    // 2. Claude Code config
+    searchPaths.push(resolve(home, '.claude.json'));
+    // 3. Claude Desktop config (platform-specific)
     if (platform === 'darwin') {
         searchPaths.push(resolve(home, 'Library/Application Support/Claude/claude_desktop_config.json'));
     }
@@ -189,7 +222,7 @@ function findConfigFile(providedPath) {
     else if (platform === 'linux') {
         searchPaths.push(resolve(home, '.config/Claude/claude_desktop_config.json'));
     }
-    // 3. Current directory mcpServers.json
+    // 4. Current directory mcpServers.json
     searchPaths.push(resolve('./mcpServers.json'));
     // Check each path
     for (const path of searchPaths) {
@@ -225,7 +258,7 @@ function listServers(config, configPath) {
 /**
  * Setup hot-reload for selected servers
  */
-async function setupHotReload(config, configPath, serverName, setupAll) {
+async function setupHotReload(config, configPath, serverName, setupAll, isClaudeCode) {
     console.log(`🔧 Setting up hot-reload proxy...`);
     console.log(`📋 Config: ${configPath}`);
     // Create backup
@@ -286,9 +319,61 @@ async function setupHotReload(config, configPath, serverName, setupAll) {
             // Unwrap the existing configuration to get the original
             const original = unwrapMcpmonConfig(serverConfig);
             // Re-wrap with current mcpmon command
+            let commandParts;
+            // Check if command contains spaces (full command string)
+            if (original.command.includes(' ')) {
+                const parsed = parseCommandString(original.command);
+                // Skip 'mcpmon' if it's the first part (shouldn't be in the original command)
+                if (parsed.command === 'mcpmon' && parsed.args.length > 0) {
+                    commandParts = parsed.args;
+                }
+                else {
+                    commandParts = [parsed.command, ...parsed.args];
+                }
+            }
+            else {
+                commandParts = [original.command];
+            }
+            // Handle Docker environment variables
+            let dockerEnvArgs = [];
+            if (commandParts[0] === 'docker' && serverConfig.env) {
+                // Convert env vars to docker -e flags
+                for (const [key, value] of Object.entries(serverConfig.env)) {
+                    dockerEnvArgs.push('-e', `${key}=${value}`);
+                }
+            }
+            // Handle Docker-based servers - add watch targets for local development
+            let watchArgs = [];
+            if (commandParts[0] === 'docker') {
+                // Try to detect local development directory based on image name
+                const imageIndex = commandParts.findIndex(arg => arg.includes('ghcr.io/') || arg.includes('/'));
+                if (imageIndex !== -1) {
+                    const imageName = commandParts[imageIndex];
+                    // Special handling for known MCP servers
+                    if (imageName.includes('github/github-mcp-server')) {
+                        // Check if the local binary exists
+                        const localBinary = '/Users/neilopet/go/src/github.com/github/github-mcp-server/github-mcp-server';
+                        if (existsSync(localBinary)) {
+                            watchArgs = ['--watch', localBinary];
+                            console.log(`   Added watch target: ${localBinary}`);
+                        }
+                    }
+                    // Add more special cases as needed
+                }
+            }
+            // Insert docker env args after 'docker run' but before image name
+            let finalArgs = [...mcpmonCmd.args, ...watchArgs, ...commandParts];
+            if (dockerEnvArgs.length > 0) {
+                // Find position after 'run' command
+                const runIndex = finalArgs.findIndex(arg => arg === 'run');
+                if (runIndex !== -1) {
+                    finalArgs.splice(runIndex + 1, 0, ...dockerEnvArgs);
+                }
+            }
+            finalArgs.push(...(original.args || []));
             newConfig.mcpServers[name] = {
                 command: mcpmonCmd.command,
-                args: [...mcpmonCmd.args, original.command, ...(original.args || [])],
+                args: finalArgs,
                 env: serverConfig.env, // Keep existing env
                 cwd: serverConfig.cwd,
             };
@@ -296,9 +381,61 @@ async function setupHotReload(config, configPath, serverName, setupAll) {
         else {
             console.log(`🔧 Configuring '${name}' for hot-reload...`);
             // First-time configuration
+            let commandParts;
+            // Check if command contains spaces (full command string)
+            if (serverConfig.command.includes(' ')) {
+                const parsed = parseCommandString(serverConfig.command);
+                // Skip 'mcpmon' if it's the first part (shouldn't be in the original command)
+                if (parsed.command === 'mcpmon' && parsed.args.length > 0) {
+                    commandParts = parsed.args;
+                }
+                else {
+                    commandParts = [parsed.command, ...parsed.args];
+                }
+            }
+            else {
+                commandParts = [serverConfig.command];
+            }
+            // Handle Docker environment variables
+            let dockerEnvArgs = [];
+            if (commandParts[0] === 'docker' && serverConfig.env) {
+                // Convert env vars to docker -e flags
+                for (const [key, value] of Object.entries(serverConfig.env)) {
+                    dockerEnvArgs.push('-e', `${key}=${value}`);
+                }
+            }
+            // Handle Docker-based servers - add watch targets for local development
+            let watchArgs = [];
+            if (commandParts[0] === 'docker') {
+                // Try to detect local development directory based on image name
+                const imageIndex = commandParts.findIndex(arg => arg.includes('ghcr.io/') || arg.includes('/'));
+                if (imageIndex !== -1) {
+                    const imageName = commandParts[imageIndex];
+                    // Special handling for known MCP servers
+                    if (imageName.includes('github/github-mcp-server')) {
+                        // Check if the local binary exists
+                        const localBinary = '/Users/neilopet/go/src/github.com/github/github-mcp-server/github-mcp-server';
+                        if (existsSync(localBinary)) {
+                            watchArgs = ['--watch', localBinary];
+                            console.log(`   Added watch target: ${localBinary}`);
+                        }
+                    }
+                    // Add more special cases as needed
+                }
+            }
+            // Insert docker env args after 'docker run' but before image name
+            let finalArgs = [...mcpmonCmd.args, ...watchArgs, ...commandParts];
+            if (dockerEnvArgs.length > 0) {
+                // Find position after 'run' command
+                const runIndex = finalArgs.findIndex(arg => arg === 'run');
+                if (runIndex !== -1) {
+                    finalArgs.splice(runIndex + 1, 0, ...dockerEnvArgs);
+                }
+            }
+            finalArgs.push(...(serverConfig.args || []));
             newConfig.mcpServers[name] = {
                 command: mcpmonCmd.command,
-                args: [...mcpmonCmd.args, serverConfig.command, ...(serverConfig.args || [])],
+                args: finalArgs,
                 env: serverConfig.env,
                 cwd: serverConfig.cwd,
             };
@@ -307,8 +444,19 @@ async function setupHotReload(config, configPath, serverName, setupAll) {
     }
     // Write updated config
     try {
-        const configText = JSON.stringify(newConfig, null, 2);
-        writeFileSync(configPath, configText, 'utf8');
+        let configToWrite;
+        if (isClaudeCode) {
+            // For Claude Code, we need to merge back into the full config
+            const configText = readFileSync(configPath, 'utf8');
+            const fullConfig = JSON.parse(configText);
+            fullConfig.mcpServers = newConfig.mcpServers;
+            configToWrite = fullConfig;
+        }
+        else {
+            configToWrite = newConfig;
+        }
+        const finalConfigText = JSON.stringify(configToWrite, null, 2);
+        writeFileSync(configPath, finalConfigText, 'utf8');
         console.log(`\n✅ Updated config file: ${configPath}`);
         console.log(`\n📝 Hot-reload configured for ${serversToSetup.length} server(s):`);
         for (const serverName of serversToSetup) {
@@ -329,6 +477,9 @@ async function setupHotReload(config, configPath, serverName, setupAll) {
     console.log(`   cp "${backupPath}" "${configPath}"`);
     if (configPath.includes('claude_desktop_config.json')) {
         console.log(`\n⚠️  Restart Claude Desktop to apply changes`);
+    }
+    else if (configPath.includes('.claude.json')) {
+        console.log(`\n⚠️  Restart Claude Code to apply changes`);
     }
     else if (configPath.includes('.mcp.json')) {
         console.log(`\n⚠️  Restart Claude Code or reload the project`);
@@ -409,16 +560,17 @@ function executeSetup(configPath, serverName, listMode, setupAll, restoreMode) {
         console.error(`\n❌ No config file found!`);
         console.error(`\nSearched in:`);
         console.error(`  1. .mcp.json (Claude Code project config)`);
+        console.error(`  2. ~/.claude.json (Claude Code user config)`);
         if (platform === 'darwin') {
-            console.error(`  2. ~/Library/Application Support/Claude/claude_desktop_config.json`);
+            console.error(`  3. ~/Library/Application Support/Claude/claude_desktop_config.json`);
         }
         else if (platform === 'win32') {
-            console.error(`  2. %APPDATA%\\Claude\\claude_desktop_config.json`);
+            console.error(`  3. %APPDATA%\\Claude\\claude_desktop_config.json`);
         }
         else {
-            console.error(`  2. ~/.config/Claude/claude_desktop_config.json`);
+            console.error(`  3. ~/.config/Claude/claude_desktop_config.json`);
         }
-        console.error(`  3. ./mcpServers.json`);
+        console.error(`  4. ./mcpServers.json`);
         console.error(`\nYou can specify a custom path with --config <path>`);
         process.exit(1);
     }
@@ -429,9 +581,20 @@ function executeSetup(configPath, serverName, listMode, setupAll, restoreMode) {
     }
     // Load config
     let config;
+    const isClaudeCode = foundConfigPath.endsWith('.claude.json');
     try {
         const configText = readFileSync(foundConfigPath, 'utf8');
-        config = JSON.parse(configText);
+        const rawConfig = JSON.parse(configText);
+        if (isClaudeCode) {
+            // Claude Code stores mcpServers directly in the config
+            const claudeConfig = rawConfig;
+            config = {
+                mcpServers: claudeConfig.mcpServers || {}
+            };
+        }
+        else {
+            config = rawConfig;
+        }
     }
     catch (error) {
         console.error(`❌ Failed to read config file: ${error.message}`);
@@ -449,5 +612,5 @@ function executeSetup(configPath, serverName, listMode, setupAll, restoreMode) {
         return;
     }
     // Handle setup mode
-    setupHotReload(config, foundConfigPath, serverName, setupAll);
+    setupHotReload(config, foundConfigPath, serverName, setupAll, isClaudeCode);
 }

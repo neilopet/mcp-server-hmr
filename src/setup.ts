@@ -92,7 +92,7 @@ function getMcpmonCommand(): { command: string; args: string[] } {
       if (mcpmonPath && existsSync(mcpmonPath)) {
         return {
           command: modernNode,
-          args: [mcpmonPath]
+          args: [mcpmonPath, '--enable-extension', 'large-response-handler']
         };
       }
     } catch (e) {
@@ -103,7 +103,7 @@ function getMcpmonCommand(): { command: string; args: string[] } {
   // Fallback to system mcpmon (may fail on old Node.js)
   return {
     command: 'mcpmon',
-    args: []
+    args: ['--enable-extension', 'large-response-handler']
   };
 }
 
