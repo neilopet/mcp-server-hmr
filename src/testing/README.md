@@ -66,19 +66,17 @@ class MyExtensionTestSuite implements ExtensionTestSuite {
 
 ## Quick Start
 
-### 1. Install Dependencies
+### 1. Set Up Testing
 
-```bash
-npm install --save-dev @mcpmon/testing
-```
+The testing framework is included with mcpmon. No additional installation needed.
 
 ### 2. Create Extension Test Suite
 
 Create `src/extensions/my-extension/tests/index.ts`:
 
 ```typescript
-import { TestContainer, MockMCPMon, createMockMCPMon } from '@mcpmon/testing';
-import type { ExtensionTestSuite } from '@mcpmon/testing';
+import { TestContainer, MockMCPMon, createMockMCPMon } from '../../../testing/index.js';
+import type { ExtensionTestSuite } from '../../../testing/types.js';
 import { MyExtension } from '../index.js';
 
 @TestContainer.register('my-extension')
@@ -451,7 +449,7 @@ export class MessageInterceptorTestSuite implements ExtensionTestSuite {
 Integration tests verify extension behavior in a controlled environment with real proxy infrastructure.
 
 ```typescript
-import { TestHarness, MCPMonTestHarness } from '@mcpmon/testing';
+import { TestHarness, MCPMonTestHarness } from '../../../testing/index.js';
 
 describe('Tool Provider Integration Tests', () => {
   let harness: TestHarness;
@@ -571,7 +569,7 @@ describe('Tool Provider Integration Tests', () => {
 Soak tests implement the **Tier 2: System Lifecycle Tests** pattern from SYSTEMDESIGN.md, testing "one long-running system" rather than isolated mini-applications.
 
 ```typescript
-import { TestHarness, MCPMonTestHarness } from '@mcpmon/testing';
+import { TestHarness, MCPMonTestHarness } from '../../../testing/index.js';
 
 describe('Large Response Handler Soak Tests', () => {
   let harness: TestHarness;
@@ -662,7 +660,7 @@ describe('Large Response Handler Soak Tests', () => {
 End-to-end tests verify complete workflows with simulated MCP clients.
 
 ```typescript
-import { E2ETestContext } from '@mcpmon/testing';
+import { E2ETestContext } from '../../../testing/index.js';
 
 describe('E2E Extension Tests', () => {
   let e2eContext: E2ETestContext;
