@@ -434,6 +434,15 @@ export class MCPProxy {
     console.error(`🛑 Killing server process ${this.serverPid}...`);
 
     try {
+      // Check if this is a Docker process
+      const isDocker = this.config.command === 'docker' && 
+                      this.config.commandArgs[0] === 'run';
+      
+      if (isDocker) {
+        // For Docker, we need to stop the container, not just the docker run process
+        await this.stopDockerContainer();
+      }
+
       // First try SIGTERM
       this.managedProcess.kill("SIGTERM");
 
@@ -458,6 +467,46 @@ export class MCPProxy {
 
     this.managedProcess = null;
     this.serverPid = null;
+  }
+
+  private async stopDockerContainer() {
+    try {
+      // Try to find the container ID from docker ps
+      const dockerPs = this.procManager.spawn('docker', ['ps', '-q', '-f', `ancestor=${this.config.commandArgs[this.config.commandArgs.indexOf('run') + 3]}`], {
+        stdout: 'piped',
+        stderr: 'piped'
+      });
+      
+      const output: string[] = [];
+      for await (const chunk of dockerPs.stdout) {
+        output.push(new TextDecoder().decode(chunk));
+      }
+      
+      const containerIds = output.join('').trim().split('\n').filter(id => id);
+      
+      if (containerIds.length > 0) {
+        console.error(`🐳 Stopping ${containerIds.length} Docker container(s)...`);
+        
+        // Stop all matching containers
+        for (const containerId of containerIds) {
+          if (containerId) {
+            try {
+              const stopProcess = this.procManager.spawn('docker', ['stop', containerId], {
+                stdin: 'null',
+                stdout: 'piped', 
+                stderr: 'piped'
+              });
+              await stopProcess.status;
+              console.error(`✅ Stopped Docker container ${containerId}`);
+            } catch (error) {
+              console.error(`⚠️  Failed to stop container ${containerId}: ${error}`);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error(`⚠️  Error managing Docker containers: ${error}`);
+    }
   }
 
   private async verifyProcessKilled(pid: number) {
