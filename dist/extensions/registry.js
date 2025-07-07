@@ -92,12 +92,12 @@ export class ExtensionRegistry {
     async loadBuiltinExtensions() {
         // List of built-in extensions
         const builtins = [
-        // 'large-response-handler', // Temporarily disabled - missing dependencies
-        // Future extensions:
-        // 'metrics',
-        // 'auth',
-        // 'request-logger',
-        // 'rate-limiter'
+            'large-response-handler', // Re-enabled with full implementation
+            // Future extensions:
+            // 'metrics',
+            // 'auth',
+            // 'request-logger',
+            // 'rate-limiter'
         ];
         for (const name of builtins) {
             try {

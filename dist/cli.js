@@ -19,6 +19,10 @@ import { MCPProxy } from "./proxy.js";
 import { setupCommand } from "./setup.js";
 import { ExtensionRegistry } from "./extensions/index.js";
 import { parseWatchAndCommand } from "./cli-utils.js";
+import { createHash } from "crypto";
+import { existsSync, readFileSync, writeFileSync, unlinkSync, readdirSync } from "fs";
+import { tmpdir } from "os";
+import { spawn } from "child_process";
 // Check if we're running on an outdated Node.js version
 const nodeVersion = process.version;
 const [major] = nodeVersion.slice(1).split('.').map(Number);
@@ -29,6 +33,690 @@ if (major < 16) {
 }
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+// PID file management for singleton pattern
+let pidFilePath = null;
+/**
+ * Generate a unique hash for the current configuration
+ * Based on command, args, and working directory to allow different servers
+ * but prevent duplicates for the same server
+ */
+function generateConfigHash(command, args, cwd) {
+    const configString = JSON.stringify({
+        command,
+        args,
+        cwd
+    });
+    return createHash('sha256').update(configString).digest('hex').substring(0, 16);
+}
+/**
+ * Check if a process with the given PID is still running
+ */
+function isProcessAlive(pid) {
+    try {
+        // process.kill(pid, 0) doesn't actually kill the process,
+        // it just checks if the process exists and we have permission to signal it
+        process.kill(pid, 0);
+        return true;
+    }
+    catch (err) {
+        // ESRCH = No such process
+        // EPERM = Operation not permitted (process exists but we can't signal it)
+        return err.code === 'EPERM';
+    }
+}
+/**
+ * Create PID file and check for existing instance
+ * Returns true if this is the first instance, false if another is already running
+ */
+function acquireSingletonLock(command, args) {
+    const configHash = generateConfigHash(command, args, process.cwd());
+    pidFilePath = join(tmpdir(), `mcpmon-${configHash}.pid`);
+    // Check if PID file already exists
+    if (existsSync(pidFilePath)) {
+        try {
+            const existingPid = parseInt(readFileSync(pidFilePath, 'utf8').trim());
+            if (isProcessAlive(existingPid)) {
+                console.error(`❌ mcpmon is already running for this configuration (PID: ${existingPid})`);
+                console.error(`💡 If you believe this is an error, remove the PID file: ${pidFilePath}`);
+                return false;
+            }
+            else {
+                // Stale PID file, remove it
+                console.error(`🧹 Removing stale PID file (process ${existingPid} no longer exists)`);
+                unlinkSync(pidFilePath);
+            }
+        }
+        catch (err) {
+            // Invalid PID file, remove it
+            console.error(`🧹 Removing invalid PID file: ${pidFilePath}`);
+            unlinkSync(pidFilePath);
+        }
+    }
+    // Create new PID file
+    try {
+        writeFileSync(pidFilePath, process.pid.toString(), 'utf8');
+        return true;
+    }
+    catch (err) {
+        console.error(`❌ Failed to create PID file: ${err}`);
+        return false;
+    }
+}
+/**
+ * Remove PID file on clean shutdown
+ */
+function releaseSingletonLock() {
+    if (pidFilePath && existsSync(pidFilePath)) {
+        try {
+            unlinkSync(pidFilePath);
+        }
+        catch (err) {
+            // Ignore errors during cleanup
+        }
+    }
+}
+/**
+ * Register cleanup handlers for various exit scenarios
+ */
+function registerCleanupHandlers() {
+    // Clean shutdown signals
+    process.on('SIGINT', () => {
+        releaseSingletonLock();
+        process.exit(0);
+    });
+    process.on('SIGTERM', () => {
+        releaseSingletonLock();
+        process.exit(0);
+    });
+    // Unexpected exit scenarios
+    process.on('uncaughtException', (err) => {
+        console.error('❌ Uncaught exception:', err);
+        releaseSingletonLock();
+        process.exit(1);
+    });
+    process.on('unhandledRejection', (reason, promise) => {
+        console.error('❌ Unhandled rejection at:', promise, 'reason:', reason);
+        releaseSingletonLock();
+        process.exit(1);
+    });
+    // Normal process exit
+    process.on('exit', () => {
+        releaseSingletonLock();
+    });
+}
+/**
+ * Parse ps command output to extract process information
+ */
+function parseProcessInfo(line) {
+    // ps aux format: USER PID %CPU %MEM VSZ RSS TTY STAT START TIME COMMAND
+    const parts = line.trim().split(/\s+/);
+    if (parts.length < 11)
+        return null;
+    const user = parts[0];
+    const pid = parseInt(parts[1]);
+    const command = parts[10];
+    const fullCommand = parts.slice(10).join(' ');
+    // Get UID for the user (simplified - just check if it's current user)
+    const currentUser = process.env.USER || process.env.USERNAME || '';
+    if (user !== currentUser)
+        return null;
+    return {
+        pid,
+        uid: process.getuid ? process.getuid() : 0,
+        command,
+        fullCommand
+    };
+}
+/**
+ * Find all mcpmon processes running on the system
+ */
+async function findMcpmonProcesses() {
+    return new Promise((resolve, reject) => {
+        const ps = spawn('ps', ['aux'], { stdio: ['ignore', 'pipe', 'pipe'] });
+        let output = '';
+        let errorOutput = '';
+        ps.stdout.on('data', (data) => {
+            output += data.toString();
+        });
+        ps.stderr.on('data', (data) => {
+            errorOutput += data.toString();
+        });
+        ps.on('close', (code) => {
+            if (code !== 0) {
+                reject(new Error(`ps command failed: ${errorOutput}`));
+                return;
+            }
+            const lines = output.split('\n');
+            const processes = [];
+            for (const line of lines) {
+                if (line.includes('mcpmon') && !line.includes('ps aux')) {
+                    const processInfo = parseProcessInfo(line);
+                    if (processInfo && processInfo.pid !== process.pid) {
+                        processes.push(processInfo);
+                    }
+                }
+            }
+            resolve(processes);
+        });
+        ps.on('error', (err) => {
+            reject(err);
+        });
+    });
+}
+/**
+ * Find and clean up PID files in tmp directory
+ */
+function cleanupPidFiles(verbose = false) {
+    const removed = [];
+    const failed = [];
+    try {
+        const tmpDir = tmpdir();
+        const files = readdirSync(tmpDir);
+        for (const file of files) {
+            if (file.startsWith('mcpmon-') && file.endsWith('.pid')) {
+                const filePath = join(tmpDir, file);
+                try {
+                    // Check if process is still alive
+                    const pidContent = readFileSync(filePath, 'utf8').trim();
+                    const pid = parseInt(pidContent);
+                    if (!isNaN(pid) && !isProcessAlive(pid)) {
+                        unlinkSync(filePath);
+                        removed.push(filePath);
+                        if (verbose) {
+                            console.log(`🧹 Removed stale PID file: ${filePath} (process ${pid} not found)`);
+                        }
+                    }
+                    else if (verbose) {
+                        console.log(`⚠️  Keeping PID file: ${filePath} (process ${pid} still running)`);
+                    }
+                }
+                catch (err) {
+                    // Invalid PID file, remove it
+                    try {
+                        unlinkSync(filePath);
+                        removed.push(filePath);
+                        if (verbose) {
+                            console.log(`🧹 Removed invalid PID file: ${filePath}`);
+                        }
+                    }
+                    catch (removeErr) {
+                        failed.push(filePath);
+                        if (verbose) {
+                            console.error(`❌ Failed to remove PID file: ${filePath} - ${removeErr}`);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    catch (err) {
+        if (verbose) {
+            console.error(`❌ Failed to scan tmp directory: ${err}`);
+        }
+    }
+    return { removed, failed };
+}
+/**
+ * Find Docker containers that might be mcpmon-related
+ */
+async function findMcpmonDockerContainers() {
+    return new Promise((resolve) => {
+        const docker = spawn('docker', ['ps', '-a', '--format', '{{.ID}} {{.Command}} {{.Names}}'], {
+            stdio: ['ignore', 'pipe', 'pipe']
+        });
+        let output = '';
+        docker.stdout.on('data', (data) => {
+            output += data.toString();
+        });
+        docker.on('close', (code) => {
+            if (code !== 0) {
+                // Docker not available or failed
+                resolve([]);
+                return;
+            }
+            const lines = output.split('\n');
+            const containers = [];
+            for (const line of lines) {
+                // Look for containers that might be mcpmon-related
+                // This is conservative - we only look for obvious patterns
+                if (line.includes('mcpmon') || line.includes('mcp-server')) {
+                    const parts = line.trim().split(/\s+/);
+                    if (parts.length > 0) {
+                        containers.push(parts[0]); // Container ID
+                    }
+                }
+            }
+            resolve(containers);
+        });
+        docker.on('error', () => {
+            // Docker not available
+            resolve([]);
+        });
+    });
+}
+/**
+ * Find orphaned Docker containers managed by mcpmon
+ * These are containers that were started by mcpmon instances that have crashed or been killed
+ */
+async function findOrphanedContainers(verbose = false) {
+    return new Promise((resolve) => {
+        // First, find all containers with mcpmon.managed=true label
+        const docker = spawn('docker', ['ps', '-q', '--filter', 'label=mcpmon.managed=true'], {
+            stdio: ['ignore', 'pipe', 'pipe']
+        });
+        let output = '';
+        let errorOutput = '';
+        docker.stdout.on('data', (data) => {
+            output += data.toString();
+        });
+        docker.stderr.on('data', (data) => {
+            errorOutput += data.toString();
+        });
+        docker.on('close', async (code) => {
+            if (code !== 0) {
+                if (verbose) {
+                    console.error(`⚠️  Failed to query Docker containers: ${errorOutput}`);
+                }
+                resolve([]);
+                return;
+            }
+            const containerIds = output.trim().split('\n').filter(id => id.length > 0);
+            if (containerIds.length === 0) {
+                resolve([]);
+                return;
+            }
+            if (verbose) {
+                console.log(`🔍 Found ${containerIds.length} mcpmon-managed container(s), checking for orphans...`);
+            }
+            const orphanedContainers = [];
+            // Inspect each container to get label information
+            for (const containerId of containerIds) {
+                try {
+                    const containerInfo = await inspectContainer(containerId, verbose);
+                    if (containerInfo && containerInfo.isOrphaned) {
+                        orphanedContainers.push(containerInfo);
+                    }
+                }
+                catch (err) {
+                    if (verbose) {
+                        console.error(`❌ Failed to inspect container ${containerId}: ${err}`);
+                    }
+                }
+            }
+            resolve(orphanedContainers);
+        });
+        docker.on('error', (err) => {
+            if (verbose) {
+                console.error(`❌ Docker command error: ${err}`);
+            }
+            resolve([]);
+        });
+    });
+}
+/**
+ * Inspect a single container and determine if it's orphaned
+ */
+async function inspectContainer(containerId, verbose = false) {
+    return new Promise((resolve) => {
+        const docker = spawn('docker', ['inspect', containerId], {
+            stdio: ['ignore', 'pipe', 'pipe']
+        });
+        let output = '';
+        let errorOutput = '';
+        docker.stdout.on('data', (data) => {
+            output += data.toString();
+        });
+        docker.stderr.on('data', (data) => {
+            errorOutput += data.toString();
+        });
+        docker.on('close', (code) => {
+            if (code !== 0) {
+                if (verbose) {
+                    console.error(`⚠️  Failed to inspect container ${containerId}: ${errorOutput}`);
+                }
+                resolve(null);
+                return;
+            }
+            try {
+                const inspectData = JSON.parse(output);
+                if (!inspectData || inspectData.length === 0) {
+                    resolve(null);
+                    return;
+                }
+                const container = inspectData[0];
+                const labels = container.Config?.Labels || {};
+                // Extract mcpmon labels
+                const sessionId = labels['mcpmon.session'];
+                const pid = labels['mcpmon.pid'] ? parseInt(labels['mcpmon.pid']) : undefined;
+                const startTime = labels['mcpmon.started'] ? parseInt(labels['mcpmon.started']) : undefined;
+                if (verbose) {
+                    console.log(`🐳 Container ${containerId.substring(0, 12)}:`);
+                    console.log(`   Session: ${sessionId || 'unknown'}`);
+                    console.log(`   PID: ${pid || 'unknown'}`);
+                    console.log(`   Started: ${startTime ? new Date(startTime).toLocaleString() : 'unknown'}`);
+                }
+                // Check if the mcpmon process is still alive
+                let isOrphaned = false;
+                if (pid) {
+                    if (!isProcessAlive(pid)) {
+                        isOrphaned = true;
+                        if (verbose) {
+                            console.log(`   Status: ❌ Orphaned (PID ${pid} is dead)`);
+                        }
+                    }
+                    else if (verbose) {
+                        console.log(`   Status: ✅ Active (PID ${pid} is alive)`);
+                    }
+                }
+                else {
+                    // No PID label means it's likely orphaned
+                    isOrphaned = true;
+                    if (verbose) {
+                        console.log(`   Status: ❌ Orphaned (no PID information)`);
+                    }
+                }
+                resolve({
+                    id: containerId,
+                    sessionId,
+                    pid,
+                    startTime,
+                    isOrphaned
+                });
+            }
+            catch (err) {
+                if (verbose) {
+                    console.error(`❌ Failed to parse container inspect data: ${err}`);
+                }
+                resolve(null);
+            }
+        });
+        docker.on('error', (err) => {
+            if (verbose) {
+                console.error(`❌ Docker inspect error: ${err}`);
+            }
+            resolve(null);
+        });
+    });
+}
+/**
+ * Clean up orphaned Docker containers
+ */
+async function cleanupOrphanedContainers(containers, verbose = false) {
+    const stopped = [];
+    const failed = [];
+    for (const container of containers) {
+        try {
+            console.log(`🧹 Cleaning up orphaned container ${container.id.substring(0, 12)}:`);
+            console.log(`   • Session: ${container.sessionId || 'unknown'}`);
+            console.log(`   • Dead PID: ${container.pid || 'unknown'}`);
+            console.log(`   • Started: ${container.startTime ? new Date(container.startTime).toLocaleString() : 'unknown'}`);
+            await new Promise((resolve) => {
+                const docker = spawn('docker', ['stop', container.id], {
+                    stdio: verbose ? 'inherit' : 'ignore'
+                });
+                docker.on('close', (code) => {
+                    if (code === 0) {
+                        stopped.push(container.id);
+                        console.log(`   ✅ Successfully stopped container`);
+                        resolve();
+                    }
+                    else {
+                        // Try force kill if stop fails
+                        const dockerKill = spawn('docker', ['kill', container.id], {
+                            stdio: verbose ? 'inherit' : 'ignore'
+                        });
+                        dockerKill.on('close', (killCode) => {
+                            if (killCode === 0) {
+                                stopped.push(container.id);
+                                console.log(`   ✅ Successfully killed container`);
+                            }
+                            else {
+                                failed.push(container.id);
+                                console.log(`   ❌ Failed to stop/kill container`);
+                            }
+                            resolve();
+                        });
+                        dockerKill.on('error', () => {
+                            failed.push(container.id);
+                            console.log(`   ❌ Failed to kill container`);
+                            resolve();
+                        });
+                    }
+                });
+                docker.on('error', () => {
+                    failed.push(container.id);
+                    console.log(`   ❌ Failed to stop container`);
+                    resolve();
+                });
+            });
+        }
+        catch (err) {
+            failed.push(container.id);
+            console.log(`   ❌ Error cleaning container: ${err}`);
+        }
+    }
+    return { stopped, failed };
+}
+/**
+ * Terminate a process safely
+ */
+async function terminateProcess(pid, verbose = false) {
+    try {
+        if (verbose) {
+            console.log(`🛑 Terminating process ${pid}...`);
+        }
+        // Try SIGTERM first
+        process.kill(pid, 'SIGTERM');
+        // Wait a bit for graceful shutdown
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        // Check if still alive
+        if (isProcessAlive(pid)) {
+            if (verbose) {
+                console.log(`💀 Process ${pid} still alive, sending SIGKILL...`);
+            }
+            process.kill(pid, 'SIGKILL');
+            // Wait a bit more
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+        return !isProcessAlive(pid);
+    }
+    catch (err) {
+        if (err.code === 'ESRCH') {
+            // Process already dead
+            return true;
+        }
+        if (verbose) {
+            console.error(`❌ Failed to terminate process ${pid}: ${err.message}`);
+        }
+        return false;
+    }
+}
+/**
+ * Stop Docker containers
+ */
+async function stopDockerContainers(containerIds, verbose = false) {
+    const stopped = [];
+    const failed = [];
+    for (const containerId of containerIds) {
+        try {
+            if (verbose) {
+                console.log(`🐳 Stopping Docker container ${containerId}...`);
+            }
+            await new Promise((resolve, reject) => {
+                const docker = spawn('docker', ['stop', containerId], { stdio: verbose ? 'inherit' : 'ignore' });
+                docker.on('close', (code) => {
+                    if (code === 0) {
+                        stopped.push(containerId);
+                        resolve();
+                    }
+                    else {
+                        failed.push(containerId);
+                        resolve(); // Don't fail the whole operation
+                    }
+                });
+                docker.on('error', () => {
+                    failed.push(containerId);
+                    resolve();
+                });
+            });
+        }
+        catch (err) {
+            failed.push(containerId);
+            if (verbose) {
+                console.error(`❌ Failed to stop container ${containerId}: ${err}`);
+            }
+        }
+    }
+    return { stopped, failed };
+}
+/**
+ * Main cleanup command implementation
+ */
+async function performCleanup(options) {
+    const { force = false, verbose = false } = options;
+    console.log('🧹 mcpmon cleanup utility');
+    console.log('==========================\n');
+    if (verbose) {
+        console.log('🔍 Scanning for mcpmon processes and resources...\n');
+    }
+    // 1. Find mcpmon processes
+    let mcpmonProcesses = [];
+    try {
+        mcpmonProcesses = await findMcpmonProcesses();
+        if (verbose || mcpmonProcesses.length > 0) {
+            console.log(`📋 Found ${mcpmonProcesses.length} mcpmon process(es):`);
+            if (mcpmonProcesses.length > 0) {
+                for (const proc of mcpmonProcesses) {
+                    console.log(`  • PID ${proc.pid}: ${proc.fullCommand}`);
+                }
+            }
+            console.log();
+        }
+    }
+    catch (err) {
+        console.error(`❌ Failed to scan for processes: ${err}`);
+        if (!force) {
+            process.exit(1);
+        }
+    }
+    // 2. Find Docker containers
+    let dockerContainers = [];
+    try {
+        dockerContainers = await findMcpmonDockerContainers();
+        if (verbose || dockerContainers.length > 0) {
+            console.log(`🐳 Found ${dockerContainers.length} potential Docker container(s):`);
+            if (dockerContainers.length > 0) {
+                for (const container of dockerContainers) {
+                    console.log(`  • Container: ${container}`);
+                }
+            }
+            console.log();
+        }
+    }
+    catch (err) {
+        if (verbose) {
+            console.error(`⚠️  Failed to scan for Docker containers: ${err}`);
+        }
+    }
+    // 3. Find orphaned Docker containers (containers whose mcpmon process has died)
+    let orphanedContainers = [];
+    try {
+        orphanedContainers = await findOrphanedContainers(verbose);
+        if (verbose || orphanedContainers.length > 0) {
+            console.log(`🐳 Found ${orphanedContainers.length} orphaned Docker container(s):`);
+            if (orphanedContainers.length > 0) {
+                for (const container of orphanedContainers) {
+                    console.log(`  • Container ${container.id.substring(0, 12)} (session: ${container.sessionId || 'unknown'}, dead PID: ${container.pid || 'unknown'}, started: ${container.startTime ? new Date(container.startTime).toLocaleString() : 'unknown'})`);
+                }
+            }
+            console.log();
+        }
+    }
+    catch (err) {
+        if (verbose) {
+            console.error(`⚠️  Failed to scan for orphaned containers: ${err}`);
+        }
+    }
+    // 4. Find PID files
+    const pidFileResults = cleanupPidFiles(verbose);
+    if (verbose || pidFileResults.removed.length > 0 || pidFileResults.failed.length > 0) {
+        console.log(`📁 PID file cleanup:`);
+        console.log(`  • Removed: ${pidFileResults.removed.length} file(s)`);
+        if (pidFileResults.failed.length > 0) {
+            console.log(`  • Failed: ${pidFileResults.failed.length} file(s)`);
+        }
+        console.log();
+    }
+    // Check if there's anything to clean up
+    const hasWork = mcpmonProcesses.length > 0 || dockerContainers.length > 0 || orphanedContainers.length > 0;
+    if (!hasWork) {
+        console.log('✅ No mcpmon processes or containers found to clean up.');
+        return;
+    }
+    // Ask for confirmation unless --force is used
+    if (!force) {
+        console.log('⚠️  This will terminate the following:');
+        if (mcpmonProcesses.length > 0) {
+            console.log(`   • ${mcpmonProcesses.length} mcpmon process(es)`);
+        }
+        if (dockerContainers.length > 0) {
+            console.log(`   • ${dockerContainers.length} Docker container(s)`);
+        }
+        if (orphanedContainers.length > 0) {
+            console.log(`   • ${orphanedContainers.length} orphaned Docker container(s)`);
+        }
+        console.log();
+        // Simple confirmation (in a real implementation, you might want to use readline)
+        console.log('❓ Proceed with cleanup? This operation cannot be undone.');
+        console.log('💡 Use --force to skip this confirmation.');
+        console.log('❌ Aborting cleanup. Use --force flag to proceed without confirmation.');
+        return;
+    }
+    console.log('🚀 Starting cleanup...\n');
+    // 5. Terminate processes
+    if (mcpmonProcesses.length > 0) {
+        console.log('🛑 Terminating mcpmon processes...');
+        let terminated = 0;
+        for (const proc of mcpmonProcesses) {
+            const success = await terminateProcess(proc.pid, verbose);
+            if (success) {
+                terminated++;
+                if (verbose) {
+                    console.log(`✅ Terminated process ${proc.pid}`);
+                }
+            }
+        }
+        console.log(`✅ Terminated ${terminated}/${mcpmonProcesses.length} process(es)\n`);
+    }
+    // 6. Stop Docker containers
+    if (dockerContainers.length > 0) {
+        console.log('🐳 Stopping Docker containers...');
+        const dockerResults = await stopDockerContainers(dockerContainers, verbose);
+        console.log(`✅ Stopped ${dockerResults.stopped.length}/${dockerContainers.length} container(s)`);
+        if (dockerResults.failed.length > 0) {
+            console.log(`❌ Failed to stop ${dockerResults.failed.length} container(s)`);
+        }
+        console.log();
+    }
+    // 7. Clean up orphaned Docker containers
+    if (orphanedContainers.length > 0) {
+        console.log('🐳 Cleaning up orphaned Docker containers...');
+        const orphanResults = await cleanupOrphanedContainers(orphanedContainers, verbose);
+        console.log(`✅ Cleaned ${orphanResults.stopped.length}/${orphanedContainers.length} orphaned container(s)`);
+        if (orphanResults.failed.length > 0) {
+            console.log(`❌ Failed to clean ${orphanResults.failed.length} orphaned container(s)`);
+        }
+        console.log();
+    }
+    console.log('✅ Cleanup completed!');
+    if (verbose) {
+        console.log('\n💡 Summary:');
+        console.log(`   • Processes terminated: ${mcpmonProcesses.length}`);
+        console.log(`   • Containers stopped: ${dockerContainers.length}`);
+        console.log(`   • Orphaned containers cleaned: ${orphanedContainers.length}`);
+        console.log(`   • PID files removed: ${pidFileResults.removed.length}`);
+    }
+}
 const program = new Command();
 program
     .name('mcpmon')
@@ -47,6 +735,8 @@ program
     .option('--list-extensions', 'List available extensions and exit')
     .option('--extensions-data-dir <path>', 'Set extension data directory')
     .option('--extension-config <json>', 'Extension configuration as JSON')
+    .option('--cleanup', 'Clean up orphaned mcpmon processes and resources')
+    .option('--force', 'Skip confirmation prompts (use with --cleanup)')
     .addHelpText('after', `
 Examples:
   mcpmon node server.js
@@ -76,6 +766,12 @@ Extension Examples:
   mcpmon --extensions-data-dir ./data node server.js
   mcpmon --extension-config '{"threshold":10}' node server.js
 
+Cleanup Examples:
+  mcpmon --cleanup                                   # Scan and prompt for cleanup
+  mcpmon --cleanup --force                           # Clean up without confirmation
+  mcpmon --cleanup --verbose                         # Detailed cleanup logging
+  mcpmon --cleanup --force --verbose                 # Force cleanup with details
+
 Environment Variables:
   MCPMON_WATCH             Override files/directories to watch (comma-separated)
   MCPMON_DELAY             Restart delay in milliseconds (default: 1000)
@@ -92,6 +788,14 @@ Watch Modes:
   • Use explicit mode for Docker containers and complex setups
 `)
     .action(async (command, args, options) => {
+    // Handle cleanup command (doesn't require a command)
+    if (options.cleanup) {
+        await performCleanup({
+            force: options.force,
+            verbose: options.verbose
+        });
+        return;
+    }
     // Handle list extensions command (doesn't require a command)
     if (options.listExtensions) {
         await listExtensions(options);
@@ -101,6 +805,12 @@ Watch Modes:
         program.help();
         return;
     }
+    // Check for singleton lock before starting proxy
+    if (!acquireSingletonLock(command, args)) {
+        process.exit(1);
+    }
+    // Register cleanup handlers after acquiring lock
+    registerCleanupHandlers();
     // Get explicit watch targets from pre-processed arguments
     const explicitWatchTargets = program._watchTargetsFromArgs || [];
     await runProxy(command, args, options, explicitWatchTargets);
@@ -337,29 +1047,22 @@ async function runProxy(command, args, options, explicitWatchTargets = []) {
         readyDelay: 2000,
         dataDir: extensionsDataDir,
     });
-    // Handle signals gracefully
-    process.on("SIGINT", async () => {
+    // Handle signals gracefully - register proxy shutdown handlers
+    const shutdownHandler = async (signal) => {
         if (verbose) {
-            console.error(`\n🛑 Received SIGINT, shutting down...`);
+            console.error(`\n🛑 Received ${signal}, shutting down...`);
         }
         await proxy.shutdown();
+        releaseSingletonLock();
         process.exit(0);
-    });
-    process.on("SIGTERM", async () => {
-        if (verbose) {
-            console.error(`\n🛑 Received SIGTERM, shutting down...`);
-        }
-        await proxy.shutdown();
-        process.exit(0);
-    });
+    };
+    process.removeAllListeners('SIGINT');
+    process.removeAllListeners('SIGTERM');
+    process.on("SIGINT", () => shutdownHandler('SIGINT'));
+    process.on("SIGTERM", () => shutdownHandler('SIGTERM'));
     // Start the proxy
     await proxy.start();
 }
-// Handle unhandled rejections
-process.on("unhandledRejection", (reason, promise) => {
-    console.error("Unhandled Rejection at:", promise, "reason:", reason);
-    process.exit(1);
-});
 // Parse command line arguments and run
 try {
     // Pre-process arguments to extract --watch flags before Commander.js processes them

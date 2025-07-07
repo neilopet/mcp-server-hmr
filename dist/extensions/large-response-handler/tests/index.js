@@ -20,7 +20,7 @@ import { inject } from 'inversify';
 import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
 import { TestContainer } from '../../../testing/TestContainer.js';
 import { TEST_TYPES } from '../../../testing/types.js';
-import LargeResponseHandlerExtension from '../index.js';
+import largeResponseHandlerExtension from '../index.js';
 /**
  * Large Response Handler Test Suite
  * Uses DI pattern for clean dependency management and test isolation
@@ -31,7 +31,7 @@ let LargeResponseHandlerTestSuite = class LargeResponseHandlerTestSuite {
     lrhUtils;
     config;
     extensionId = 'large-response-handler';
-    extension = new LargeResponseHandlerExtension();
+    extension = largeResponseHandlerExtension;
     metadata = {
         extensionId: 'large-response-handler',
         name: 'Large Response Handler Tests',

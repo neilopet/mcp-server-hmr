@@ -5,6 +5,12 @@
  * thresholds by persisting data to disk and providing streaming support.
  */
 import { StreamingBuffer } from './streaming.js';
+import { mkdir, writeFile, readFile, readdir, stat } from 'fs/promises';
+import { join, resolve } from 'path';
+import { homedir } from 'os';
+import { createHash } from 'crypto';
+import duckdb from 'duckdb';
+const { Database } = duckdb;
 const DEFAULT_CONFIG = {
     threshold: 50000,
     dataDir: './data',
@@ -17,7 +23,7 @@ const DEFAULT_CONFIG = {
     maxBufferSize: 100 * 1024 * 1024, // 100MB
     streamingTimeout: 5 * 60 * 1000, // 5 minutes
 };
-export default class LargeResponseHandlerExtension {
+class LargeResponseHandlerExtension {
     id = 'large-response-handler';
     name = 'Large Response Handler';
     version = '1.0.0';
@@ -85,13 +91,27 @@ export default class LargeResponseHandlerExtension {
             }
         }
     };
+    /**
+     * @internal
+     */
     context;
+    /**
+     * @internal
+     */
     config = DEFAULT_CONFIG;
+    /**
+     * @internal
+     */
     streamingBuffer;
+    /**
+     * @internal
+     */
     progressTokens = new Map(); // Track progress tokens by request ID
     async initialize(context) {
         this.context = context;
         this.config = { ...DEFAULT_CONFIG, ...context.config };
+        // Initialize data directory structure
+        await this.ensureDataDirectory();
         // Initialize streaming buffer with configuration
         if (this.config.enableStreaming) {
             this.streamingBuffer = new StreamingBuffer({
@@ -107,11 +127,17 @@ export default class LargeResponseHandlerExtension {
             });
         }
         // Register hooks for message interception
+        context.logger.debug('Registering Large Response Handler hooks...');
         context.hooks.beforeStdinForward = this.trackProgressToken.bind(this);
         context.hooks.afterStdoutReceive = this.handleServerResponse.bind(this);
         context.hooks.getAdditionalTools = this.getAdditionalTools.bind(this);
         context.hooks.handleToolCall = this.handleToolCall.bind(this);
-        context.logger.info('Large Response Handler initialized');
+        // Log the tools we'll be providing
+        const tools = await this.getAdditionalTools();
+        context.logger.info(`Large Response Handler initialized with ${tools.length} tools:`);
+        tools.forEach(tool => {
+            context.logger.info(`  - ${tool.name}: ${tool.description}`);
+        });
     }
     async shutdown() {
         // Clean up resources
@@ -119,7 +145,67 @@ export default class LargeResponseHandlerExtension {
         this.streamingBuffer = undefined;
     }
     /**
+     * Ensure data directory structure exists
+     * @internal
+     */
+    async ensureDataDirectory() {
+        const dataDir = this.getDataDirectory();
+        try {
+            await mkdir(dataDir, { recursive: true });
+            this.context?.logger.debug(`Data directory ensured: ${dataDir}`);
+        }
+        catch (error) {
+            this.context?.logger.error(`Failed to create data directory: ${error.message}`);
+            throw error;
+        }
+    }
+    /**
+     * Get the full path to the data directory
+     * @internal
+     */
+    getDataDirectory() {
+        let dataDir = this.config.dataDir;
+        // Handle relative paths and home directory expansion
+        if (dataDir.startsWith('~')) {
+            dataDir = join(homedir(), dataDir.slice(1));
+        }
+        else if (!dataDir.startsWith('/')) {
+            dataDir = resolve(process.cwd(), dataDir);
+        }
+        return join(dataDir, 'lrh', 'datasets');
+    }
+    /**
+     * Generate a unique dataset ID for a response
+     * @internal
+     */
+    generateDatasetId(toolName, timestamp) {
+        const hash = createHash('md5')
+            .update(`${toolName}-${timestamp}-${Math.random()}`)
+            .digest('hex')
+            .substring(0, 8);
+        return `dataset_${hash}`;
+    }
+    /**
+     * Get the file paths for a dataset
+     * @internal
+     */
+    getDatasetPaths(datasetId, timestamp) {
+        const date = new Date(timestamp);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const sessionDir = join(this.getDataDirectory(), String(year), month, day);
+        return {
+            dataFile: join(sessionDir, `${datasetId}.json`),
+            schemaFile: join(sessionDir, `${datasetId}.schema.json`),
+            duckdbFile: join(sessionDir, `${datasetId}.duckdb`),
+            metadataFile: join(sessionDir, `${datasetId}.metadata.json`),
+            sessionDir
+        };
+    }
+    /**
      * Track progress tokens from incoming requests
+     * @internal
      */
     async trackProgressToken(message) {
         // Check if request has a progress token
@@ -131,6 +217,7 @@ export default class LargeResponseHandlerExtension {
     }
     /**
      * Send MCP progress notification through the proxy
+     * @internal
      */
     async sendProgressNotification(notification) {
         if (!this.context)
@@ -146,6 +233,7 @@ export default class LargeResponseHandlerExtension {
     }
     /**
      * Handle server responses, detecting and buffering streaming responses
+     * @internal
      */
     async handleServerResponse(message) {
         // Check if this is a streaming response
@@ -185,6 +273,7 @@ export default class LargeResponseHandlerExtension {
     }
     /**
      * Check if a message is a streaming response
+     * @internal
      */
     isStreamingResponse(message) {
         return message.result?.isPartial === true ||
@@ -192,18 +281,21 @@ export default class LargeResponseHandlerExtension {
     }
     /**
      * Check if streaming is complete
+     * @internal
      */
     isStreamingComplete(message) {
         return message.result?.isPartial === false;
     }
     /**
      * Get progress token for a request
+     * @internal
      */
     getProgressToken(requestId) {
         return this.progressTokens.get(requestId);
     }
     /**
      * Assemble chunks into complete response
+     * @internal
      */
     assembleStreamedResponse(chunks) {
         // If chunks contain partial data arrays, concatenate them
@@ -224,6 +316,7 @@ export default class LargeResponseHandlerExtension {
     }
     /**
      * Check if response should be handled as large
+     * @internal
      */
     shouldHandleResponse(response) {
         if (!response)
@@ -239,8 +332,9 @@ export default class LargeResponseHandlerExtension {
     }
     /**
      * Safely stringify JSON, handling circular references
+     * @internal
      */
-    safeJsonStringify(obj) {
+    safeJsonStringify(obj, space) {
         const seen = new WeakSet();
         return JSON.stringify(obj, (key, value) => {
             if (typeof value === 'object' && value !== null) {
@@ -250,22 +344,351 @@ export default class LargeResponseHandlerExtension {
                 seen.add(value);
             }
             return value;
+        }, space);
+    }
+    /**
+     * Generate JSON schema from response data
+     * @internal
+     */
+    async generateSchema(response) {
+        try {
+            // Prepare sample data for schema generation
+            let sampleData;
+            if (Array.isArray(response)) {
+                // For arrays, sample first 100 records to avoid performance issues
+                sampleData = response.slice(0, 100);
+                // If array is empty, return array schema
+                if (sampleData.length === 0) {
+                    return {
+                        $schema: 'http://json-schema.org/draft-07/schema#',
+                        type: 'array',
+                        title: 'Response Array',
+                        description: 'Empty array response'
+                    };
+                }
+            }
+            else {
+                sampleData = response;
+            }
+            // Generate schema from data structure
+            const schema = this.inferSchema(sampleData);
+            this.context?.logger.debug('Generated JSON schema for response data');
+            return {
+                $schema: 'http://json-schema.org/draft-07/schema#',
+                title: 'Response Schema',
+                description: 'Auto-generated schema from response data',
+                ...schema
+            };
+        }
+        catch (error) {
+            this.context?.logger.warn(`Failed to generate schema: ${error.message}`);
+            // Return a basic schema as fallback
+            return {
+                $schema: 'http://json-schema.org/draft-07/schema#',
+                type: Array.isArray(response) ? 'array' : 'object',
+                title: 'Generated Schema (Fallback)',
+                description: 'Basic schema generated due to analysis error'
+            };
+        }
+    }
+    /**
+     * Infer JSON schema from data structure
+     * @internal
+     */
+    inferSchema(data) {
+        if (data === null) {
+            return { type: 'null' };
+        }
+        if (Array.isArray(data)) {
+            const itemSchemas = data.slice(0, 10).map(item => this.inferSchema(item));
+            // If all items have the same schema, use that
+            if (itemSchemas.length > 0) {
+                const firstSchema = itemSchemas[0];
+                const allSame = itemSchemas.every(schema => JSON.stringify(schema) === JSON.stringify(firstSchema));
+                if (allSame) {
+                    return {
+                        type: 'array',
+                        items: firstSchema
+                    };
+                }
+            }
+            return {
+                type: 'array',
+                items: { type: 'object' }
+            };
+        }
+        if (typeof data === 'object') {
+            const properties = {};
+            const required = [];
+            for (const [key, value] of Object.entries(data)) {
+                properties[key] = this.inferSchema(value);
+                if (value !== null && value !== undefined) {
+                    required.push(key);
+                }
+            }
+            return {
+                type: 'object',
+                properties,
+                ...(required.length > 0 ? { required } : {})
+            };
+        }
+        if (typeof data === 'string') {
+            // Check if it looks like a date
+            if (/^\d{4}-\d{2}-\d{2}/.test(data)) {
+                return { type: 'string', format: 'date-time' };
+            }
+            return { type: 'string' };
+        }
+        if (typeof data === 'number') {
+            return Number.isInteger(data) ? { type: 'integer' } : { type: 'number' };
+        }
+        if (typeof data === 'boolean') {
+            return { type: 'boolean' };
+        }
+        return { type: 'string' };
+    }
+    /**
+     * Create DuckDB database from JSON file
+     * @internal
+     */
+    async createDuckDBDatabase(dataFile, datasetId) {
+        const duckdbPath = dataFile.replace('.json', '.duckdb');
+        try {
+            this.context?.logger.info(`Creating DuckDB database: ${duckdbPath}`);
+            // Create DuckDB database instance
+            const db = new Database(duckdbPath);
+            // Generate table name from dataset ID (ensure it's a valid SQL identifier)
+            const tableName = datasetId.replace(/[^a-zA-Z0-9_]/g, '_');
+            // Create table from JSON file using DuckDB's read_json_auto function
+            const createTableQuery = `
+        CREATE TABLE ${tableName} AS 
+        SELECT * FROM read_json_auto('${dataFile}')
+      `;
+            await this.executeDuckDBQuery(db, createTableQuery);
+            this.context?.logger.debug(`Created table ${tableName} from ${dataFile}`);
+            // Get table metadata
+            const rowCountQuery = `SELECT COUNT(*) as count FROM ${tableName}`;
+            const rowCountResult = await this.executeDuckDBQuery(db, rowCountQuery);
+            const rowCount = rowCountResult[0]?.count || 0;
+            // Get column information
+            const columnsQuery = `DESCRIBE ${tableName}`;
+            const columnsResult = await this.executeDuckDBQuery(db, columnsQuery);
+            const columns = columnsResult.map((col) => ({
+                name: col.column_name,
+                type: col.column_type
+            }));
+            // Create indexes on common fields
+            const indexes = await this.createIndexes(db, tableName, columns);
+            // Generate sample queries
+            const sampleQueries = this.generateSampleQueries(tableName, columns, rowCount);
+            // Close database connection
+            db.close();
+            const databaseInfo = {
+                path: duckdbPath,
+                tableName,
+                rowCount,
+                columns,
+                indexes,
+                sampleQueries
+            };
+            this.context?.logger.info(`DuckDB database created successfully: ${tableName} (${rowCount} rows, ${columns.length} columns)`);
+            return databaseInfo;
+        }
+        catch (error) {
+            this.context?.logger.error(`Failed to create DuckDB database: ${error.message}`);
+            throw new Error(`DuckDB database creation failed: ${error.message}`);
+        }
+    }
+    /**
+     * Execute DuckDB query with proper error handling
+     * @internal
+     */
+    async executeDuckDBQuery(db, query) {
+        return new Promise((resolve, reject) => {
+            db.all(query, (error, result) => {
+                if (error) {
+                    reject(error);
+                }
+                else {
+                    resolve(result);
+                }
+            });
         });
     }
     /**
-     * Process large response (placeholder for actual implementation)
+     * Create indexes on common fields
+     * @internal
+     */
+    async createIndexes(db, tableName, columns) {
+        const indexes = [];
+        // Common field names that benefit from indexing
+        const commonIndexFields = ['id', 'name', 'timestamp', 'date', 'created_at', 'updated_at', 'status'];
+        for (const column of columns) {
+            const columnName = column.name.toLowerCase();
+            // Create index if it's a common field or looks like an ID
+            if (commonIndexFields.includes(columnName) || columnName.endsWith('_id')) {
+                const indexName = `idx_${tableName}_${column.name}`;
+                const indexQuery = `CREATE INDEX IF NOT EXISTS ${indexName} ON ${tableName} (${column.name})`;
+                try {
+                    await this.executeDuckDBQuery(db, indexQuery);
+                    indexes.push(indexName);
+                    this.context?.logger.debug(`Created index: ${indexName}`);
+                }
+                catch (error) {
+                    this.context?.logger.warn(`Failed to create index ${indexName}: ${error.message}`);
+                }
+            }
+        }
+        return indexes;
+    }
+    /**
+     * Generate sample queries for the dataset
+     * @internal
+     */
+    generateSampleQueries(tableName, columns, rowCount) {
+        const queries = [
+            `SELECT * FROM ${tableName} LIMIT 10;`,
+            `SELECT COUNT(*) as total_rows FROM ${tableName};`
+        ];
+        // Add column-specific queries
+        const numericColumns = columns.filter(col => col.type.includes('INT') || col.type.includes('DOUBLE') || col.type.includes('FLOAT'));
+        if (numericColumns.length > 0) {
+            const firstNumeric = numericColumns[0].name;
+            queries.push(`SELECT AVG(${firstNumeric}) as avg_${firstNumeric}, MIN(${firstNumeric}) as min_${firstNumeric}, MAX(${firstNumeric}) as max_${firstNumeric} FROM ${tableName};`);
+        }
+        // Add grouping query if reasonable number of rows
+        if (rowCount > 10 && rowCount < 1000000) {
+            const categoricalColumns = columns.filter(col => col.type.includes('VARCHAR') || col.type.includes('STRING'));
+            if (categoricalColumns.length > 0) {
+                const firstCategorical = categoricalColumns[0].name;
+                queries.push(`SELECT ${firstCategorical}, COUNT(*) as count FROM ${tableName} GROUP BY ${firstCategorical} ORDER BY count DESC LIMIT 10;`);
+            }
+        }
+        // Add time-based query if date columns exist
+        const dateColumns = columns.filter(col => col.name.toLowerCase().includes('date') ||
+            col.name.toLowerCase().includes('time') ||
+            col.type.includes('TIMESTAMP'));
+        if (dateColumns.length > 0) {
+            const firstDate = dateColumns[0].name;
+            queries.push(`SELECT DATE_TRUNC('day', ${firstDate}) as date, COUNT(*) as count FROM ${tableName} GROUP BY DATE_TRUNC('day', ${firstDate}) ORDER BY date DESC LIMIT 10;`);
+        }
+        return queries;
+    }
+    /**
+     * Process large response - persist to disk and return metadata
+     * @internal
      */
     async processLargeResponse(message, response) {
-        // TODO: Implement actual large response processing
-        // - Persist to disk
-        // - Generate schema
-        // - Create DuckDB if enabled
-        // - Return metadata
-        this.context?.logger.info(`Large response detected: ${Buffer.byteLength(this.safeJsonStringify(response), 'utf8')} bytes`);
-        return message;
+        try {
+            const timestamp = Date.now();
+            const responseSize = Buffer.byteLength(this.safeJsonStringify(response), 'utf8');
+            // Extract tool name from message context
+            const toolName = message.result?.method || 'unknown_tool';
+            // Generate unique dataset ID
+            const datasetId = this.generateDatasetId(toolName, timestamp);
+            // Get file paths for this dataset
+            const paths = this.getDatasetPaths(datasetId, timestamp);
+            // Create session directory structure
+            await mkdir(paths.sessionDir, { recursive: true });
+            // Generate schema for the response data
+            const schema = await this.generateSchema(response);
+            // Persist JSON data to disk
+            await writeFile(paths.dataFile, this.safeJsonStringify(response, 2), 'utf8');
+            // Persist schema to disk
+            await writeFile(paths.schemaFile, JSON.stringify(schema, null, 2), 'utf8');
+            // Create metadata object
+            const metadata = {
+                datasetId,
+                timestamp,
+                toolName,
+                responseSize,
+                originalMessageId: message.id,
+                files: {
+                    dataFile: paths.dataFile,
+                    schemaFile: paths.schemaFile,
+                    duckdbFile: this.config.enableDuckDB ? paths.duckdbFile : null,
+                    metadataFile: paths.metadataFile
+                },
+                schema: {
+                    type: schema.type,
+                    title: schema.title,
+                    description: schema.description
+                },
+                stats: {
+                    recordCount: Array.isArray(response) ? response.length : 1,
+                    sizeBytes: responseSize,
+                    compressionEnabled: this.config.compressionLevel > 0
+                }
+            };
+            // Create DuckDB database if enabled
+            let databaseInfo = null;
+            if (this.config.enableDuckDB) {
+                try {
+                    databaseInfo = await this.createDuckDBDatabase(paths.dataFile, datasetId);
+                    this.context?.logger.info(`DuckDB database created for dataset ${datasetId}`);
+                }
+                catch (error) {
+                    this.context?.logger.warn(`Failed to create DuckDB database for ${datasetId}: ${error.message}`);
+                }
+            }
+            // Persist metadata to disk
+            await writeFile(paths.metadataFile, JSON.stringify(metadata, null, 2), 'utf8');
+            // Log successful persistence
+            this.context?.logger.info(`Large response persisted: ${responseSize} bytes → ${datasetId} (${paths.dataFile})`);
+            // Return structured metadata response instead of original message
+            return {
+                ...message,
+                result: {
+                    status: 'success_file_saved',
+                    message: `Large response (${responseSize} bytes) persisted to disk`,
+                    dataset: {
+                        id: datasetId,
+                        size: responseSize,
+                        recordCount: metadata.stats.recordCount,
+                        files: {
+                            data: paths.dataFile,
+                            schema: paths.schemaFile,
+                            metadata: paths.metadataFile,
+                            ...(databaseInfo ? { duckdb: databaseInfo.path } : {})
+                        },
+                        ...(databaseInfo ? {
+                            database: {
+                                path: databaseInfo.path,
+                                tableName: databaseInfo.tableName,
+                                rowCount: databaseInfo.rowCount,
+                                columns: databaseInfo.columns,
+                                indexes: databaseInfo.indexes,
+                                sampleQueries: databaseInfo.sampleQueries
+                            }
+                        } : {})
+                    },
+                    availableTools: [
+                        'mcpmon.analyze-with-duckdb',
+                        'mcpmon.list-saved-datasets'
+                    ],
+                    nextSteps: [
+                        `Use mcpmon.analyze-with-duckdb with datasetId "${datasetId}" to query the data`,
+                        'Use mcpmon.list-saved-datasets to see all persisted datasets'
+                    ]
+                }
+            };
+        }
+        catch (error) {
+            this.context?.logger.error(`Failed to process large response: ${error.message}`);
+            // Return error response but still preserve original message structure
+            return {
+                ...message,
+                result: {
+                    status: 'error',
+                    message: `Failed to persist large response: ${error.message}`,
+                    originalResponse: response
+                }
+            };
+        }
     }
     /**
      * Provide additional MCP tools
+     * @internal
      */
     async getAdditionalTools() {
         return [
@@ -277,14 +700,14 @@ export default class LargeResponseHandlerExtension {
                     properties: {
                         datasetId: {
                             type: 'string',
-                            description: 'ID of the persisted dataset'
+                            description: 'ID of the persisted dataset (optional - will use latest dataset if not provided)'
                         },
                         query: {
                             type: 'string',
                             description: 'SQL query to run against the dataset'
                         }
                     },
-                    required: ['datasetId', 'query']
+                    required: ['query']
                 }
             },
             {
@@ -293,6 +716,25 @@ export default class LargeResponseHandlerExtension {
                 inputSchema: {
                     type: 'object',
                     properties: {
+                        filter: {
+                            type: 'object',
+                            properties: {
+                                date_from: {
+                                    type: 'string',
+                                    format: 'date',
+                                    description: 'Filter datasets from this date (YYYY-MM-DD)'
+                                },
+                                date_to: {
+                                    type: 'string',
+                                    format: 'date',
+                                    description: 'Filter datasets to this date (YYYY-MM-DD)'
+                                },
+                                tool: {
+                                    type: 'string',
+                                    description: 'Filter datasets by tool name'
+                                }
+                            }
+                        },
                         limit: {
                             type: 'number',
                             description: 'Maximum number of datasets to return'
@@ -303,24 +745,321 @@ export default class LargeResponseHandlerExtension {
         ];
     }
     /**
+     * List saved datasets with optional filtering
+     * @internal
+     */
+    async listSavedDatasets(filter, limit) {
+        try {
+            const dataDir = this.getDataDirectory();
+            const datasets = await this.scanDatasets(dataDir);
+            // Apply filtering
+            let filteredDatasets = datasets;
+            if (filter) {
+                filteredDatasets = datasets.filter(dataset => {
+                    // Date filtering
+                    if (filter.date_from || filter.date_to) {
+                        const datasetDate = new Date(dataset.timestamp);
+                        const fromDate = filter.date_from ? new Date(filter.date_from) : null;
+                        const toDate = filter.date_to ? new Date(filter.date_to) : null;
+                        if (fromDate && datasetDate < fromDate)
+                            return false;
+                        if (toDate && datasetDate > toDate)
+                            return false;
+                    }
+                    // Tool filtering
+                    if (filter.tool && dataset.tool !== filter.tool)
+                        return false;
+                    return true;
+                });
+            }
+            // Sort by timestamp (newest first)
+            filteredDatasets.sort((a, b) => b.timestamp - a.timestamp);
+            // Apply limit
+            if (limit && limit > 0) {
+                filteredDatasets = filteredDatasets.slice(0, limit);
+            }
+            return {
+                datasets: filteredDatasets,
+                total: filteredDatasets.length,
+                filtered: datasets.length !== filteredDatasets.length
+            };
+        }
+        catch (error) {
+            this.context?.logger.error(`Error listing datasets: ${error.message}`);
+            return {
+                error: `Failed to list datasets: ${error.message}`,
+                datasets: []
+            };
+        }
+    }
+    /**
+     * Recursively scan data directory for datasets
+     * @internal
+     */
+    async scanDatasets(dataDir) {
+        const datasets = [];
+        try {
+            // Check if data directory exists
+            const dirStat = await stat(dataDir);
+            if (!dirStat.isDirectory()) {
+                return datasets;
+            }
+            // Scan year directories
+            const yearDirs = await readdir(dataDir);
+            for (const year of yearDirs) {
+                const yearPath = join(dataDir, year);
+                const yearStat = await stat(yearPath);
+                if (!yearStat.isDirectory())
+                    continue;
+                // Scan month directories
+                const monthDirs = await readdir(yearPath);
+                for (const month of monthDirs) {
+                    const monthPath = join(yearPath, month);
+                    const monthStat = await stat(monthPath);
+                    if (!monthStat.isDirectory())
+                        continue;
+                    // Scan day directories
+                    const dayDirs = await readdir(monthPath);
+                    for (const day of dayDirs) {
+                        const dayPath = join(monthPath, day);
+                        const dayStat = await stat(dayPath);
+                        if (!dayStat.isDirectory())
+                            continue;
+                        // Scan files in day directory
+                        const files = await readdir(dayPath);
+                        const metadataFiles = files.filter(f => f.endsWith('.metadata.json'));
+                        for (const metadataFile of metadataFiles) {
+                            const metadataPath = join(dayPath, metadataFile);
+                            const datasetId = metadataFile.replace('.metadata.json', '');
+                            try {
+                                const metadata = await this.readDatasetMetadata(metadataPath);
+                                const dataFilePath = join(dayPath, `${datasetId}.json`);
+                                // Get file size
+                                let size = 0;
+                                try {
+                                    const dataFileStat = await stat(dataFilePath);
+                                    size = dataFileStat.size;
+                                }
+                                catch {
+                                    // Data file might not exist, use metadata size if available
+                                    size = metadata.size || 0;
+                                }
+                                datasets.push({
+                                    id: datasetId,
+                                    timestamp: metadata.timestamp,
+                                    tool: metadata.tool,
+                                    size,
+                                    recordCount: metadata.recordCount,
+                                    path: dayPath
+                                });
+                            }
+                            catch (error) {
+                                this.context?.logger.warn(`Failed to read metadata for ${datasetId}: ${error.message}`);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        catch (error) {
+            this.context?.logger.error(`Error scanning data directory: ${error.message}`);
+        }
+        return datasets;
+    }
+    /**
+     * Read dataset metadata from metadata.json file
+     * @internal
+     */
+    async readDatasetMetadata(metadataPath) {
+        try {
+            const metadataContent = await readFile(metadataPath, 'utf8');
+            const metadata = JSON.parse(metadataContent);
+            return {
+                timestamp: metadata.timestamp || 0,
+                tool: metadata.tool || 'unknown',
+                size: metadata.size,
+                recordCount: metadata.recordCount || 0,
+                ...metadata
+            };
+        }
+        catch (error) {
+            throw new Error(`Failed to read metadata: ${error.message}`);
+        }
+    }
+    /**
+     * Analyze dataset using DuckDB SQL queries
+     * @internal
+     */
+    async analyzeWithDuckDB(datasetId, query) {
+        try {
+            // Validate inputs
+            if (!query) {
+                return {
+                    error: 'query is required'
+                };
+            }
+            // Validate SQL query for safety
+            const sanitizedQuery = query.trim();
+            if (!this.isValidSQLQuery(sanitizedQuery)) {
+                return {
+                    error: 'Invalid or unsafe SQL query. Only SELECT statements are allowed.'
+                };
+            }
+            // Find the dataset (use provided ID or latest)
+            let dataset;
+            if (datasetId) {
+                dataset = await this.findDataset(datasetId);
+                if (!dataset) {
+                    return {
+                        error: `Dataset '${datasetId}' not found`
+                    };
+                }
+            }
+            else {
+                dataset = await this.findLatestDataset();
+                if (!dataset) {
+                    return {
+                        error: 'No datasets found. Create a dataset first by triggering a large response.'
+                    };
+                }
+            }
+            // Get the DuckDB database path
+            const duckdbPath = this.getDuckDBPath(dataset.id, dataset.timestamp);
+            // Check if DuckDB file exists
+            try {
+                await stat(duckdbPath);
+            }
+            catch (error) {
+                return {
+                    error: `DuckDB database not found for dataset '${datasetId}'. The database may not have been created or the dataset may be corrupted.`
+                };
+            }
+            // Execute the query
+            const db = new Database(duckdbPath);
+            try {
+                const results = await this.executeDuckDBQuery(db, sanitizedQuery);
+                return {
+                    success: true,
+                    datasetId: dataset.id,
+                    query: sanitizedQuery,
+                    results,
+                    rowCount: results.length,
+                    executedAt: new Date().toISOString()
+                };
+            }
+            finally {
+                db.close();
+            }
+        }
+        catch (error) {
+            this.context?.logger.error(`DuckDB query failed: ${error.message}`);
+            return {
+                error: `Query execution failed: ${error.message}`
+            };
+        }
+    }
+    /**
+     * Validate SQL query for safety - only allow SELECT statements
+     * @internal
+     */
+    isValidSQLQuery(query) {
+        // Remove comments and normalize whitespace
+        const cleanQuery = query
+            .replace(/--.*$/gm, '') // Remove single-line comments
+            .replace(/\/\*[\s\S]*?\*\//g, '') // Remove multi-line comments
+            .trim()
+            .toLowerCase();
+        // Must start with SELECT
+        if (!cleanQuery.startsWith('select')) {
+            return false;
+        }
+        // Disallow potentially dangerous operations
+        const forbidden = [
+            'drop', 'delete', 'update', 'insert', 'create', 'alter',
+            'truncate', 'replace', 'merge', 'call', 'exec', 'execute',
+            'pragma', 'attach', 'detach'
+        ];
+        for (const keyword of forbidden) {
+            if (cleanQuery.includes(keyword)) {
+                return false;
+            }
+        }
+        return true;
+    }
+    /**
+     * Find dataset by ID
+     * @internal
+     */
+    async findDataset(datasetId) {
+        try {
+            const dataDir = this.getDataDirectory();
+            const datasets = await this.scanDatasets(dataDir);
+            const dataset = datasets.find(d => d.id === datasetId);
+            if (!dataset) {
+                return null;
+            }
+            return {
+                id: dataset.id,
+                timestamp: dataset.timestamp,
+                path: dataset.path
+            };
+        }
+        catch (error) {
+            this.context?.logger.error(`Failed to find dataset ${datasetId}: ${error.message}`);
+            return null;
+        }
+    }
+    /**
+     * Find the latest dataset (most recent timestamp)
+     * @internal
+     */
+    async findLatestDataset() {
+        try {
+            const dataDir = this.getDataDirectory();
+            const datasets = await this.scanDatasets(dataDir);
+            if (datasets.length === 0) {
+                return null;
+            }
+            // Sort by timestamp descending (newest first)
+            const sortedDatasets = datasets.sort((a, b) => b.timestamp - a.timestamp);
+            const latest = sortedDatasets[0];
+            return {
+                id: latest.id,
+                timestamp: latest.timestamp,
+                path: latest.path
+            };
+        }
+        catch (error) {
+            this.context?.logger.error(`Failed to find latest dataset: ${error.message}`);
+            return null;
+        }
+    }
+    /**
+     * Get DuckDB database path for a dataset
+     * @internal
+     */
+    getDuckDBPath(datasetId, timestamp) {
+        const paths = this.getDatasetPaths(datasetId, timestamp);
+        return paths.duckdbFile;
+    }
+    /**
      * Handle tool calls for LRH-specific tools
+     * @internal
      */
     async handleToolCall(toolName, args) {
         switch (toolName) {
             case 'mcpmon.analyze-with-duckdb':
-                // TODO: Implement DuckDB query execution
-                return {
-                    error: 'DuckDB analysis not yet implemented'
-                };
+                return await this.analyzeWithDuckDB(args.datasetId, args.query);
             case 'mcpmon.list-saved-datasets':
-                // TODO: Implement dataset listing
-                return {
-                    datasets: [],
-                    message: 'Dataset listing not yet implemented'
-                };
+                return await this.listSavedDatasets(args.filter, args.limit);
             default:
                 // Not our tool
                 return null;
         }
     }
 }
+// Export the class for testing
+export { LargeResponseHandlerExtension };
+// Export an instance of the extension
+const extensionInstance = new LargeResponseHandlerExtension();
+export default extensionInstance;

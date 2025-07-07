@@ -17,6 +17,7 @@ import type {
   ProxyDependencies,
 } from "./interfaces.js";
 import type { ExtensionRegistry, ExtensionContext, ExtensionHooks } from "./extensions/interfaces.js";
+import { randomUUID } from 'crypto';
 
 // Simple debounce implementation for Node.js
 type DebouncedFunction<T extends (...args: any[]) => any> = T & {
@@ -103,6 +104,7 @@ export interface MCPProxyConfig {
 export class MCPProxy {
   private managedProcess: ManagedProcess | null = null;
   private serverPid: number | null = null;
+  private containerId: string | null = null;
   private stdinBuffer: Uint8Array[] = [];
   private messageBuffer: Message[] = [];
   private restarting = false;
@@ -124,6 +126,8 @@ export class MCPProxy {
   private startPromise?: Promise<void>;
   private monitoringTimeout?: NodeJS.Timeout;
   private errorRetryTimeout?: NodeJS.Timeout;
+  private pendingToolsListRequests = new Map<string | number, boolean>(); // Track tools/list requests that need injection
+  private sessionId: string = randomUUID();
 
   // Dependency injection
   private procManager: ProcessManager;
@@ -324,7 +328,13 @@ export class MCPProxy {
       // Initialize all enabled extensions
       await this.extensionRegistry.initializeAll(context);
       
+      // Log which hooks were registered
       console.error("✅ Extensions initialized");
+      console.error("📋 Registered extension hooks:");
+      if (this.extensionHooks.getAdditionalTools) console.error("  - getAdditionalTools ✓");
+      if (this.extensionHooks.handleToolCall) console.error("  - handleToolCall ✓");
+      if (this.extensionHooks.beforeStdinForward) console.error("  - beforeStdinForward ✓");
+      if (this.extensionHooks.afterStdoutReceive) console.error("  - afterStdoutReceive ✓");
     } catch (error) {
       console.error(`❌ Failed to initialize extensions: ${error}`);
       // Continue without extensions rather than failing completely
@@ -397,11 +407,66 @@ export class MCPProxy {
     console.error("🚀 Starting MCP server...");
 
     try {
-      this.managedProcess = this.procManager.spawn(this.config.command, this.config.commandArgs, {
+      // Check if this is a Docker run command and inject labels + detached mode
+      let commandArgs = [...this.config.commandArgs];
+      let isDockerRun = false;
+      
+      if (this.config.command === 'docker' && commandArgs.includes('run')) {
+        isDockerRun = true;
+        const runIndex = commandArgs.indexOf('run');
+        if (runIndex !== -1) {
+          // Insert labels and -d flag after 'run' but before other flags
+          const dockerFlags = [
+            '-d', // Detached mode to capture container ID
+            '--label', 'mcpmon.managed=true',
+            '--label', `mcpmon.session=${this.sessionId}`,
+            '--label', `mcpmon.pid=${process.pid}`,
+            '--label', `mcpmon.started=${Date.now()}`
+          ];
+          
+          // Insert Docker flags at the correct position (after 'run')
+          commandArgs.splice(runIndex + 1, 0, ...dockerFlags);
+          
+          console.error(`🐳 Injecting Docker labels and detached mode for session ${this.sessionId}`);
+        }
+      }
+
+      this.managedProcess = this.procManager.spawn(this.config.command, commandArgs, {
         env: this.config.env || {}, // Use config env or empty object
       });
 
       this.serverPid = this.managedProcess.pid || null;
+      
+      // For Docker containers, capture the container ID from stdout
+      if (isDockerRun) {
+        try {
+          // Read the container ID from stdout (docker run -d outputs container ID)
+          const reader = this.managedProcess.stdout.getReader();
+          const decoder = new TextDecoder();
+          let containerOutput = '';
+          
+          // Set a timeout for reading container ID
+          const timeoutPromise = new Promise<void>((_, reject) => {
+            setTimeout(() => reject(new Error('Container ID read timeout')), 5000);
+          });
+          
+          const readPromise = (async () => {
+            const { value } = await reader.read();
+            if (value) {
+              containerOutput = decoder.decode(value);
+              this.containerId = containerOutput.trim();
+              console.error(`📦 Captured Docker container ID: ${this.containerId}`);
+            }
+            reader.releaseLock();
+          })();
+          
+          await Promise.race([readPromise, timeoutPromise]);
+        } catch (error) {
+          console.error(`⚠️  Failed to capture container ID: ${error}`);
+          // Continue without container ID - not fatal
+        }
+      }
+      
       console.error(`✅ Server started with PID: ${this.serverPid}`);
     } catch (error) {
       console.error(`❌ Failed to spawn server process: ${error}`);
@@ -467,45 +532,53 @@ export class MCPProxy {
 
     this.managedProcess = null;
     this.serverPid = null;
+    this.containerId = null;
   }
 
   private async stopDockerContainer() {
+    // Check if we have a tracked container ID (will be set by DOCKERFIX-1)
+    if (!this.containerId) {
+      console.error("⚠️  No container ID tracked for this mcpmon instance, skipping container stop");
+      return;
+    }
+
+    const containerId = this.containerId; // Save for consistent logging
+    console.error(`🐳 Stopping Docker container ${containerId}...`);
+
     try {
-      // Try to find the container ID from docker ps
-      const dockerPs = this.procManager.spawn('docker', ['ps', '-q', '-f', `ancestor=${this.config.commandArgs[this.config.commandArgs.indexOf('run') + 3]}`], {
-        stdout: 'piped',
-        stderr: 'piped'
-      });
+      // First try graceful stop with 10-second timeout
+      console.error(`⏱️  Attempting graceful stop with 10s timeout for container ${containerId}`);
+      const stopProcess = this.procManager.spawn('docker', [
+        'stop', '-t', '10', containerId
+      ], {});
       
-      const output: string[] = [];
-      for await (const chunk of dockerPs.stdout) {
-        output.push(new TextDecoder().decode(chunk));
-      }
+      await stopProcess.status;
+      console.error(`✅ Successfully stopped Docker container ${containerId}`);
       
-      const containerIds = output.join('').trim().split('\n').filter(id => id);
+      // Clear the container ID after successful stop
+      this.containerId = null;
+    } catch (stopError) {
+      console.error(`⚠️  Graceful stop failed for container ${containerId}: ${stopError}`);
       
-      if (containerIds.length > 0) {
-        console.error(`🐳 Stopping ${containerIds.length} Docker container(s)...`);
+      // Fallback to force kill if stop fails
+      try {
+        console.error(`🔪 Force killing container ${containerId}...`);
+        const killProcess = this.procManager.spawn('docker', [
+          'kill', containerId
+        ], {});
         
-        // Stop all matching containers
-        for (const containerId of containerIds) {
-          if (containerId) {
-            try {
-              const stopProcess = this.procManager.spawn('docker', ['stop', containerId], {
-                stdin: 'null',
-                stdout: 'piped', 
-                stderr: 'piped'
-              });
-              await stopProcess.status;
-              console.error(`✅ Stopped Docker container ${containerId}`);
-            } catch (error) {
-              console.error(`⚠️  Failed to stop container ${containerId}: ${error}`);
-            }
-          }
-        }
+        await killProcess.status;
+        console.error(`✅ Force killed Docker container ${containerId}`);
+        
+        // Clear the container ID after force kill
+        this.containerId = null;
+      } catch (killError) {
+        console.error(`❌ Failed to kill container ${containerId}: ${killError}`);
+        console.error("⚠️  Container may still be running - manual cleanup may be required");
+        
+        // Still clear the container ID to avoid trying to stop it again
+        this.containerId = null;
       }
-    } catch (error) {
-      console.error(`⚠️  Error managing Docker containers: ${error}`);
     }
   }
 
@@ -565,13 +638,35 @@ export class MCPProxy {
                   console.error("📋 Captured initialize params for replay");
                 }
 
+                // Check if this is a tools/list request that needs extension tools injected
+                if (message.method === "tools/list") {
+                  console.error("🔧 Intercepting tools/list request from client");
+                  
+                  // Forward to server first to get base tools
+                  if (this.managedProcess) {
+                    const writer = this.managedProcess.stdin.getWriter();
+                    await writer.write(new TextEncoder().encode(JSON.stringify(message) + "\n"));
+                    writer.releaseLock();
+                    
+                    // Store that we need to inject tools into this response
+                    if (message.id) {
+                      this.pendingToolsListRequests.set(message.id, true);
+                      console.error(`📝 Marked request ${message.id} for tool injection`);
+                    }
+                  }
+                  continue; // Skip normal forwarding since we already forwarded
+                }
+
                 // Check if this is a tool call that should be handled by extensions
                 if (message.method === "tools/call" && this.extensionHooks.handleToolCall) {
                   const toolName = (message.params as any)?.name;
+                  console.error(`🔨 Received tools/call request for: ${toolName}`);
                   if (toolName && toolName.startsWith("mcpmon.")) {
+                    console.error(`🔌 Extension tool call detected: ${toolName}`);
                     try {
                       const result = await this.extensionHooks.handleToolCall(toolName, (message.params as any)?.arguments || {});
                       if (result !== null) {
+                        console.error(`✅ Extension handled tool call: ${toolName}`);
                         // Send response directly back to client
                         const response: Message = {
                           jsonrpc: "2.0",
@@ -584,6 +679,7 @@ export class MCPProxy {
                         continue; // Don't forward to server
                       }
                     } catch (error) {
+                      console.error(`❌ Extension tool error for ${toolName}: ${error}`);
                       // Send error response
                       const errorResponse: Message = {
                         jsonrpc: "2.0",
@@ -654,10 +750,57 @@ export class MCPProxy {
                 let message: Message = JSON.parse(line);
                 let modifiedMessage = message;
                 
+                // Check if this is a tools/list response that needs extension tools injected
+                if (message.id && this.pendingToolsListRequests.has(message.id)) {
+                  console.error(`🔧 Processing tools/list response for request ${message.id}`);
+                  this.pendingToolsListRequests.delete(message.id);
+                  
+                  // Get extension tools
+                  if (this.extensionHooks.getAdditionalTools && message.result) {
+                    try {
+                      const extensionTools = await this.extensionHooks.getAdditionalTools();
+                      console.error(`🔌 Extension provided ${extensionTools.length} tools`);
+                      
+                      // Log tool details for debugging
+                      extensionTools.forEach(tool => {
+                        console.error(`  - ${tool.name}: ${tool.description}`);
+                        // Validate tool schema
+                        if (!tool.inputSchema || typeof tool.inputSchema !== 'object') {
+                          console.error(`  ⚠️  Tool ${tool.name} has invalid inputSchema`);
+                        }
+                      });
+                      
+                      // Merge extension tools with server tools
+                      const serverTools = (message.result as { tools?: unknown[] })?.tools || [];
+                      const mergedTools = [...serverTools, ...extensionTools];
+                      
+                      modifiedMessage = {
+                        ...message,
+                        result: {
+                          ...(message.result as object),
+                          tools: mergedTools
+                        }
+                      };
+                      
+                      console.error(`✅ Injected ${extensionTools.length} extension tools into response (total: ${mergedTools.length})`);
+                      
+                      // Log the final JSON for debugging (truncated)
+                      const responseText = JSON.stringify(modifiedMessage);
+                      if (responseText.length > 500) {
+                        console.error(`📤 Response (truncated): ${responseText.substring(0, 500)}...`);
+                      } else {
+                        console.error(`📤 Response: ${responseText}`);
+                      }
+                    } catch (error) {
+                      console.error(`❌ Failed to inject extension tools: ${error}`);
+                    }
+                  }
+                }
+                
                 // Apply afterStdoutReceive hook if available
                 if (this.extensionHooks.afterStdoutReceive) {
                   try {
-                    modifiedMessage = await this.extensionHooks.afterStdoutReceive(message);
+                    modifiedMessage = await this.extensionHooks.afterStdoutReceive(modifiedMessage);
                   } catch (hookError) {
                     console.error("Extension hook error (afterStdoutReceive):", hookError);
                     // Continue with original message if hook fails

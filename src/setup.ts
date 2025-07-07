@@ -517,10 +517,21 @@ async function setupHotReload(
       }
       finalArgs.push(...(serverConfig.args || []));
       
+      // Expand environment variables in the env object
+      let expandedEnv = serverConfig.env;
+      if (expandedEnv) {
+        expandedEnv = Object.fromEntries(
+          Object.entries(expandedEnv).map(([key, value]) => [
+            key,
+            expandEnvironmentVariables(String(value))
+          ])
+        );
+      }
+      
       newConfig.mcpServers[name] = {
         command: mcpmonCmd.command,
         args: finalArgs,
-        env: serverConfig.env,
+        env: expandedEnv,
         cwd: serverConfig.cwd,
       };
     }

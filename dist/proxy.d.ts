@@ -41,6 +41,7 @@ export interface MCPProxyConfig {
 export declare class MCPProxy {
     private managedProcess;
     private serverPid;
+    private containerId;
     private stdinBuffer;
     private messageBuffer;
     private restarting;
@@ -55,6 +56,8 @@ export declare class MCPProxy {
     private startPromise?;
     private monitoringTimeout?;
     private errorRetryTimeout?;
+    private pendingToolsListRequests;
+    private sessionId;
     private procManager;
     private changeSource;
     private config;
@@ -89,6 +92,7 @@ export declare class MCPProxy {
     start(): Promise<void>;
     private startServer;
     private killServer;
+    private stopDockerContainer;
     private verifyProcessKilled;
     private setupStdinForwarding;
     private setupOutputForwarding;

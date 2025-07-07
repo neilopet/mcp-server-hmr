@@ -5,7 +5,6 @@
  * for comprehensive testing of streaming, buffering, and large response handling.
  */
 import type { ExtensionTestSuite, MockMCPMon, TestHarness } from '../../../testing/types.js';
-import LargeResponseHandlerExtension from '../index.js';
 import type { LRHTestUtilities } from './providers.js';
 /**
  * Test configuration interface
@@ -23,7 +22,7 @@ export declare class LargeResponseHandlerTestSuite implements ExtensionTestSuite
     private lrhUtils;
     private config;
     readonly extensionId = "large-response-handler";
-    readonly extension: LargeResponseHandlerExtension;
+    readonly extension: any;
     readonly metadata: {
         extensionId: "large-response-handler";
         name: string;

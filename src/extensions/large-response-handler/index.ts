@@ -125,9 +125,21 @@ class LargeResponseHandlerExtension implements Extension {
     }
   };
   
+  /**
+   * @internal
+   */
   private context?: ExtensionContext;
+  /**
+   * @internal
+   */
   private config: LargeResponseHandlerConfig = DEFAULT_CONFIG;
+  /**
+   * @internal
+   */
   private streamingBuffer?: StreamingBuffer;
+  /**
+   * @internal
+   */
   private progressTokens = new Map<string | number, string>();  // Track progress tokens by request ID
   
   async initialize(context: ExtensionContext): Promise<void> {
@@ -157,12 +169,18 @@ class LargeResponseHandlerExtension implements Extension {
     }
     
     // Register hooks for message interception
+    context.logger.debug('Registering Large Response Handler hooks...');
     context.hooks.beforeStdinForward = this.trackProgressToken.bind(this);
     context.hooks.afterStdoutReceive = this.handleServerResponse.bind(this);
     context.hooks.getAdditionalTools = this.getAdditionalTools.bind(this);
     context.hooks.handleToolCall = this.handleToolCall.bind(this);
     
-    context.logger.info('Large Response Handler initialized');
+    // Log the tools we'll be providing
+    const tools = await this.getAdditionalTools();
+    context.logger.info(`Large Response Handler initialized with ${tools.length} tools:`);
+    tools.forEach(tool => {
+      context.logger.info(`  - ${tool.name}: ${tool.description}`);
+    });
   }
   
   async shutdown(): Promise<void> {
@@ -173,6 +191,7 @@ class LargeResponseHandlerExtension implements Extension {
   
   /**
    * Ensure data directory structure exists
+   * @internal
    */
   private async ensureDataDirectory(): Promise<void> {
     const dataDir = this.getDataDirectory();
@@ -187,6 +206,7 @@ class LargeResponseHandlerExtension implements Extension {
   
   /**
    * Get the full path to the data directory
+   * @internal
    */
   private getDataDirectory(): string {
     let dataDir = this.config.dataDir;
@@ -203,6 +223,7 @@ class LargeResponseHandlerExtension implements Extension {
   
   /**
    * Generate a unique dataset ID for a response
+   * @internal
    */
   private generateDatasetId(toolName: string, timestamp: number): string {
     const hash = createHash('md5')
@@ -214,6 +235,7 @@ class LargeResponseHandlerExtension implements Extension {
   
   /**
    * Get the file paths for a dataset
+   * @internal
    */
   private getDatasetPaths(datasetId: string, timestamp: number): {
     dataFile: string;
@@ -240,6 +262,7 @@ class LargeResponseHandlerExtension implements Extension {
   
   /**
    * Track progress tokens from incoming requests
+   * @internal
    */
   private async trackProgressToken(message: any): Promise<any> {
     // Check if request has a progress token
@@ -254,6 +277,7 @@ class LargeResponseHandlerExtension implements Extension {
   
   /**
    * Send MCP progress notification through the proxy
+   * @internal
    */
   private async sendProgressNotification(notification: {
     progressToken: string;
@@ -274,6 +298,7 @@ class LargeResponseHandlerExtension implements Extension {
   
   /**
    * Handle server responses, detecting and buffering streaming responses
+   * @internal
    */
   private async handleServerResponse(message: any): Promise<any> {
     // Check if this is a streaming response
@@ -327,6 +352,7 @@ class LargeResponseHandlerExtension implements Extension {
   
   /**
    * Check if a message is a streaming response
+   * @internal
    */
   private isStreamingResponse(message: any): boolean {
     return message.result?.isPartial === true || 
@@ -335,6 +361,7 @@ class LargeResponseHandlerExtension implements Extension {
   
   /**
    * Check if streaming is complete
+   * @internal
    */
   private isStreamingComplete(message: any): boolean {
     return message.result?.isPartial === false;
@@ -342,6 +369,7 @@ class LargeResponseHandlerExtension implements Extension {
   
   /**
    * Get progress token for a request
+   * @internal
    */
   private getProgressToken(requestId: string | number): string | undefined {
     return this.progressTokens.get(requestId);
@@ -349,6 +377,7 @@ class LargeResponseHandlerExtension implements Extension {
   
   /**
    * Assemble chunks into complete response
+   * @internal
    */
   private assembleStreamedResponse(chunks: any[]): any {
     // If chunks contain partial data arrays, concatenate them
@@ -371,6 +400,7 @@ class LargeResponseHandlerExtension implements Extension {
   
   /**
    * Check if response should be handled as large
+   * @internal
    */
   private shouldHandleResponse(response: any): boolean {
     if (!response) return false;
@@ -386,6 +416,7 @@ class LargeResponseHandlerExtension implements Extension {
   
   /**
    * Safely stringify JSON, handling circular references
+   * @internal
    */
   private safeJsonStringify(obj: any, space?: number): string {
     const seen = new WeakSet();
@@ -402,6 +433,7 @@ class LargeResponseHandlerExtension implements Extension {
   
   /**
    * Generate JSON schema from response data
+   * @internal
    */
   private async generateSchema(response: any): Promise<any> {
     try {
@@ -451,6 +483,7 @@ class LargeResponseHandlerExtension implements Extension {
 
   /**
    * Infer JSON schema from data structure
+   * @internal
    */
   private inferSchema(data: any): any {
     if (data === null) {
@@ -520,6 +553,7 @@ class LargeResponseHandlerExtension implements Extension {
 
   /**
    * Create DuckDB database from JSON file
+   * @internal
    */
   private async createDuckDBDatabase(dataFile: string, datasetId: string): Promise<DatabaseInfo> {
     const duckdbPath = dataFile.replace('.json', '.duckdb');
@@ -587,6 +621,7 @@ class LargeResponseHandlerExtension implements Extension {
   
   /**
    * Execute DuckDB query with proper error handling
+   * @internal
    */
   private async executeDuckDBQuery(db: DatabaseInstance, query: string): Promise<any[]> {
     return new Promise((resolve, reject) => {
@@ -602,6 +637,7 @@ class LargeResponseHandlerExtension implements Extension {
   
   /**
    * Create indexes on common fields
+   * @internal
    */
   private async createIndexes(db: DatabaseInstance, tableName: string, columns: Array<{name: string, type: string}>): Promise<string[]> {
     const indexes: string[] = [];
@@ -632,6 +668,7 @@ class LargeResponseHandlerExtension implements Extension {
   
   /**
    * Generate sample queries for the dataset
+   * @internal
    */
   private generateSampleQueries(tableName: string, columns: Array<{name: string, type: string}>, rowCount: number): string[] {
     const queries = [
@@ -678,6 +715,7 @@ class LargeResponseHandlerExtension implements Extension {
 
   /**
    * Process large response - persist to disk and return metadata
+   * @internal
    */
   private async processLargeResponse(message: any, response: any): Promise<any> {
     try {
@@ -804,6 +842,7 @@ class LargeResponseHandlerExtension implements Extension {
   
   /**
    * Provide additional MCP tools
+   * @internal
    */
   private async getAdditionalTools(): Promise<ToolDefinition[]> {
     return [
@@ -862,6 +901,7 @@ class LargeResponseHandlerExtension implements Extension {
   
   /**
    * List saved datasets with optional filtering
+   * @internal
    */
   private async listSavedDatasets(filter?: {
     date_from?: string;
@@ -918,6 +958,7 @@ class LargeResponseHandlerExtension implements Extension {
 
   /**
    * Recursively scan data directory for datasets
+   * @internal
    */
   private async scanDatasets(dataDir: string): Promise<Array<{
     id: string;
@@ -1010,6 +1051,7 @@ class LargeResponseHandlerExtension implements Extension {
 
   /**
    * Read dataset metadata from metadata.json file
+   * @internal
    */
   private async readDatasetMetadata(metadataPath: string): Promise<{
     timestamp: number;
@@ -1036,6 +1078,7 @@ class LargeResponseHandlerExtension implements Extension {
 
   /**
    * Analyze dataset using DuckDB SQL queries
+   * @internal
    */
   private async analyzeWithDuckDB(datasetId: string | undefined, query: string): Promise<any> {
     try {
@@ -1111,6 +1154,7 @@ class LargeResponseHandlerExtension implements Extension {
   
   /**
    * Validate SQL query for safety - only allow SELECT statements
+   * @internal
    */
   private isValidSQLQuery(query: string): boolean {
     // Remove comments and normalize whitespace
@@ -1143,6 +1187,7 @@ class LargeResponseHandlerExtension implements Extension {
   
   /**
    * Find dataset by ID
+   * @internal
    */
   private async findDataset(datasetId: string): Promise<{id: string, timestamp: number, path: string} | null> {
     try {
@@ -1167,6 +1212,7 @@ class LargeResponseHandlerExtension implements Extension {
   
   /**
    * Find the latest dataset (most recent timestamp)
+   * @internal
    */
   private async findLatestDataset(): Promise<{id: string, timestamp: number, path: string} | null> {
     try {
@@ -1194,6 +1240,7 @@ class LargeResponseHandlerExtension implements Extension {
   
   /**
    * Get DuckDB database path for a dataset
+   * @internal
    */
   private getDuckDBPath(datasetId: string, timestamp: number): string {
     const paths = this.getDatasetPaths(datasetId, timestamp);
@@ -1202,6 +1249,7 @@ class LargeResponseHandlerExtension implements Extension {
 
   /**
    * Handle tool calls for LRH-specific tools
+   * @internal
    */
   private async handleToolCall(toolName: string, args: any): Promise<any | null> {
     switch (toolName) {
@@ -1218,5 +1266,13 @@ class LargeResponseHandlerExtension implements Extension {
   }
 }
 
+// Export the class for testing
+export { LargeResponseHandlerExtension };
+
+// Type export for test files
+export type { LargeResponseHandlerExtension as LargeResponseHandlerExtensionType };
+
 // Export an instance of the extension
-export default new LargeResponseHandlerExtension();
+const extensionInstance = new LargeResponseHandlerExtension();
+export default extensionInstance;
+
