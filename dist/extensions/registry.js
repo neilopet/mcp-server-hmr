@@ -104,8 +104,21 @@ export class ExtensionRegistry {
                 // Dynamic import with fallback
                 const modulePath = `./${name}/index.js`;
                 const module = await import(modulePath).catch(() => null);
-                if (module?.default && 'id' in module.default) {
-                    this.register(module.default);
+                if (module?.default) {
+                    // Handle both class and instance exports
+                    let extensionInstance;
+                    if (typeof module.default === 'function' && module.default.prototype) {
+                        // It's a class constructor
+                        extensionInstance = new module.default();
+                    }
+                    else if ('id' in module.default) {
+                        // It's an instance
+                        extensionInstance = module.default;
+                    }
+                    else {
+                        throw new Error(`Invalid extension export for ${name}`);
+                    }
+                    this.register(extensionInstance);
                     console.error(`✅ Loaded extension: ${name}`);
                 }
             }

@@ -41,7 +41,7 @@ export interface MCPProxyConfig {
 export declare class MCPProxy {
     private managedProcess;
     private serverPid;
-    private containerId;
+    private containerId?;
     private stdinBuffer;
     private messageBuffer;
     private restarting;

@@ -48,7 +48,7 @@ function debounce(fn, delay) {
 export class MCPProxy {
     managedProcess = null;
     serverPid = null;
-    containerId = null;
+    containerId;
     stdinBuffer = [];
     messageBuffer = [];
     restarting = false;
@@ -432,7 +432,7 @@ export class MCPProxy {
         }
         this.managedProcess = null;
         this.serverPid = null;
-        this.containerId = null;
+        this.containerId = undefined;
     }
     async stopDockerContainer() {
         // Check if we have a tracked container ID (will be set by DOCKERFIX-1)
@@ -451,7 +451,7 @@ export class MCPProxy {
             await stopProcess.status;
             console.error(`✅ Successfully stopped Docker container ${containerId}`);
             // Clear the container ID after successful stop
-            this.containerId = null;
+            this.containerId = undefined;
         }
         catch (stopError) {
             console.error(`⚠️  Graceful stop failed for container ${containerId}: ${stopError}`);
@@ -464,13 +464,13 @@ export class MCPProxy {
                 await killProcess.status;
                 console.error(`✅ Force killed Docker container ${containerId}`);
                 // Clear the container ID after force kill
-                this.containerId = null;
+                this.containerId = undefined;
             }
             catch (killError) {
                 console.error(`❌ Failed to kill container ${containerId}: ${killError}`);
                 console.error("⚠️  Container may still be running - manual cleanup may be required");
                 // Still clear the container ID to avoid trying to stop it again
-                this.containerId = null;
+                this.containerId = undefined;
             }
         }
     }

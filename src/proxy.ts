@@ -104,7 +104,7 @@ export interface MCPProxyConfig {
 export class MCPProxy {
   private managedProcess: ManagedProcess | null = null;
   private serverPid: number | null = null;
-  private containerId: string | null = null;
+  private containerId?: string;
   private stdinBuffer: Uint8Array[] = [];
   private messageBuffer: Message[] = [];
   private restarting = false;
@@ -536,7 +536,7 @@ export class MCPProxy {
 
     this.managedProcess = null;
     this.serverPid = null;
-    this.containerId = null;
+    this.containerId = undefined;
   }
 
   private async stopDockerContainer() {
@@ -560,7 +560,7 @@ export class MCPProxy {
       console.error(`✅ Successfully stopped Docker container ${containerId}`);
       
       // Clear the container ID after successful stop
-      this.containerId = null;
+      this.containerId = undefined;
     } catch (stopError) {
       console.error(`⚠️  Graceful stop failed for container ${containerId}: ${stopError}`);
       
@@ -575,13 +575,13 @@ export class MCPProxy {
         console.error(`✅ Force killed Docker container ${containerId}`);
         
         // Clear the container ID after force kill
-        this.containerId = null;
+        this.containerId = undefined;
       } catch (killError) {
         console.error(`❌ Failed to kill container ${containerId}: ${killError}`);
         console.error("⚠️  Container may still be running - manual cleanup may be required");
         
         // Still clear the container ID to avoid trying to stop it again
-        this.containerId = null;
+        this.containerId = undefined;
       }
     }
   }

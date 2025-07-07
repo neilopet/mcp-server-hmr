@@ -1058,8 +1058,7 @@ class LargeResponseHandlerExtension {
         }
     }
 }
-// Export the class for testing
+// Export the class as the default export
+export default LargeResponseHandlerExtension;
+// Also export the class as a named export for flexibility
 export { LargeResponseHandlerExtension };
-// Export an instance of the extension
-const extensionInstance = new LargeResponseHandlerExtension();
-export default extensionInstance;

@@ -265,8 +265,6 @@ declare class LargeResponseHandlerExtension implements Extension {
      */
     private handleToolCall;
 }
+export default LargeResponseHandlerExtension;
 export { LargeResponseHandlerExtension };
-export type { LargeResponseHandlerExtension as LargeResponseHandlerExtensionType };
-declare const extensionInstance: LargeResponseHandlerExtension;
-export default extensionInstance;
 //# sourceMappingURL=index.d.ts.map

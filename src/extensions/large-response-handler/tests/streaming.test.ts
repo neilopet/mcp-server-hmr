@@ -74,7 +74,9 @@ describe('StreamingBuffer - Unit Tests', () => {
       const chunk1 = { data: Array(10).fill({ id: 1, value: 'test' }) };
       const chunk2 = { data: Array(15).fill({ id: 2, value: 'more data' }) };
       
+      await new Promise(resolve => setTimeout(resolve, 1));
       await buffer.addChunk(requestId, chunk1);
+      await new Promise(resolve => setTimeout(resolve, 1));
       await buffer.addChunk(requestId, chunk2);
       
       // Check statistics

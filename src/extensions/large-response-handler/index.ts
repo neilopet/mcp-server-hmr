@@ -1266,13 +1266,9 @@ class LargeResponseHandlerExtension implements Extension {
   }
 }
 
-// Export the class for testing
+// Export the class as the default export
+export default LargeResponseHandlerExtension;
+
+// Also export the class as a named export for flexibility
 export { LargeResponseHandlerExtension };
-
-// Type export for test files
-export type { LargeResponseHandlerExtension as LargeResponseHandlerExtensionType };
-
-// Export an instance of the extension
-const extensionInstance = new LargeResponseHandlerExtension();
-export default extensionInstance;
 
