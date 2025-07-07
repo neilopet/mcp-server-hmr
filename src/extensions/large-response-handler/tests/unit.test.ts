@@ -192,7 +192,7 @@ describe('LargeResponseHandlerExtension - Unit Tests', () => {
             datasetId: { type: 'string' },
             query: { type: 'string' }
           },
-          required: ['datasetId', 'query']
+          required: ['query']
         }
       });
 
@@ -223,9 +223,9 @@ describe('LargeResponseHandlerExtension - Unit Tests', () => {
         query: 'SELECT * FROM test_table LIMIT 10'
       });
 
-      // Currently returns error since not implemented
+      // Returns error when dataset not found
       expect(result).toMatchObject({
-        error: 'DuckDB analysis not yet implemented'
+        error: "Dataset 'test-dataset-123' not found"
       });
     });
 
@@ -236,11 +236,24 @@ describe('LargeResponseHandlerExtension - Unit Tests', () => {
         limit: 10
       });
 
-      // Currently returns empty list since not implemented
+      // Should return dataset listing with proper structure
       expect(result).toMatchObject({
-        datasets: [],
-        message: 'Dataset listing not yet implemented'
+        datasets: expect.any(Array),
+        total: expect.any(Number),
+        filtered: expect.any(Boolean)
       });
+      
+      // Each dataset should have the required structure
+      if (result.datasets.length > 0) {
+        expect(result.datasets[0]).toMatchObject({
+          id: expect.any(String),
+          timestamp: expect.any(Number),
+          tool: expect.any(String),
+          size: expect.any(Number),
+          recordCount: expect.any(Number),
+          path: expect.any(String)
+        });
+      }
     });
 
     it('should return null for unknown tools', async () => {
