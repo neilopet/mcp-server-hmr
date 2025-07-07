@@ -408,8 +408,29 @@ async function setupHotReload(
         }
       }
       
+      // Handle Docker-based servers - add watch targets for local development
+      let watchArgs: string[] = [];
+      if (commandParts[0] === 'docker') {
+        // Try to detect local development directory based on image name
+        const imageIndex = commandParts.findIndex(arg => arg.includes('ghcr.io/') || arg.includes('/'));
+        if (imageIndex !== -1) {
+          const imageName = commandParts[imageIndex];
+          
+          // Special handling for known MCP servers
+          if (imageName.includes('github/github-mcp-server')) {
+            // Check if the local binary exists
+            const localBinary = '/Users/neilopet/go/src/github.com/github/github-mcp-server/github-mcp-server';
+            if (existsSync(localBinary)) {
+              watchArgs = ['--watch', localBinary];
+              console.log(`   Added watch target: ${localBinary}`);
+            }
+          }
+          // Add more special cases as needed
+        }
+      }
+      
       // Insert docker env args after 'docker run' but before image name
-      let finalArgs = [...mcpmonCmd.args, ...commandParts];
+      let finalArgs = [...mcpmonCmd.args, ...watchArgs, ...commandParts];
       if (dockerEnvArgs.length > 0) {
         // Find position after 'run' command
         const runIndex = finalArgs.findIndex(arg => arg === 'run');
@@ -453,8 +474,29 @@ async function setupHotReload(
         }
       }
       
+      // Handle Docker-based servers - add watch targets for local development
+      let watchArgs: string[] = [];
+      if (commandParts[0] === 'docker') {
+        // Try to detect local development directory based on image name
+        const imageIndex = commandParts.findIndex(arg => arg.includes('ghcr.io/') || arg.includes('/'));
+        if (imageIndex !== -1) {
+          const imageName = commandParts[imageIndex];
+          
+          // Special handling for known MCP servers
+          if (imageName.includes('github/github-mcp-server')) {
+            // Check if the local binary exists
+            const localBinary = '/Users/neilopet/go/src/github.com/github/github-mcp-server/github-mcp-server';
+            if (existsSync(localBinary)) {
+              watchArgs = ['--watch', localBinary];
+              console.log(`   Added watch target: ${localBinary}`);
+            }
+          }
+          // Add more special cases as needed
+        }
+      }
+      
       // Insert docker env args after 'docker run' but before image name
-      let finalArgs = [...mcpmonCmd.args, ...commandParts];
+      let finalArgs = [...mcpmonCmd.args, ...watchArgs, ...commandParts];
       if (dockerEnvArgs.length > 0) {
         // Find position after 'run' command
         const runIndex = finalArgs.findIndex(arg => arg === 'run');
