@@ -176,6 +176,15 @@ function parseCommandString(cmdString: string): { command: string; args: string[
 }
 
 /**
+ * Expand environment variables in a string (e.g., ${VAR_NAME} → actual value)
+ */
+function expandEnvironmentVariables(str: string): string {
+  return str.replace(/\$\{([^}]+)\}/g, (match, varName) => {
+    return process.env[varName] || match; // Return original if not found
+  });
+}
+
+/**
  * Check if a server is already configured with mcpmon
  */
 function isAlreadyConfigured(serverConfig: MCPServerConfig): boolean {
@@ -402,9 +411,10 @@ async function setupHotReload(
       // Handle Docker environment variables
       let dockerEnvArgs: string[] = [];
       if (commandParts[0] === 'docker' && serverConfig.env) {
-        // Convert env vars to docker -e flags
+        // Convert env vars to docker -e flags, expanding environment variables
         for (const [key, value] of Object.entries(serverConfig.env)) {
-          dockerEnvArgs.push('-e', `${key}=${value}`);
+          const expandedValue = expandEnvironmentVariables(value);
+          dockerEnvArgs.push('-e', `${key}=${expandedValue}`);
         }
       }
       
@@ -468,9 +478,10 @@ async function setupHotReload(
       // Handle Docker environment variables
       let dockerEnvArgs: string[] = [];
       if (commandParts[0] === 'docker' && serverConfig.env) {
-        // Convert env vars to docker -e flags
+        // Convert env vars to docker -e flags, expanding environment variables
         for (const [key, value] of Object.entries(serverConfig.env)) {
-          dockerEnvArgs.push('-e', `${key}=${value}`);
+          const expandedValue = expandEnvironmentVariables(value);
+          dockerEnvArgs.push('-e', `${key}=${expandedValue}`);
         }
       }
       

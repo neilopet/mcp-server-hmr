@@ -15,7 +15,7 @@ import type {
   MockExtensionContext 
 } from '../../../testing/types.js';
 import { TEST_TYPES } from '../../../testing/types.js';
-import LargeResponseHandlerExtension from '../index.js';
+import largeResponseHandlerExtension from '../index.js';
 import { StreamingBuffer } from '../streaming.js';
 import type { LRHTestUtilities } from './providers.js';
 
@@ -33,7 +33,7 @@ interface TestConfig {
 @TestContainer.register('large-response-handler')
 export class LargeResponseHandlerTestSuite implements ExtensionTestSuite {
   readonly extensionId = 'large-response-handler';
-  readonly extension = new LargeResponseHandlerExtension();
+  readonly extension = largeResponseHandlerExtension;
   readonly metadata = {
     extensionId: 'large-response-handler' as const,
     name: 'Large Response Handler Tests',
