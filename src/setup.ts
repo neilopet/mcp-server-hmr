@@ -30,6 +30,11 @@ interface MCPServersConfig {
   mcpServers: Record<string, MCPServerConfig>;
 }
 
+interface ClaudeCodeConfig {
+  mcpServers?: Record<string, MCPServerConfig>;
+  [key: string]: any;
+}
+
 /**
  * Detect the latest Node.js version available in nvm
  */
@@ -138,6 +143,39 @@ function isStdioServer(serverConfig: MCPServerConfig): boolean {
 }
 
 /**
+ * Parse a command string into command and args array
+ */
+function parseCommandString(cmdString: string): { command: string; args: string[] } {
+  // Simple parsing - split by spaces, handling quoted strings
+  const parts: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  
+  for (let i = 0; i < cmdString.length; i++) {
+    const char = cmdString[i];
+    if (char === '"' || char === "'") {
+      inQuotes = !inQuotes;
+    } else if (char === ' ' && !inQuotes) {
+      if (current) {
+        parts.push(current);
+        current = '';
+      }
+    } else {
+      current += char;
+    }
+  }
+  
+  if (current) {
+    parts.push(current);
+  }
+  
+  return {
+    command: parts[0] || '',
+    args: parts.slice(1)
+  };
+}
+
+/**
  * Check if a server is already configured with mcpmon
  */
 function isAlreadyConfigured(serverConfig: MCPServerConfig): boolean {
@@ -212,7 +250,10 @@ function findConfigFile(providedPath?: string): string | null {
   const projectMcpPath = resolve('.mcp.json');
   searchPaths.push(projectMcpPath);
 
-  // 2. Claude Desktop config (platform-specific)
+  // 2. Claude Code config
+  searchPaths.push(resolve(home, '.claude.json'));
+
+  // 3. Claude Desktop config (platform-specific)
   if (platform === 'darwin') {
     searchPaths.push(
       resolve(home, 'Library/Application Support/Claude/claude_desktop_config.json')
@@ -226,7 +267,7 @@ function findConfigFile(providedPath?: string): string | null {
     searchPaths.push(resolve(home, '.config/Claude/claude_desktop_config.json'));
   }
 
-  // 3. Current directory mcpServers.json
+  // 4. Current directory mcpServers.json
   searchPaths.push(resolve('./mcpServers.json'));
 
   // Check each path
@@ -269,7 +310,8 @@ async function setupHotReload(
   config: MCPServersConfig,
   configPath: string,
   serverName: string | null,
-  setupAll: boolean
+  setupAll: boolean,
+  isClaudeCode: boolean
 ): Promise<void> {
   console.log(`🔧 Setting up hot-reload proxy...`);
   console.log(`📋 Config: ${configPath}`);
@@ -342,9 +384,24 @@ async function setupHotReload(
       const original = unwrapMcpmonConfig(serverConfig);
       
       // Re-wrap with current mcpmon command
+      let commandParts: string[];
+      
+      // Check if command contains spaces (full command string)
+      if (original.command.includes(' ')) {
+        const parsed = parseCommandString(original.command);
+        // Skip 'mcpmon' if it's the first part (shouldn't be in the original command)
+        if (parsed.command === 'mcpmon' && parsed.args.length > 0) {
+          commandParts = parsed.args;
+        } else {
+          commandParts = [parsed.command, ...parsed.args];
+        }
+      } else {
+        commandParts = [original.command];
+      }
+      
       newConfig.mcpServers[name] = {
         command: mcpmonCmd.command,
-        args: [...mcpmonCmd.args, original.command, ...(original.args || [])],
+        args: [...mcpmonCmd.args, ...commandParts, ...(original.args || [])],
         env: serverConfig.env, // Keep existing env
         cwd: serverConfig.cwd,
       };
@@ -352,9 +409,24 @@ async function setupHotReload(
       console.log(`🔧 Configuring '${name}' for hot-reload...`);
       
       // First-time configuration
+      let commandParts: string[];
+      
+      // Check if command contains spaces (full command string)
+      if (serverConfig.command.includes(' ')) {
+        const parsed = parseCommandString(serverConfig.command);
+        // Skip 'mcpmon' if it's the first part (shouldn't be in the original command)
+        if (parsed.command === 'mcpmon' && parsed.args.length > 0) {
+          commandParts = parsed.args;
+        } else {
+          commandParts = [parsed.command, ...parsed.args];
+        }
+      } else {
+        commandParts = [serverConfig.command];
+      }
+      
       newConfig.mcpServers[name] = {
         command: mcpmonCmd.command,
-        args: [...mcpmonCmd.args, serverConfig.command, ...(serverConfig.args || [])],
+        args: [...mcpmonCmd.args, ...commandParts, ...(serverConfig.args || [])],
         env: serverConfig.env,
         cwd: serverConfig.cwd,
       };
@@ -365,8 +437,20 @@ async function setupHotReload(
 
   // Write updated config
   try {
-    const configText = JSON.stringify(newConfig, null, 2);
-    writeFileSync(configPath, configText, 'utf8');
+    let configToWrite: any;
+    
+    if (isClaudeCode) {
+      // For Claude Code, we need to merge back into the full config
+      const configText = readFileSync(configPath, 'utf8');
+      const fullConfig = JSON.parse(configText);
+      fullConfig.mcpServers = newConfig.mcpServers;
+      configToWrite = fullConfig;
+    } else {
+      configToWrite = newConfig;
+    }
+    
+    const finalConfigText = JSON.stringify(configToWrite, null, 2);
+    writeFileSync(configPath, finalConfigText, 'utf8');
     console.log(`\n✅ Updated config file: ${configPath}`);
     console.log(`\n📝 Hot-reload configured for ${serversToSetup.length} server(s):`);
     for (const serverName of serversToSetup) {
@@ -389,6 +473,8 @@ async function setupHotReload(
 
   if (configPath.includes('claude_desktop_config.json')) {
     console.log(`\n⚠️  Restart Claude Desktop to apply changes`);
+  } else if (configPath.includes('.claude.json')) {
+    console.log(`\n⚠️  Restart Claude Code to apply changes`);
   } else if (configPath.includes('.mcp.json')) {
     console.log(`\n⚠️  Restart Claude Code or reload the project`);
   }
@@ -486,14 +572,15 @@ function executeSetup(
     console.error(`\n❌ No config file found!`);
     console.error(`\nSearched in:`);
     console.error(`  1. .mcp.json (Claude Code project config)`);
+    console.error(`  2. ~/.claude.json (Claude Code user config)`);
     if (platform === 'darwin') {
-      console.error(`  2. ~/Library/Application Support/Claude/claude_desktop_config.json`);
+      console.error(`  3. ~/Library/Application Support/Claude/claude_desktop_config.json`);
     } else if (platform === 'win32') {
-      console.error(`  2. %APPDATA%\\Claude\\claude_desktop_config.json`);
+      console.error(`  3. %APPDATA%\\Claude\\claude_desktop_config.json`);
     } else {
-      console.error(`  2. ~/.config/Claude/claude_desktop_config.json`);
+      console.error(`  3. ~/.config/Claude/claude_desktop_config.json`);
     }
-    console.error(`  3. ./mcpServers.json`);
+    console.error(`  4. ./mcpServers.json`);
     console.error(`\nYou can specify a custom path with --config <path>`);
     process.exit(1);
   }
@@ -506,9 +593,21 @@ function executeSetup(
 
   // Load config
   let config: MCPServersConfig;
+  const isClaudeCode = foundConfigPath.endsWith('.claude.json');
+  
   try {
     const configText = readFileSync(foundConfigPath, 'utf8');
-    config = JSON.parse(configText);
+    const rawConfig = JSON.parse(configText);
+    
+    if (isClaudeCode) {
+      // Claude Code stores mcpServers directly in the config
+      const claudeConfig = rawConfig as ClaudeCodeConfig;
+      config = {
+        mcpServers: claudeConfig.mcpServers || {}
+      };
+    } else {
+      config = rawConfig as MCPServersConfig;
+    }
   } catch (error: any) {
     console.error(`❌ Failed to read config file: ${error.message}`);
     process.exit(1);
@@ -528,6 +627,6 @@ function executeSetup(
   }
 
   // Handle setup mode
-  setupHotReload(config, foundConfigPath, serverName, setupAll);
+  setupHotReload(config, foundConfigPath, serverName, setupAll, isClaudeCode);
 }
 
