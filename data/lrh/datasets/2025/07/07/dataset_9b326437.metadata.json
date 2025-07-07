@@ -1,0 +1,23 @@
+{
+  "datasetId": "dataset_9b326437",
+  "timestamp": 1751867697211,
+  "toolName": "unknown_tool",
+  "responseSize": 385947,
+  "originalMessageId": 4,
+  "files": {
+    "dataFile": "/Users/neilopet/Code/claude-live-reload/data/lrh/datasets/2025/07/07/dataset_9b326437.json",
+    "schemaFile": "/Users/neilopet/Code/claude-live-reload/data/lrh/datasets/2025/07/07/dataset_9b326437.schema.json",
+    "duckdbFile": "/Users/neilopet/Code/claude-live-reload/data/lrh/datasets/2025/07/07/dataset_9b326437.duckdb",
+    "metadataFile": "/Users/neilopet/Code/claude-live-reload/data/lrh/datasets/2025/07/07/dataset_9b326437.metadata.json"
+  },
+  "schema": {
+    "type": "object",
+    "title": "Response Schema",
+    "description": "Auto-generated schema from response data"
+  },
+  "stats": {
+    "recordCount": 1,
+    "sizeBytes": 385947,
+    "compressionEnabled": true
+  }
+}

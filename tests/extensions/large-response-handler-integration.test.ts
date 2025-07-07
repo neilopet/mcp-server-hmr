@@ -307,7 +307,7 @@ describe('Large Response Handler - Integration Tests', () => {
       }
 
       // Use the extension's built-in tool to list datasets
-      const listResult = await (extension as any).handleToolCall('mcpmon.list-saved-datasets', {});
+      const listResult = await (extension as any).handleToolCall('mcpmon_list-saved-datasets', {});
 
       expect(listResult).toBeDefined();
       expect(listResult.datasets).toBeDefined();
@@ -328,7 +328,7 @@ describe('Large Response Handler - Integration Tests', () => {
 
       // Test filtering by tool name (checking what the actual tool name is)
       // Since metadata.tool will be undefined/null, it defaults to 'unknown'
-      const filteredResult = await (extension as any).handleToolCall('mcpmon.list-saved-datasets', {
+      const filteredResult = await (extension as any).handleToolCall('mcpmon_list-saved-datasets', {
         filter: { tool: 'unknown' }
       });
 
@@ -338,7 +338,7 @@ describe('Large Response Handler - Integration Tests', () => {
 
     it('should handle empty dataset directory gracefully', async () => {
       // List datasets before any are created
-      const listResult = await (extension as any).handleToolCall('mcpmon.list-saved-datasets', {});
+      const listResult = await (extension as any).handleToolCall('mcpmon_list-saved-datasets', {});
 
       expect(listResult).toBeDefined();
       expect(listResult.datasets).toEqual([]);
@@ -514,7 +514,7 @@ describe('Large Response Handler - Integration Tests', () => {
       }
 
       // Verify listing shows all datasets
-      const listResult = await (extension as any).handleToolCall('mcpmon.list-saved-datasets', {});
+      const listResult = await (extension as any).handleToolCall('mcpmon_list-saved-datasets', {});
       expect(listResult.datasets.length).toBe(datasetCount);
     });
   });

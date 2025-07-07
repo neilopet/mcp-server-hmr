@@ -663,12 +663,12 @@ class LargeResponseHandlerExtension {
                         } : {})
                     },
                     availableTools: [
-                        'mcpmon.analyze-with-duckdb',
-                        'mcpmon.list-saved-datasets'
+                        'mcpmon_analyze-with-duckdb',
+                        'mcpmon_list-saved-datasets'
                     ],
                     nextSteps: [
-                        `Use mcpmon.analyze-with-duckdb with datasetId "${datasetId}" to query the data`,
-                        'Use mcpmon.list-saved-datasets to see all persisted datasets'
+                        `Use mcpmon_analyze-with-duckdb with datasetId "${datasetId}" to query the data`,
+                        'Use mcpmon_list-saved-datasets to see all persisted datasets'
                     ]
                 }
             };
@@ -693,7 +693,7 @@ class LargeResponseHandlerExtension {
     async getAdditionalTools() {
         return [
             {
-                name: 'mcpmon.analyze-with-duckdb',
+                name: 'mcpmon_analyze-with-duckdb',
                 description: 'Analyze persisted large response data using DuckDB SQL queries',
                 inputSchema: {
                     type: 'object',
@@ -711,7 +711,7 @@ class LargeResponseHandlerExtension {
                 }
             },
             {
-                name: 'mcpmon.list-saved-datasets',
+                name: 'mcpmon_list-saved-datasets',
                 description: 'List all saved large response datasets',
                 inputSchema: {
                     type: 'object',
@@ -1048,9 +1048,9 @@ class LargeResponseHandlerExtension {
      */
     async handleToolCall(toolName, args) {
         switch (toolName) {
-            case 'mcpmon.analyze-with-duckdb':
+            case 'mcpmon_analyze-with-duckdb':
                 return await this.analyzeWithDuckDB(args.datasetId, args.query);
-            case 'mcpmon.list-saved-datasets':
+            case 'mcpmon_list-saved-datasets':
                 return await this.listSavedDatasets(args.filter, args.limit);
             default:
                 // Not our tool

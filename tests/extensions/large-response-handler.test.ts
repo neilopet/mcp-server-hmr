@@ -119,7 +119,7 @@ class MockLargeResponseHandlerExtension {
   private async getAdditionalTools(): Promise<ToolDefinition[]> {
     return [
       {
-        name: "mcpmon.analyze-with-duckdb",
+        name: "mcpmon_analyze-with-duckdb",
         description: "Execute SQL queries on persisted datasets from large responses",
         inputSchema: {
           type: "object",
@@ -131,7 +131,7 @@ class MockLargeResponseHandlerExtension {
         }
       },
       {
-        name: "mcpmon.list-saved-datasets",
+        name: "mcpmon_list-saved-datasets",
         description: "List available persisted datasets from large responses",
         inputSchema: {
           type: "object",
@@ -148,7 +148,7 @@ class MockLargeResponseHandlerExtension {
     if (!this.handler) return null;
     
     switch (toolName) {
-      case 'mcpmon.analyze-with-duckdb':
+      case 'mcpmon_analyze-with-duckdb':
         try {
           const result = await this.handler.executeDuckDBQuery(args.database, args.query);
           return {
@@ -163,7 +163,7 @@ class MockLargeResponseHandlerExtension {
           };
         }
         
-      case 'mcpmon.list-saved-datasets':
+      case 'mcpmon_list-saved-datasets':
         try {
           const datasets = await this.handler.listSavedDatasets(args.sessionId);
           return {
@@ -448,13 +448,13 @@ describe('LargeResponseHandlerExtension', () => {
       expect(modifiedResponse.result.tools).toHaveLength(3); // 1 existing + 2 injected
       expect(modifiedResponse.result.tools).toContainEqual(
         expect.objectContaining({
-          name: 'mcpmon.analyze-with-duckdb',
+          name: 'mcpmon_analyze-with-duckdb',
           description: expect.stringContaining('Execute SQL queries')
         })
       );
       expect(modifiedResponse.result.tools).toContainEqual(
         expect.objectContaining({
-          name: 'mcpmon.list-saved-datasets',
+          name: 'mcpmon_list-saved-datasets',
           description: expect.stringContaining('List available persisted datasets')
         })
       );
@@ -465,7 +465,7 @@ describe('LargeResponseHandlerExtension', () => {
 
       expect(tools).toHaveLength(2);
       expect(tools[0]).toMatchObject({
-        name: 'mcpmon.analyze-with-duckdb',
+        name: 'mcpmon_analyze-with-duckdb',
         inputSchema: {
           type: 'object',
           properties: {
@@ -476,7 +476,7 @@ describe('LargeResponseHandlerExtension', () => {
         }
       });
       expect(tools[1]).toMatchObject({
-        name: 'mcpmon.list-saved-datasets',
+        name: 'mcpmon_list-saved-datasets',
         inputSchema: {
           type: 'object',
           properties: {
@@ -503,7 +503,7 @@ describe('LargeResponseHandlerExtension', () => {
       ]);
 
       const result = await (extension as any).handleToolCall(
-        'mcpmon.analyze-with-duckdb',
+        'mcpmon_analyze-with-duckdb',
         {
           database: '/tmp/test.duckdb',
           query: 'SELECT * FROM test_table'
@@ -527,7 +527,7 @@ describe('LargeResponseHandlerExtension', () => {
       mockHandler.executeDuckDBQuery.mockRejectedValue(new Error('Query failed'));
 
       const result = await (extension as any).handleToolCall(
-        'mcpmon.analyze-with-duckdb',
+        'mcpmon_analyze-with-duckdb',
         {
           database: '/tmp/test.duckdb',
           query: 'INVALID SQL'
@@ -568,7 +568,7 @@ describe('LargeResponseHandlerExtension', () => {
       mockHandler.listSavedDatasets.mockResolvedValue(mockDatasets);
 
       const result = await (extension as any).handleToolCall(
-        'mcpmon.list-saved-datasets',
+        'mcpmon_list-saved-datasets',
         { sessionId: 'session1' }
       );
 
@@ -590,7 +590,7 @@ describe('LargeResponseHandlerExtension', () => {
       mockHandler.listSavedDatasets.mockRejectedValue(new Error('Failed to list'));
 
       const result = await (extension as any).handleToolCall(
-        'mcpmon.list-saved-datasets',
+        'mcpmon_list-saved-datasets',
         { tool: 'test-tool' }
       );
 

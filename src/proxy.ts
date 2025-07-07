@@ -661,7 +661,7 @@ export class MCPProxy {
                 if (message.method === "tools/call" && this.extensionHooks.handleToolCall) {
                   const toolName = (message.params as any)?.name;
                   console.error(`🔨 Received tools/call request for: ${toolName}`);
-                  if (toolName && toolName.startsWith("mcpmon.")) {
+                  if (toolName && toolName.startsWith("mcpmon_")) {
                     console.error(`🔌 Extension tool call detected: ${toolName}`);
                     try {
                       const result = await this.extensionHooks.handleToolCall(toolName, (message.params as any)?.arguments || {});
