@@ -329,9 +329,8 @@ export class MCPProxy {
                 isDockerRun = true;
                 const runIndex = commandArgs.indexOf('run');
                 if (runIndex !== -1) {
-                    // Insert labels and -d flag after 'run' but before other flags
+                    // Insert labels after 'run' but before other flags (NO -d flag to preserve stdio)
                     const dockerFlags = [
-                        '-d', // Detached mode to capture container ID
                         '--label', 'mcpmon.managed=true',
                         '--label', `mcpmon.session=${this.sessionId}`,
                         '--label', `mcpmon.pid=${process.pid}`,
@@ -339,37 +338,43 @@ export class MCPProxy {
                     ];
                     // Insert Docker flags at the correct position (after 'run')
                     commandArgs.splice(runIndex + 1, 0, ...dockerFlags);
-                    console.error(`🐳 Injecting Docker labels and detached mode for session ${this.sessionId}`);
+                    console.error(`🐳 Injecting Docker labels for session ${this.sessionId}`);
                 }
             }
             this.managedProcess = this.procManager.spawn(this.config.command, commandArgs, {
                 env: this.config.env || {}, // Use config env or empty object
             });
             this.serverPid = this.managedProcess.pid || null;
-            // For Docker containers, capture the container ID from stdout
+            // For Docker containers, query container ID after startup (preserves stdio)
             if (isDockerRun) {
                 try {
-                    // Read the container ID from stdout (docker run -d outputs container ID)
-                    const reader = this.managedProcess.stdout.getReader();
+                    // Wait a moment for container to start, then query docker ps
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    // Query for the latest container with our session label
+                    const queryProcess = this.procManager.spawn('docker', [
+                        'ps', '-q', '--latest',
+                        '--filter', `label=mcpmon.session=${this.sessionId}`
+                    ], {});
+                    const reader = queryProcess.stdout.getReader();
                     const decoder = new TextDecoder();
-                    let containerOutput = '';
-                    // Set a timeout for reading container ID
-                    const timeoutPromise = new Promise((_, reject) => {
-                        setTimeout(() => reject(new Error('Container ID read timeout')), 5000);
-                    });
-                    const readPromise = (async () => {
-                        const { value } = await reader.read();
-                        if (value) {
-                            containerOutput = decoder.decode(value);
-                            this.containerId = containerOutput.trim();
+                    let containerIdOutput = '';
+                    // Read container ID from query
+                    const { value } = await reader.read();
+                    if (value) {
+                        containerIdOutput = decoder.decode(value);
+                        this.containerId = containerIdOutput.trim();
+                        if (this.containerId) {
                             console.error(`📦 Captured Docker container ID: ${this.containerId}`);
                         }
-                        reader.releaseLock();
-                    })();
-                    await Promise.race([readPromise, timeoutPromise]);
+                        else {
+                            console.error(`⚠️  No container ID found for session ${this.sessionId}`);
+                        }
+                    }
+                    reader.releaseLock();
+                    await queryProcess.status;
                 }
                 catch (error) {
-                    console.error(`⚠️  Failed to capture container ID: ${error}`);
+                    console.error(`⚠️  Failed to query container ID: ${error}`);
                     // Continue without container ID - not fatal
                 }
             }
