@@ -11,8 +11,21 @@ import { homedir } from 'os';
 import { createHash } from 'crypto';
 import duckdb from 'duckdb';
 const { Database } = duckdb;
+// Use MAX_MCP_OUTPUT_TOKENS env var if set, otherwise 25KB default
+// Approximate 1 token ≈ 4 bytes, so default 25KB ≈ 6250 tokens
+const getThresholdFromEnv = () => {
+    const maxTokens = process.env.MAX_MCP_OUTPUT_TOKENS;
+    if (maxTokens) {
+        const tokens = parseInt(maxTokens, 10);
+        if (!isNaN(tokens) && tokens > 0) {
+            // Convert tokens to approximate bytes (1 token ≈ 4 bytes)
+            return tokens * 4;
+        }
+    }
+    return 25000; // 25KB default
+};
 const DEFAULT_CONFIG = {
-    threshold: 50000,
+    threshold: getThresholdFromEnv(),
     dataDir: './data',
     enableDuckDB: true,
     compressionLevel: 6,
@@ -34,8 +47,8 @@ class LargeResponseHandlerExtension {
             threshold: {
                 type: 'number',
                 minimum: 1000,
-                default: 50000,
-                description: 'Response size threshold in bytes'
+                default: 25000,
+                description: 'Response size threshold in bytes (or set MAX_MCP_OUTPUT_TOKENS env var)'
             },
             dataDir: {
                 type: 'string',
@@ -110,6 +123,14 @@ class LargeResponseHandlerExtension {
     async initialize(context) {
         this.context = context;
         this.config = { ...DEFAULT_CONFIG, ...context.config };
+        // Log threshold configuration
+        const envTokens = process.env.MAX_MCP_OUTPUT_TOKENS;
+        if (envTokens) {
+            context.logger.info(`Using MAX_MCP_OUTPUT_TOKENS=${envTokens} (threshold: ${this.config.threshold} bytes)`);
+        }
+        else {
+            context.logger.info(`Using default threshold: ${this.config.threshold} bytes (25KB)`);
+        }
         // Initialize data directory structure
         await this.ensureDataDirectory();
         // Initialize streaming buffer with configuration

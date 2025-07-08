@@ -176,6 +176,7 @@ That's it! mcpmon is designed to work with zero configuration.
 - `MCPMON_DELAY` - Restart delay in milliseconds (default: 1000)
 - `MCPMON_VERBOSE` - Enable verbose logging
 - `MCPMON_EXTENSIONS_DIR` - Extension data directory (default: ./mcpmon-data)
+- `MAX_MCP_OUTPUT_TOKENS` - Large response threshold in tokens (default: 6250 tokens ≈ 25KB)
 
 ## Extensions
 
@@ -220,10 +221,10 @@ mcpmon --enable-extension large-response-handler \
 ### Built-in Extensions
 
 **Large Response Handler** (`large-response-handler`)
-- Automatically handles MCP tool responses that exceed token limits
+- Automatically handles MCP tool responses that exceed token limits (default: 25KB or MAX_MCP_OUTPUT_TOKENS env var)
 - Persists large data to disk and returns metadata instead
 - Generates JSON schemas and creates queryable DuckDB databases
-- Adds `mcpmon.analyze-with-duckdb` and `mcpmon.list-saved-datasets` tools
+- Adds `mcpmon_analyze-with-duckdb` and `mcpmon_list-saved-datasets` tools
 
 ```bash
 # Enable large response handling

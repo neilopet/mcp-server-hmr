@@ -39,3 +39,6 @@ temp/
 coverage/
 *.output
 
+# Large Response Handler data
+data/lrh/
+

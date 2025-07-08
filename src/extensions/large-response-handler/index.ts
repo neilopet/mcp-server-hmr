@@ -42,8 +42,22 @@ export interface DatabaseInfo {
   sampleQueries: string[];
 }
 
+// Use MAX_MCP_OUTPUT_TOKENS env var if set, otherwise 25KB default
+// Approximate 1 token ≈ 4 bytes, so default 25KB ≈ 6250 tokens
+const getThresholdFromEnv = (): number => {
+  const maxTokens = process.env.MAX_MCP_OUTPUT_TOKENS;
+  if (maxTokens) {
+    const tokens = parseInt(maxTokens, 10);
+    if (!isNaN(tokens) && tokens > 0) {
+      // Convert tokens to approximate bytes (1 token ≈ 4 bytes)
+      return tokens * 4;
+    }
+  }
+  return 25000; // 25KB default
+};
+
 const DEFAULT_CONFIG: LargeResponseHandlerConfig = {
-  threshold: 50000,
+  threshold: getThresholdFromEnv(),
   dataDir: './data',
   enableDuckDB: true,
   compressionLevel: 6,
@@ -67,8 +81,8 @@ class LargeResponseHandlerExtension implements Extension {
       threshold: {
         type: 'number',
         minimum: 1000,
-        default: 50000,
-        description: 'Response size threshold in bytes'
+        default: 25000,
+        description: 'Response size threshold in bytes (or set MAX_MCP_OUTPUT_TOKENS env var)'
       },
       dataDir: {
         type: 'string',
@@ -145,6 +159,14 @@ class LargeResponseHandlerExtension implements Extension {
   async initialize(context: ExtensionContext): Promise<void> {
     this.context = context;
     this.config = { ...DEFAULT_CONFIG, ...context.config };
+    
+    // Log threshold configuration
+    const envTokens = process.env.MAX_MCP_OUTPUT_TOKENS;
+    if (envTokens) {
+      context.logger.info(`Using MAX_MCP_OUTPUT_TOKENS=${envTokens} (threshold: ${this.config.threshold} bytes)`);
+    } else {
+      context.logger.info(`Using default threshold: ${this.config.threshold} bytes (25KB)`);
+    }
     
     // Initialize data directory structure
     await this.ensureDataDirectory();
