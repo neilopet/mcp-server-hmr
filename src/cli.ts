@@ -20,9 +20,7 @@ import { MCPProxy } from "./proxy.js";
 import { setupCommand } from "./setup.js";
 import { ExtensionRegistry } from "./extensions/index.js";
 import { parseWatchAndCommand } from "./cli-utils.js";
-import { createHash } from "crypto";
-import { existsSync, readFileSync, writeFileSync, unlinkSync, readdirSync } from "fs";
-import { tmpdir } from "os";
+import { existsSync, readFileSync, writeFileSync } from "fs";
 import { spawn } from "child_process";
 
 // Check if we're running on an outdated Node.js version
@@ -38,23 +36,6 @@ if (major < 16) {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// PID file management for singleton pattern
-let pidFilePath: string | null = null;
-
-/**
- * Generate a unique hash for the current configuration
- * Based on command, args, and working directory to allow different servers
- * but prevent duplicates for the same server
- */
-function generateConfigHash(command: string, args: string[], cwd: string): string {
-  const configString = JSON.stringify({
-    command,
-    args,
-    cwd
-  });
-  return createHash('sha256').update(configString).digest('hex').substring(0, 16);
-}
-
 /**
  * Check if a process with the given PID is still running
  */
@@ -69,92 +50,6 @@ function isProcessAlive(pid: number): boolean {
     // EPERM = Operation not permitted (process exists but we can't signal it)
     return err.code === 'EPERM';
   }
-}
-
-/**
- * Create PID file and check for existing instance
- * Returns true if this is the first instance, false if another is already running
- */
-function acquireSingletonLock(command: string, args: string[]): boolean {
-  const configHash = generateConfigHash(command, args, process.cwd());
-  pidFilePath = join(tmpdir(), `mcpmon-${configHash}.pid`);
-  
-  // Check if PID file already exists
-  if (existsSync(pidFilePath)) {
-    try {
-      const existingPid = parseInt(readFileSync(pidFilePath, 'utf8').trim());
-      
-      if (isProcessAlive(existingPid)) {
-        console.error(`❌ mcpmon is already running for this configuration (PID: ${existingPid})`);
-        console.error(`💡 If you believe this is an error, remove the PID file: ${pidFilePath}`);
-        return false;
-      } else {
-        // Stale PID file, remove it
-        console.error(`🧹 Removing stale PID file (process ${existingPid} no longer exists)`);
-        unlinkSync(pidFilePath);
-      }
-    } catch (err) {
-      // Invalid PID file, remove it
-      console.error(`🧹 Removing invalid PID file: ${pidFilePath}`);
-      unlinkSync(pidFilePath);
-    }
-  }
-  
-  // Create new PID file
-  try {
-    writeFileSync(pidFilePath, process.pid.toString(), 'utf8');
-    return true;
-  } catch (err) {
-    console.error(`❌ Failed to create PID file: ${err}`);
-    return false;
-  }
-}
-
-/**
- * Remove PID file on clean shutdown
- */
-function releaseSingletonLock(): void {
-  if (pidFilePath && existsSync(pidFilePath)) {
-    try {
-      unlinkSync(pidFilePath);
-    } catch (err) {
-      // Ignore errors during cleanup
-    }
-  }
-}
-
-/**
- * Register cleanup handlers for various exit scenarios
- */
-function registerCleanupHandlers(): void {
-  // Clean shutdown signals
-  process.on('SIGINT', () => {
-    releaseSingletonLock();
-    process.exit(0);
-  });
-  
-  process.on('SIGTERM', () => {
-    releaseSingletonLock();
-    process.exit(0);
-  });
-  
-  // Unexpected exit scenarios
-  process.on('uncaughtException', (err) => {
-    console.error('❌ Uncaught exception:', err);
-    releaseSingletonLock();
-    process.exit(1);
-  });
-  
-  process.on('unhandledRejection', (reason, promise) => {
-    console.error('❌ Unhandled rejection at:', promise, 'reason:', reason);
-    releaseSingletonLock();
-    process.exit(1);
-  });
-  
-  // Normal process exit
-  process.on('exit', () => {
-    releaseSingletonLock();
-  });
 }
 
 /**
@@ -236,59 +131,6 @@ async function findMcpmonProcesses(): Promise<ProcessInfo[]> {
   });
 }
 
-/**
- * Find and clean up PID files in tmp directory
- */
-function cleanupPidFiles(verbose: boolean = false): { removed: string[], failed: string[] } {
-  const removed: string[] = [];
-  const failed: string[] = [];
-  
-  try {
-    const tmpDir = tmpdir();
-    const files = readdirSync(tmpDir);
-    
-    for (const file of files) {
-      if (file.startsWith('mcpmon-') && file.endsWith('.pid')) {
-        const filePath = join(tmpDir, file);
-        try {
-          // Check if process is still alive
-          const pidContent = readFileSync(filePath, 'utf8').trim();
-          const pid = parseInt(pidContent);
-          
-          if (!isNaN(pid) && !isProcessAlive(pid)) {
-            unlinkSync(filePath);
-            removed.push(filePath);
-            if (verbose) {
-              console.log(`🧹 Removed stale PID file: ${filePath} (process ${pid} not found)`);
-            }
-          } else if (verbose) {
-            console.log(`⚠️  Keeping PID file: ${filePath} (process ${pid} still running)`);
-          }
-        } catch (err) {
-          // Invalid PID file, remove it
-          try {
-            unlinkSync(filePath);
-            removed.push(filePath);
-            if (verbose) {
-              console.log(`🧹 Removed invalid PID file: ${filePath}`);
-            }
-          } catch (removeErr) {
-            failed.push(filePath);
-            if (verbose) {
-              console.error(`❌ Failed to remove PID file: ${filePath} - ${removeErr}`);
-            }
-          }
-        }
-      }
-    }
-  } catch (err) {
-    if (verbose) {
-      console.error(`❌ Failed to scan tmp directory: ${err}`);
-    }
-  }
-  
-  return { removed, failed };
-}
 
 /**
  * Find Docker containers that might be mcpmon-related
@@ -723,16 +565,6 @@ async function performCleanup(options: { force?: boolean, verbose?: boolean }): 
     }
   }
   
-  // 4. Find PID files
-  const pidFileResults = cleanupPidFiles(verbose);
-  if (verbose || pidFileResults.removed.length > 0 || pidFileResults.failed.length > 0) {
-    console.log(`📁 PID file cleanup:`);
-    console.log(`  • Removed: ${pidFileResults.removed.length} file(s)`);
-    if (pidFileResults.failed.length > 0) {
-      console.log(`  • Failed: ${pidFileResults.failed.length} file(s)`);
-    }
-    console.log();
-  }
   
   // Check if there's anything to clean up
   const hasWork = mcpmonProcesses.length > 0 || dockerContainers.length > 0 || orphanedContainers.length > 0;
@@ -809,7 +641,6 @@ async function performCleanup(options: { force?: boolean, verbose?: boolean }): 
     console.log(`   • Processes terminated: ${mcpmonProcesses.length}`);
     console.log(`   • Containers stopped: ${dockerContainers.length}`);
     console.log(`   • Orphaned containers cleaned: ${orphanedContainers.length}`);
-    console.log(`   • PID files removed: ${pidFileResults.removed.length}`);
   }
 }
 
@@ -905,14 +736,6 @@ Watch Modes:
       program.help();
       return;
     }
-
-    // Check for singleton lock before starting proxy
-    if (!acquireSingletonLock(command, args)) {
-      process.exit(1);
-    }
-
-    // Register cleanup handlers after acquiring lock
-    registerCleanupHandlers();
 
     // Get explicit watch targets from pre-processed arguments
     const explicitWatchTargets = (program as any)._watchTargetsFromArgs || [];
@@ -1189,7 +1012,6 @@ async function runProxy(command: string, args: string[], options: any, explicitW
       console.error(`\n🛑 Received ${signal}, shutting down...`);
     }
     await proxy.shutdown();
-    releaseSingletonLock();
     process.exit(0);
   };
 
