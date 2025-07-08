@@ -1,0 +1,35 @@
+{
+  "mcpServers": {
+    "shopify-dev-mcp": {
+      "command": "mcpmon",
+      "args": [
+        "--enable-extension",
+        "large-response-handler",
+        "--watch",
+        "/Users/neilopet/.nvm/versions/node/v20.12.2/lib/node_modules/@shopify/dev-mcp/dist/index.js",
+        "/Users/neilopet/.nvm/versions/node/v20.12.2/bin/node",
+        "/Users/neilopet/.nvm/versions/node/v20.12.2/lib/node_modules/@shopify/dev-mcp/dist/index.js"
+      ]
+    },
+    "github": {
+      "command": "mcpmon",
+      "args": [
+        "--enable-extension",
+        "large-response-handler",
+        "--watch",
+        "/Users/neilopet/go/src/github.com/github/github-mcp-server/pkg",
+        "docker",
+        "run",
+        "-i",
+        "--rm",
+        "-e",
+        "GITHUB_PERSONAL_ACCESS_TOKEN",
+        "github-mcp-server-minimal",
+        "stdio"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "YOUR_GITHUB_TOKEN_HERE"
+      }
+    }
+  }
+}

@@ -9,6 +9,7 @@
 
 # Local configuration files
 claude-desktop-config.json
+.claude/mcp.json
 
 # OS-specific
 .DS_Store
