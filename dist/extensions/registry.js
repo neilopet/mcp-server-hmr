@@ -119,13 +119,13 @@ export class ExtensionRegistry {
                         throw new Error(`Invalid extension export for ${name}`);
                     }
                     this.register(extensionInstance);
-                    console.error(`✅ Loaded extension: ${name}`);
+                    // Extension loaded: ${name}
                 }
             }
             catch (error) {
                 // Extension not available yet, skip silently
                 if (process.env.MCPMON_DEBUG) {
-                    console.error(`⚠️  Failed to load extension ${name}:`, error);
+                    // Failed to load extension: ${name}
                 }
             }
         }
@@ -148,10 +148,10 @@ export class ExtensionRegistry {
                     ...context,
                     config: this.getConfig(extension.id)
                 });
-                console.error(`🔌 Extension initialized: ${extension.name} v${extension.version}`);
+                // Extension initialized: ${extension.name}
             }
             catch (error) {
-                console.error(`❌ Failed to initialize extension ${extension.id}:`, error);
+                // Failed to initialize extension: ${extension.id}
                 // Disable failed extension
                 this.setEnabled(extension.id, false);
             }
@@ -166,10 +166,10 @@ export class ExtensionRegistry {
         for (const extension of enabled.reverse()) {
             try {
                 await extension.shutdown();
-                console.error(`🔌 Extension shut down: ${extension.name}`);
+                // Extension shut down: ${extension.name}
             }
             catch (error) {
-                console.error(`❌ Error shutting down extension ${extension.id}:`, error);
+                // Error shutting down extension: ${extension.id}
             }
         }
     }

@@ -876,10 +876,10 @@ async function runProxy(command: string, args: string[], options: any, explicitW
   // Set verbose mode from CLI option or environment variable
   const verbose = options.verbose || process.env.MCPMON_VERBOSE;
   if (verbose) {
-    console.error(`🔧 mcpmon starting...`);
-    console.error(`📟 Command: ${command} ${args.join(" ")}`);
+    // mcpmon starting...
+    // Command: ${command} ${args.join(" ")}
     if (watchTargets.length > 0) {
-      console.error(`👀 Watching: ${watchTargets.join(", ")}`);
+      // Watching: ${watchTargets.join(", ")}
     } else {
       console.error(`⚠️  No files to watch detected`);
     }
@@ -920,14 +920,14 @@ async function runProxy(command: string, args: string[], options: any, explicitW
     if (verbose) {
       const enabled = extensionRegistry.getEnabled();
       if (enabled.length > 0) {
-        console.error(`🔌 Extensions enabled: ${enabled.map(e => e.name).join(', ')}`);
+        // Extensions enabled: ${enabled.map(e => e.name).join(', ')}
       } else {
-        console.error(`🔌 No extensions enabled`);
+        // No extensions enabled
       }
     }
 
   } catch (error) {
-    console.error("❌ Failed to initialize extensions:", error);
+    // Failed to initialize extensions
     if (verbose) {
       console.error(error);
     }

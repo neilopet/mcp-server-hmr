@@ -141,12 +141,12 @@ export class ExtensionRegistry implements IExtensionRegistry {
           }
           
           this.register(extensionInstance);
-          // Extension loaded: ${name}
+          console.error(`✅ Loaded extension: ${name}`);
         }
       } catch (error) {
         // Extension not available yet, skip silently
         if (process.env.MCPMON_DEBUG) {
-          // Failed to load extension: ${name}
+          console.error(`⚠️  Failed to load extension ${name}:`, error);
         }
       }
     }
@@ -173,9 +173,9 @@ export class ExtensionRegistry implements IExtensionRegistry {
           config: this.getConfig(extension.id)
         });
         
-        // Extension initialized: ${extension.name}
+        console.error(`🔌 Extension initialized: ${extension.name} v${extension.version}`);
       } catch (error) {
-        // Failed to initialize extension: ${extension.id}
+        console.error(`❌ Failed to initialize extension ${extension.id}:`, error);
         // Disable failed extension
         this.setEnabled(extension.id, false);
       }
@@ -192,9 +192,9 @@ export class ExtensionRegistry implements IExtensionRegistry {
     for (const extension of enabled.reverse()) {
       try {
         await extension.shutdown();
-        // Extension shut down: ${extension.name}
+        console.error(`🔌 Extension shut down: ${extension.name}`);
       } catch (error) {
-        // Error shutting down extension: ${extension.id}
+        console.error(`❌ Error shutting down extension ${extension.id}:`, error);
       }
     }
   }
