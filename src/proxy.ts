@@ -703,16 +703,30 @@ export class MCPProxy {
                   continue; // Skip normal forwarding since we already forwarded
                 }
 
-                // Check if this is a tool call that should be handled by extensions
-                if (message.method === "tools/call" && this.extensionHooks.handleToolCall) {
+                // Check if this is a tool call that should be handled by built-in or extensions
+                if (message.method === "tools/call") {
                   const toolName = (message.params as any)?.name;
                   this.logger.debug(`Received tools/call request for: ${toolName}`);
                   if (toolName && toolName.startsWith("mcpmon_")) {
-                    this.logger.debug(`Extension tool call detected: ${toolName}`);
-                    try {
-                      const result = await this.extensionHooks.handleToolCall(toolName, (message.params as any)?.arguments || {});
-                      if (result !== null) {
-                        this.logger.debug(`Extension handled tool call: ${toolName}`);
+                    let handled = false;
+                    
+                    // Handle built-in mcpmon tools first
+                    if (toolName === "mcpmon_reload-server") {
+                      this.logger.debug(`Built-in tool call detected: ${toolName}`);
+                      try {
+                        const args = (message.params as any)?.arguments || {};
+                        const reason = args.reason || "Manual reload requested";
+                        this.logger.info(`Manual server reload requested: ${reason}`);
+                        
+                        // Trigger the restart
+                        this.restart();
+                        
+                        const result = {
+                          success: true,
+                          message: "Server reload initiated",
+                          reason: reason
+                        };
+                        
                         // Send response directly back to client
                         const response: Message = {
                           jsonrpc: "2.0",
@@ -722,24 +736,63 @@ export class MCPProxy {
                         const writer = this.stdout.getWriter();
                         await writer.write(new TextEncoder().encode(JSON.stringify(response) + "\n"));
                         writer.releaseLock();
+                        handled = true;
+                        continue; // Don't forward to server
+                      } catch (error) {
+                        this.logger.error(`Built-in tool error for ${toolName}: ${error}`);
+                        // Send error response
+                        const errorResponse: Message = {
+                          jsonrpc: "2.0",
+                          id: message.id,
+                          error: {
+                            code: -32603,
+                            message: `Built-in tool error: ${error}`,
+                            data: { toolName }
+                          }
+                        };
+                        const writer = this.stdout.getWriter();
+                        await writer.write(new TextEncoder().encode(JSON.stringify(errorResponse) + "\n"));
+                        writer.releaseLock();
+                        handled = true;
                         continue; // Don't forward to server
                       }
-                    } catch (error) {
-                      this.logger.error(`Extension tool error for ${toolName}: ${error}`);
-                      // Send error response
-                      const errorResponse: Message = {
-                        jsonrpc: "2.0",
-                        id: message.id,
-                        error: {
-                          code: -32603,
-                          message: `Extension tool error: ${error}`,
-                          data: { toolName }
+                    }
+                    
+                    // Try extension tools if not handled by built-in
+                    if (!handled && this.extensionHooks.handleToolCall) {
+                      this.logger.debug(`Extension tool call detected: ${toolName}`);
+                      try {
+                        const result = await this.extensionHooks.handleToolCall(toolName, (message.params as any)?.arguments || {});
+                        if (result !== null) {
+                          this.logger.debug(`Extension handled tool call: ${toolName}`);
+                          // Send response directly back to client
+                          const response: Message = {
+                            jsonrpc: "2.0",
+                            id: message.id,
+                            result
+                          };
+                          const writer = this.stdout.getWriter();
+                          await writer.write(new TextEncoder().encode(JSON.stringify(response) + "\n"));
+                          writer.releaseLock();
+                          continue; // Don't forward to server
                         }
-                      };
-                      const writer = this.stdout.getWriter();
-                      await writer.write(new TextEncoder().encode(JSON.stringify(errorResponse) + "\n"));
-                      writer.releaseLock();
-                      continue; // Don't forward to server
+                      } catch (error) {
+                        this.logger.error(`Extension tool error for ${toolName}: ${error}`);
+                        // Send error response
+                        const errorResponse: Message = {
+                          jsonrpc: "2.0",
+                          id: message.id,
+                          error: {
+                            code: -32603,
+                            message: `Extension tool error: ${error}`,
+                            data: { toolName }
+                          }
+                        };
+                        const writer = this.stdout.getWriter();
+                        await writer.write(new TextEncoder().encode(JSON.stringify(errorResponse) + "\n"));
+                        writer.releaseLock();
+                        continue; // Don't forward to server
+                      }
                     }
                   }
                 }
@@ -1067,6 +1120,27 @@ export class MCPProxy {
       }
 
       let tools = (response.result as { tools?: unknown[] })?.tools || [];
+      
+      // Add built-in mcpmon tools
+      const mcpmonTools = [
+        {
+          name: 'mcpmon_reload-server',
+          description: 'Manually reload the MCP server (useful for troubleshooting or dependency updates)',
+          inputSchema: {
+            type: 'object',
+            properties: {
+              reason: {
+                type: 'string',
+                description: 'Optional reason for reload (for logging)'
+              }
+            },
+            additionalProperties: false
+          }
+        }
+      ];
+      
+      tools = [...tools, ...mcpmonTools];
+      this.logger.debug(`Added ${mcpmonTools.length} built-in mcpmon tools`);
       
       // Add extension tools if available
       if (this.extensionHooks.getAdditionalTools) {
