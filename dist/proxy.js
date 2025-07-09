@@ -337,6 +337,10 @@ export class MCPProxy {
         // Create a display-safe version of the command with masked env vars
         const safeCommand = this.getSafeCommandDisplay();
         this.logger.info(`Starting MCP server: ${safeCommand}`);
+        // Also send to stderr for CLI integration tests
+        if (process.env.MCPMON_VERBOSE) {
+            console.error(`Starting MCP server: ${safeCommand}`);
+        }
         try {
             // Check if this is a Docker run command and inject labels + detached mode
             let commandArgs = [...this.config.commandArgs];

@@ -66,7 +66,7 @@ describe("Capability Injection", () => {
   // The implementation needs to be added to proxy.ts in the setupOutputForwarding method
   // to intercept initialize responses and modify capabilities.
   
-  it.skip("should inject tools.listChanged when server doesn't declare it", async () => {
+  it("should inject tools.listChanged when server doesn't declare it", async () => {
     const { proxy, procManager, stdinWriter, stdoutReader, teardown } = setupProxyTest({
       restartDelay: 100,
     });
@@ -133,7 +133,7 @@ describe("Capability Injection", () => {
     }
   });
 
-  it.skip("should preserve tools.listChanged when server already has it true", async () => {
+  it("should preserve tools.listChanged when server already has it true", async () => {
     const { proxy, procManager, stdinWriter, stdoutReader, teardown } = setupProxyTest({
       restartDelay: 100,
     });
@@ -197,7 +197,7 @@ describe("Capability Injection", () => {
     }
   });
 
-  it.skip("should add logging capability when missing", async () => {
+  it("should add logging capability when missing", async () => {
     const { proxy, procManager, stdinWriter, stdoutReader, teardown } = setupProxyTest({
       restartDelay: 100,
     });
@@ -260,7 +260,7 @@ describe("Capability Injection", () => {
     }
   });
 
-  it.skip("should preserve other capabilities untouched", async () => {
+  it("should preserve other capabilities untouched", async () => {
     const { proxy, procManager, stdinWriter, stdoutReader, teardown } = setupProxyTest({
       restartDelay: 100,
     });

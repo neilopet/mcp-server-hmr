@@ -395,8 +395,6 @@ describe('ExtensionRegistry', () => {
       });
 
       it('should initialize all enabled extensions', async () => {
-        const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
-        
         await registry.initializeAll(mockContext);
         
         expect(mockExtension1.initialize).toHaveBeenCalledWith({
@@ -408,10 +406,8 @@ describe('ExtensionRegistry', () => {
           config: {}
         });
         
-        expect(consoleSpy).toHaveBeenCalledWith('🔌 Extension initialized: Test Extension 1 v1.0.0');
-        expect(consoleSpy).toHaveBeenCalledWith('🔌 Extension initialized: Test Extension 2 v2.0.0');
-        
-        consoleSpy.mockRestore();
+        // Console logging was removed as part of stdout/stderr cleanup
+        // The test now only verifies that the initialize method was called correctly
       });
 
       it('should pass extension configs during initialization', async () => {
@@ -432,17 +428,13 @@ describe('ExtensionRegistry', () => {
         };
         
         registry.register(failingExtension);
-        const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
         
         await registry.initializeAll(mockContext);
         
         expect(registry.isEnabled('test-ext-3')).toBe(false);
-        expect(consoleSpy).toHaveBeenCalledWith(
-          expect.stringContaining('Failed to initialize extension test-ext-3:'),
-          expect.any(Error)
-        );
         
-        consoleSpy.mockRestore();
+        // Console logging was removed as part of stdout/stderr cleanup
+        // The test now only verifies that the extension was disabled on failure
       });
     });
 
@@ -454,7 +446,6 @@ describe('ExtensionRegistry', () => {
       });
 
       it('should shutdown all enabled extensions in reverse order', async () => {
-        const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
         const shutdownOrder: string[] = [];
         
         (mockExtension1.shutdown as jest.Mock).mockImplementation(() => {
@@ -474,10 +465,9 @@ describe('ExtensionRegistry', () => {
         expect(shutdownOrder).toHaveLength(2);
         expect(shutdownOrder).toContain('ext1');
         expect(shutdownOrder).toContain('ext2');
-        expect(consoleSpy).toHaveBeenCalledWith('🔌 Extension shut down: Test Extension 2');
-        expect(consoleSpy).toHaveBeenCalledWith('🔌 Extension shut down: Test Extension 1');
         
-        consoleSpy.mockRestore();
+        // Console logging was removed as part of stdout/stderr cleanup
+        // The test now only verifies that the shutdown methods were called
       });
 
       it('should handle shutdown failures gracefully', async () => {
@@ -487,19 +477,14 @@ describe('ExtensionRegistry', () => {
         };
         
         registry.register(failingExtension);
-        const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
         
         await registry.shutdownAll();
-        
-        expect(consoleSpy).toHaveBeenCalledWith(
-          expect.stringContaining('Error shutting down extension test-ext-3:'),
-          expect.any(Error)
-        );
         
         // Should still shutdown other extensions
         expect(mockExtension2.shutdown).toHaveBeenCalled();
         
-        consoleSpy.mockRestore();
+        // Console logging was removed as part of stdout/stderr cleanup
+        // The test now only verifies that other extensions were still shutdown despite the failure
       });
     });
   });

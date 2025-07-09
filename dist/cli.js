@@ -760,10 +760,10 @@ async function runProxy(command, args, options, explicitWatchTargets = []) {
     // Set verbose mode from CLI option or environment variable
     const verbose = options.verbose || process.env.MCPMON_VERBOSE;
     if (verbose) {
-        // mcpmon starting...
-        // Command: ${command} ${args.join(" ")}
+        console.error(`🚀 mcpmon starting...`);
+        console.error(`Command: ${command} ${args.join(" ")}`);
         if (watchTargets.length > 0) {
-            // Watching: ${watchTargets.join(", ")}
+            console.error(`Watching ${watchTargets.join(", ")}`);
         }
         else {
             console.error(`⚠️  No files to watch detected`);
