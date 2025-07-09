@@ -27,6 +27,7 @@ export default {
     "**/tests/behavior/**/*.test.ts",
     "**/tests/integration/**/*.test.ts",
     "**/tests/extensions/**/*.test.ts",
+    "**/tests/unit/**/*.test.ts",
     "**/src/**/*.test.ts"
   ],
   testEnvironment: "node",

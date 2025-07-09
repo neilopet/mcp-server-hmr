@@ -6,6 +6,8 @@
  * compatibility between Deno and Node.js environments.
  */
 import { randomUUID } from 'crypto';
+import { createMCPMonLogger } from './mcpmon-logger.js';
+import { parseStderrLine } from './stderr-parser.js';
 function debounce(fn, delay) {
     let timeoutId;
     let latestArgs;
@@ -65,6 +67,10 @@ export class MCPProxy {
     errorRetryTimeout;
     pendingToolsListRequests = new Map(); // Track tools/list requests that need injection
     sessionId = randomUUID();
+    clientLogLevel = 'info';
+    serverSupportsLogging = false;
+    logLevelRequestId = null;
+    initializeRequestId = null;
     // Dependency injection
     procManager;
     changeSource;
@@ -75,6 +81,7 @@ export class MCPProxy {
     exit;
     extensionRegistry;
     extensionHooks = {};
+    logger;
     constructor(dependencies, config) {
         this.procManager = dependencies.procManager;
         // Support both new ChangeSource and legacy FileSystem interfaces
@@ -94,9 +101,11 @@ export class MCPProxy {
         this.exit = dependencies.exit;
         this.config = this.normalizeConfig(config);
         this.extensionRegistry = dependencies.extensionRegistry;
+        // Create MCP logger instance
+        this.logger = createMCPMonLogger(this.stdout, () => this.clientLogLevel);
         // Initialize restart function with config
         this.restart = debounce(async () => {
-            console.error("\n🔄 File change detected, restarting server...");
+            this.logger.info("File change detected, restarting server...");
             this.restarting = true;
             // Kill the old server completely
             await this.killServer();
@@ -110,7 +119,7 @@ export class MCPProxy {
                 await this.startServer();
             }
             catch (error) {
-                console.error(`❌ Failed to start server during restart: ${error}`);
+                this.logger.error(`Failed to start server during restart: ${error}`);
                 this.restarting = false;
                 return; // Exit restart function if we can't start server
             }
@@ -133,13 +142,13 @@ export class MCPProxy {
                 const writer = this.stdout.getWriter();
                 await writer.write(new TextEncoder().encode(JSON.stringify(notification) + "\n"));
                 writer.releaseLock();
-                console.error(`📢 Sent tool change notification with ${tools.length} tools`);
+                this.logger.debug(`Sent tool change notification with ${tools.length} tools`);
             }
             catch (error) {
-                console.error("❌ Failed to send notification:", error);
+                this.logger.error("Failed to send notification:", { error });
             }
             this.restarting = false;
-            console.error("✅ Server restart complete\n");
+            this.logger.info("Server restart complete");
         }, this.config.restartDelay);
     }
     /**
@@ -218,16 +227,16 @@ export class MCPProxy {
         if (!this.extensionRegistry)
             return;
         try {
-            console.error("🔌 Initializing extensions...");
+            this.logger.debug("Initializing extensions...");
             // Create extension context
             const context = {
                 sessionId: `mcpmon-${Date.now()}`,
                 dataDir: this.config.dataDir || `${process.cwd()}/mcpmon-data`,
                 logger: {
-                    info: (message) => console.error(`[Extension] ℹ️  ${message}`),
-                    debug: (message) => console.error(`[Extension] 🐛 ${message}`),
-                    error: (message) => console.error(`[Extension] ❌ ${message}`),
-                    warn: (message) => console.error(`[Extension] ⚠️  ${message}`)
+                    info: (message) => this.logger.info(message, { source: 'extension' }),
+                    debug: (message) => this.logger.debug(message, { source: 'extension' }),
+                    error: (message) => this.logger.error(message, { source: 'extension' }),
+                    warn: (message) => this.logger.warning(message, { source: 'extension' })
                 },
                 hooks: this.extensionHooks,
                 dependencies: {
@@ -242,19 +251,19 @@ export class MCPProxy {
             // Initialize all enabled extensions
             await this.extensionRegistry.initializeAll(context);
             // Log which hooks were registered
-            console.error("✅ Extensions initialized");
-            console.error("📋 Registered extension hooks:");
+            this.logger.info("Extensions initialized");
+            this.logger.debug("Registered extension hooks:");
             if (this.extensionHooks.getAdditionalTools)
-                console.error("  - getAdditionalTools ✓");
+                this.logger.debug("  - getAdditionalTools ✓");
             if (this.extensionHooks.handleToolCall)
-                console.error("  - handleToolCall ✓");
+                this.logger.debug("  - handleToolCall ✓");
             if (this.extensionHooks.beforeStdinForward)
-                console.error("  - beforeStdinForward ✓");
+                this.logger.debug("  - beforeStdinForward ✓");
             if (this.extensionHooks.afterStdoutReceive)
-                console.error("  - afterStdoutReceive ✓");
+                this.logger.debug("  - afterStdoutReceive ✓");
         }
         catch (error) {
-            console.error(`❌ Failed to initialize extensions: ${error}`);
+            this.logger.error(`Failed to initialize extensions: ${error}`);
             // Continue without extensions rather than failing completely
         }
     }
@@ -268,7 +277,7 @@ export class MCPProxy {
             await this.startServer();
         }
         catch (error) {
-            console.error(`❌ Failed to start initial server: ${error}`);
+            this.logger.error(`Failed to start initial server: ${error}`);
             // Continue with setup even if initial server fails
             // Watcher can trigger restart later
         }
@@ -285,19 +294,19 @@ export class MCPProxy {
                 try {
                     const status = await this.managedProcess.status;
                     if (!this.restarting) {
-                        console.error(`⚠️  Server exited unexpectedly with code: ${status.code}`);
-                        console.error(`🔄 Restarting server...`);
+                        this.logger.warning(`Server exited unexpectedly with code: ${status.code}`);
+                        this.logger.info(`Restarting server...`);
                         try {
                             await this.startServer();
                         }
                         catch (error) {
-                            console.error(`❌ Failed to restart server: ${error}`);
+                            this.logger.error(`Failed to restart server: ${error}`);
                         }
                     }
                 }
                 catch (error) {
                     if (!this.restarting) {
-                        console.error(`❌ Server process error: ${error}`);
+                        this.logger.error(`Server process error: ${error}`);
                         await new Promise((resolve) => {
                             this.errorRetryTimeout = setTimeout(resolve, 1000);
                             this.errorRetryTimeout.unref();
@@ -306,7 +315,7 @@ export class MCPProxy {
                             await this.startServer();
                         }
                         catch (startError) {
-                            console.error(`❌ Failed to restart server after error: ${startError}`);
+                            this.logger.error(`Failed to restart server after error: ${startError}`);
                         }
                     }
                 }
@@ -320,7 +329,9 @@ export class MCPProxy {
         }
     }
     async startServer() {
-        console.error("🚀 Starting MCP server...");
+        // Create a display-safe version of the command with masked env vars
+        const safeCommand = this.getSafeCommandDisplay();
+        this.logger.info(`Starting MCP server: ${safeCommand}`);
         try {
             // Check if this is a Docker run command and inject labels + detached mode
             let commandArgs = [...this.config.commandArgs];
@@ -338,7 +349,7 @@ export class MCPProxy {
                     ];
                     // Insert Docker flags at the correct position (after 'run')
                     commandArgs.splice(runIndex + 1, 0, ...dockerFlags);
-                    console.error(`🐳 Injecting Docker labels for session ${this.sessionId}`);
+                    this.logger.debug(`Injecting Docker labels for session ${this.sessionId}`);
                 }
             }
             this.managedProcess = this.procManager.spawn(this.config.command, commandArgs, {
@@ -364,24 +375,24 @@ export class MCPProxy {
                         containerIdOutput = decoder.decode(value);
                         this.containerId = containerIdOutput.trim();
                         if (this.containerId) {
-                            console.error(`📦 Captured Docker container ID: ${this.containerId}`);
+                            this.logger.debug(`Captured Docker container ID: ${this.containerId}`);
                         }
                         else {
-                            console.error(`⚠️  No container ID found for session ${this.sessionId}`);
+                            this.logger.warning(`No container ID found for session ${this.sessionId}`);
                         }
                     }
                     reader.releaseLock();
                     await queryProcess.status;
                 }
                 catch (error) {
-                    console.error(`⚠️  Failed to query container ID: ${error}`);
+                    this.logger.warning(`Failed to query container ID: ${error}`);
                     // Continue without container ID - not fatal
                 }
             }
-            console.error(`✅ Server started with PID: ${this.serverPid}`);
+            this.logger.info(`Server started with PID: ${this.serverPid}`);
         }
         catch (error) {
-            console.error(`❌ Failed to spawn server process: ${error}`);
+            this.logger.error(`Failed to spawn server process: ${error}`);
             this.managedProcess = null;
             this.serverPid = null;
             throw error; // Re-throw so caller can handle
@@ -390,7 +401,7 @@ export class MCPProxy {
         this.setupOutputForwarding();
         // Replay buffered messages
         if (this.messageBuffer.length > 0) {
-            console.error(`📨 Replaying ${this.messageBuffer.length} buffered messages...`);
+            this.logger.debug(`Replaying ${this.messageBuffer.length} buffered messages...`);
             const writer = this.managedProcess.stdin.getWriter();
             for (const msg of this.messageBuffer) {
                 const data = new TextEncoder().encode(JSON.stringify(msg) + "\n");
@@ -403,7 +414,7 @@ export class MCPProxy {
     async killServer() {
         if (!this.managedProcess || !this.serverPid)
             return;
-        console.error(`🛑 Killing server process ${this.serverPid}...`);
+        this.logger.info(`Killing server process ${this.serverPid}...`);
         try {
             // Check if this is a Docker process
             const isDocker = this.config.command === 'docker' &&
@@ -416,7 +427,7 @@ export class MCPProxy {
             this.managedProcess.kill("SIGTERM");
             // Wait up to 5 seconds for graceful shutdown
             this.killTimeout = setTimeout(() => {
-                console.error("⚠️  Server didn't exit gracefully, sending SIGKILL...");
+                this.logger.warning("Server didn't exit gracefully, sending SIGKILL...");
                 this.managedProcess?.kill("SIGKILL");
             }, 5000);
             this.killTimeout.unref();
@@ -425,10 +436,10 @@ export class MCPProxy {
             this.killTimeout = undefined;
             // Verify process is actually dead
             await this.verifyProcessKilled(this.serverPid);
-            console.error(`✅ Server process ${this.serverPid} terminated`);
+            this.logger.info(`Server process ${this.serverPid} terminated`);
         }
         catch (error) {
-            console.error(`❌ Error killing server: ${error}`);
+            this.logger.error(`Error killing server: ${error}`);
         }
         this.managedProcess = null;
         this.serverPid = null;
@@ -437,38 +448,38 @@ export class MCPProxy {
     async stopDockerContainer() {
         // Check if we have a tracked container ID (will be set by DOCKERFIX-1)
         if (!this.containerId) {
-            console.error("⚠️  No container ID tracked for this mcpmon instance, skipping container stop");
+            this.logger.warning("No container ID tracked for this mcpmon instance, skipping container stop");
             return;
         }
         const containerId = this.containerId; // Save for consistent logging
-        console.error(`🐳 Stopping Docker container ${containerId}...`);
+        this.logger.info(`Stopping Docker container ${containerId}...`);
         try {
             // First try graceful stop with 10-second timeout
-            console.error(`⏱️  Attempting graceful stop with 10s timeout for container ${containerId}`);
+            this.logger.debug(`Attempting graceful stop with 10s timeout for container ${containerId}`);
             const stopProcess = this.procManager.spawn('docker', [
                 'stop', '-t', '10', containerId
             ], {});
             await stopProcess.status;
-            console.error(`✅ Successfully stopped Docker container ${containerId}`);
+            this.logger.info(`Successfully stopped Docker container ${containerId}`);
             // Clear the container ID after successful stop
             this.containerId = undefined;
         }
         catch (stopError) {
-            console.error(`⚠️  Graceful stop failed for container ${containerId}: ${stopError}`);
+            this.logger.warning(`Graceful stop failed for container ${containerId}: ${stopError}`);
             // Fallback to force kill if stop fails
             try {
-                console.error(`🔪 Force killing container ${containerId}...`);
+                this.logger.info(`Force killing container ${containerId}...`);
                 const killProcess = this.procManager.spawn('docker', [
                     'kill', containerId
                 ], {});
                 await killProcess.status;
-                console.error(`✅ Force killed Docker container ${containerId}`);
+                this.logger.info(`Force killed Docker container ${containerId}`);
                 // Clear the container ID after force kill
                 this.containerId = undefined;
             }
             catch (killError) {
-                console.error(`❌ Failed to kill container ${containerId}: ${killError}`);
-                console.error("⚠️  Container may still be running - manual cleanup may be required");
+                this.logger.error(`Failed to kill container ${containerId}: ${killError}`);
+                this.logger.warning("Container may still be running - manual cleanup may be required");
                 // Still clear the container ID to avoid trying to stop it again
                 this.containerId = undefined;
             }
@@ -480,7 +491,7 @@ export class MCPProxy {
             // On Unix systems, sending signal 0 checks if process exists
             process.kill(pid, 0);
             // If we get here, process still exists
-            console.error(`⚠️  Process ${pid} still running, forcing kill...`);
+            this.logger.warning(`Process ${pid} still running, forcing kill...`);
             process.kill(pid, "SIGKILL");
         }
         catch {
@@ -515,18 +526,46 @@ export class MCPProxy {
                                         message = await this.extensionHooks.beforeStdinForward(message);
                                     }
                                     catch (hookError) {
-                                        console.error("Extension hook error (beforeStdinForward):", hookError);
+                                        this.logger.error("Extension hook error (beforeStdinForward):", { error: hookError });
                                         // Continue with original message if hook fails
                                     }
                                 }
                                 // Capture initialize params for replay
                                 if (message.method === "initialize") {
                                     this.initializeParams = message.params;
-                                    console.error("📋 Captured initialize params for replay");
+                                    this.initializeRequestId = message.id || null;
+                                    this.logger.debug("Captured initialize params for replay");
+                                }
+                                // Handle logging/setLevel requests
+                                if (message.method === "logging/setLevel") {
+                                    this.logger.debug("Intercepting logging/setLevel request");
+                                    const level = message.params?.level;
+                                    if (level) {
+                                        this.setLogLevel(level);
+                                        this.logLevelRequestId = message.id || null;
+                                        if (this.serverSupportsLogging) {
+                                            // Forward to server if it supports logging
+                                            this.logger.debug(`Forwarding logging/setLevel to server`);
+                                            // Normal forwarding will happen below
+                                        }
+                                        else {
+                                            // Synthesize success response if server doesn't support logging
+                                            this.logger.debug(`Synthesizing logging/setLevel response (server doesn't support logging)`);
+                                            const response = {
+                                                jsonrpc: "2.0",
+                                                id: message.id,
+                                                result: {}
+                                            };
+                                            const writer = this.stdout.getWriter();
+                                            await writer.write(new TextEncoder().encode(JSON.stringify(response) + "\n"));
+                                            writer.releaseLock();
+                                            continue; // Skip forwarding to server
+                                        }
+                                    }
                                 }
                                 // Check if this is a tools/list request that needs extension tools injected
                                 if (message.method === "tools/list") {
-                                    console.error("🔧 Intercepting tools/list request from client");
+                                    this.logger.debug("Intercepting tools/list request from client");
                                     // Forward to server first to get base tools
                                     if (this.managedProcess) {
                                         const writer = this.managedProcess.stdin.getWriter();
@@ -535,7 +574,7 @@ export class MCPProxy {
                                         // Store that we need to inject tools into this response
                                         if (message.id) {
                                             this.pendingToolsListRequests.set(message.id, true);
-                                            console.error(`📝 Marked request ${message.id} for tool injection`);
+                                            this.logger.debug(`Marked request ${message.id} for tool injection`);
                                         }
                                     }
                                     continue; // Skip normal forwarding since we already forwarded
@@ -543,13 +582,13 @@ export class MCPProxy {
                                 // Check if this is a tool call that should be handled by extensions
                                 if (message.method === "tools/call" && this.extensionHooks.handleToolCall) {
                                     const toolName = message.params?.name;
-                                    console.error(`🔨 Received tools/call request for: ${toolName}`);
+                                    this.logger.debug(`Received tools/call request for: ${toolName}`);
                                     if (toolName && toolName.startsWith("mcpmon_")) {
-                                        console.error(`🔌 Extension tool call detected: ${toolName}`);
+                                        this.logger.debug(`Extension tool call detected: ${toolName}`);
                                         try {
                                             const result = await this.extensionHooks.handleToolCall(toolName, message.params?.arguments || {});
                                             if (result !== null) {
-                                                console.error(`✅ Extension handled tool call: ${toolName}`);
+                                                this.logger.debug(`Extension handled tool call: ${toolName}`);
                                                 // Send response directly back to client
                                                 const response = {
                                                     jsonrpc: "2.0",
@@ -563,7 +602,7 @@ export class MCPProxy {
                                             }
                                         }
                                         catch (error) {
-                                            console.error(`❌ Extension tool error for ${toolName}: ${error}`);
+                                            this.logger.error(`Extension tool error for ${toolName}: ${error}`);
                                             // Send error response
                                             const errorResponse = {
                                                 jsonrpc: "2.0",
@@ -584,7 +623,7 @@ export class MCPProxy {
                                 // During restart, buffer all messages
                                 if (this.restarting) {
                                     this.messageBuffer.push(message);
-                                    console.error(`📦 Buffered message during restart: ${message.method || `response ${message.id}`}`);
+                                    this.logger.debug(`Buffered message during restart: ${message.method || `response ${message.id}`}`);
                                 }
                                 else if (this.managedProcess) {
                                     // Forward to server
@@ -594,14 +633,14 @@ export class MCPProxy {
                                 }
                             }
                             catch (e) {
-                                console.error("Failed to parse message:", e);
+                                this.logger.error("Failed to parse message:", { error: e });
                             }
                         }
                     }
                 }
             }
             catch (error) {
-                console.error("Stdin forwarding error:", error);
+                this.logger.error("Stdin forwarding error:", { error });
             }
         })();
     }
@@ -630,19 +669,19 @@ export class MCPProxy {
                                 let modifiedMessage = message;
                                 // Check if this is a tools/list response that needs extension tools injected
                                 if (message.id && this.pendingToolsListRequests.has(message.id)) {
-                                    console.error(`🔧 Processing tools/list response for request ${message.id}`);
+                                    this.logger.debug(`Processing tools/list response for request ${message.id}`);
                                     this.pendingToolsListRequests.delete(message.id);
                                     // Get extension tools
                                     if (this.extensionHooks.getAdditionalTools && message.result) {
                                         try {
                                             const extensionTools = await this.extensionHooks.getAdditionalTools();
-                                            console.error(`🔌 Extension provided ${extensionTools.length} tools`);
+                                            this.logger.debug(`Extension provided ${extensionTools.length} tools`);
                                             // Log tool details for debugging
                                             extensionTools.forEach(tool => {
-                                                console.error(`  - ${tool.name}: ${tool.description}`);
+                                                this.logger.debug(`  - ${tool.name}: ${tool.description}`);
                                                 // Validate tool schema
                                                 if (!tool.inputSchema || typeof tool.inputSchema !== 'object') {
-                                                    console.error(`  ⚠️  Tool ${tool.name} has invalid inputSchema`);
+                                                    this.logger.warning(`  Tool ${tool.name} has invalid inputSchema`);
                                                 }
                                             });
                                             // Merge extension tools with server tools
@@ -655,19 +694,55 @@ export class MCPProxy {
                                                     tools: mergedTools
                                                 }
                                             };
-                                            console.error(`✅ Injected ${extensionTools.length} extension tools into response (total: ${mergedTools.length})`);
+                                            this.logger.debug(`Injected ${extensionTools.length} extension tools into response (total: ${mergedTools.length})`);
                                             // Log the final JSON for debugging (truncated)
                                             const responseText = JSON.stringify(modifiedMessage);
                                             if (responseText.length > 500) {
-                                                console.error(`📤 Response (truncated): ${responseText.substring(0, 500)}...`);
+                                                this.logger.debug(`Response (truncated): ${responseText.substring(0, 500)}...`);
                                             }
                                             else {
-                                                console.error(`📤 Response: ${responseText}`);
+                                                this.logger.debug(`Response: ${responseText}`);
                                             }
                                         }
                                         catch (error) {
-                                            console.error(`❌ Failed to inject extension tools: ${error}`);
+                                            this.logger.error(`Failed to inject extension tools: ${error}`);
                                         }
+                                    }
+                                }
+                                // Check if this is an initialize response that needs capability injection
+                                if (message.id && message.id === this.initializeRequestId && message.result && message.result.protocolVersion) {
+                                    this.logger.debug("Intercepting initialize response for capability injection");
+                                    try {
+                                        // Deep clone the response to avoid mutations
+                                        const result = JSON.parse(JSON.stringify(message.result));
+                                        // Ensure capabilities object exists
+                                        if (!result.capabilities) {
+                                            result.capabilities = {};
+                                        }
+                                        // Inject tools.listChanged capability
+                                        if (!result.capabilities.tools) {
+                                            result.capabilities.tools = {};
+                                        }
+                                        if (result.capabilities.tools.listChanged !== true) {
+                                            result.capabilities.tools.listChanged = true;
+                                            this.logger.debug("Injected tools.listChanged capability");
+                                        }
+                                        // Inject logging capability
+                                        if (!result.capabilities.logging) {
+                                            result.capabilities.logging = {};
+                                            this.logger.debug("Injected logging capability");
+                                        }
+                                        // Check if server supports logging
+                                        this.serverSupportsLogging = !!result.capabilities.logging;
+                                        modifiedMessage = {
+                                            ...message,
+                                            result
+                                        };
+                                        this.logger.debug(`Modified initialize response with injected capabilities`);
+                                    }
+                                    catch (error) {
+                                        this.logger.error(`Failed to inject capabilities: ${error}`);
+                                        // Continue with original message if injection fails
                                     }
                                 }
                                 // Apply afterStdoutReceive hook if available
@@ -676,7 +751,7 @@ export class MCPProxy {
                                         modifiedMessage = await this.extensionHooks.afterStdoutReceive(modifiedMessage);
                                     }
                                     catch (hookError) {
-                                        console.error("Extension hook error (afterStdoutReceive):", hookError);
+                                        this.logger.error("Extension hook error (afterStdoutReceive):", { error: hookError });
                                         // Continue with original message if hook fails
                                         modifiedMessage = message;
                                     }
@@ -706,26 +781,58 @@ export class MCPProxy {
             }
             catch (error) {
                 if (!this.restarting) {
-                    console.error("Stdout forwarding error:", error);
+                    this.logger.error("Stdout forwarding error:", { error });
                 }
             }
         })();
-        // Forward stderr
+        // Transform and forward stderr
         (async () => {
             const reader = this.managedProcess.stderr.getReader();
+            const decoder = new TextDecoder();
+            let buffer = "";
             try {
                 while (true) {
                     const { done, value } = await reader.read();
                     if (done)
                         break;
-                    const writer = this.stderr.getWriter();
-                    await writer.write(value);
-                    writer.releaseLock();
+                    // Parse stderr messages line by line like stdout
+                    const text = decoder.decode(value, { stream: true });
+                    buffer += text;
+                    const lines = buffer.split("\n");
+                    buffer = lines.pop() || "";
+                    for (const line of lines) {
+                        if (line.trim()) {
+                            const parsed = parseStderrLine(line);
+                            if (parsed && this.shouldForwardLog(parsed.level)) {
+                                // Convert to MCP log notification
+                                const notification = {
+                                    jsonrpc: "2.0",
+                                    method: "notifications/message",
+                                    params: {
+                                        level: parsed.level,
+                                        logger: "server",
+                                        data: {
+                                            message: parsed.message,
+                                            ...parsed.data
+                                        }
+                                    }
+                                };
+                                // Send as MCP notification via stdout
+                                const writer = this.stdout.getWriter();
+                                await writer.write(new TextEncoder().encode(JSON.stringify(notification) + "\n"));
+                                writer.releaseLock();
+                            }
+                        }
+                    }
+                    // Also preserve original stderr forwarding for non-MCP content
+                    const stderrWriter = this.stderr.getWriter();
+                    await stderrWriter.write(value);
+                    stderrWriter.releaseLock();
                 }
             }
             catch (error) {
                 if (!this.restarting) {
-                    console.error("Stderr forwarding error:", error);
+                    this.logger.error("Stderr forwarding error:", { error });
                 }
             }
         })();
@@ -775,26 +882,37 @@ export class MCPProxy {
         if (!this.managedProcess)
             return [];
         try {
-            console.error("🔧 Fetching tools list from server...");
+            this.logger.debug("Fetching tools list from server...");
             // First ensure server is initialized
             if (this.initializeParams) {
-                console.error("📤 Sending initialize request to new server...");
+                this.logger.debug("Sending initialize request to new server...");
                 const initResponse = await this.sendRequest("initialize", this.initializeParams);
                 if (initResponse.error) {
-                    console.error("❌ Failed to initialize server:", initResponse.error);
-                    console.error("💡 Server may need environment variables. Check your .env file");
+                    this.logger.error("Failed to initialize server:", { error: initResponse.error });
+                    this.logger.info("Server may need environment variables. Check your .env file");
                     return [];
                 }
-                console.error("✅ Server initialized successfully");
+                this.logger.info("Server initialized successfully");
+                // Replay logging/setLevel if client had set one
+                if (this.clientLogLevel !== 'info' && this.serverSupportsLogging) {
+                    this.logger.debug(`Replaying logging/setLevel with level: ${this.clientLogLevel}`);
+                    const logResponse = await this.sendRequest("logging/setLevel", { level: this.clientLogLevel });
+                    if (logResponse.error) {
+                        this.logger.warning("Failed to replay logging/setLevel:", { error: logResponse.error });
+                    }
+                    else {
+                        this.logger.info("Logging level restored on new server");
+                    }
+                }
             }
             else {
-                console.error("⚠️  No initialize params captured from original connection");
+                this.logger.warning("No initialize params captured from original connection");
             }
             // Get tools list
-            console.error("📋 Requesting tools list...");
+            this.logger.debug("Requesting tools list...");
             const response = await this.sendRequest("tools/list", {});
             if (response.error) {
-                console.error("❌ Failed to get tools list:", response.error);
+                this.logger.error("Failed to get tools list:", { error: response.error });
                 return [];
             }
             let tools = response.result?.tools || [];
@@ -803,26 +921,87 @@ export class MCPProxy {
                 try {
                     const additionalTools = await this.extensionHooks.getAdditionalTools();
                     tools = [...tools, ...additionalTools];
-                    console.error(`🔌 Added ${additionalTools.length} extension tools`);
+                    this.logger.debug(`Added ${additionalTools.length} extension tools`);
                 }
                 catch (error) {
-                    console.error(`❌ Error getting extension tools: ${error}`);
+                    this.logger.error(`Error getting extension tools: ${error}`);
                 }
             }
-            console.error(`✅ Found ${tools.length} tools total`);
+            this.logger.info(`Found ${tools.length} tools total`);
             // Log tool names for debugging
             if (tools.length > 0) {
                 const toolNames = tools.map((t) => t.name).join(", ");
-                console.error(`📦 Tools: ${toolNames}`);
+                this.logger.debug(`Tools: ${toolNames}`);
             }
             return tools;
         }
         catch (error) {
-            console.error("❌ Error getting tools list:", error);
+            this.logger.error("Error getting tools list:", { error });
             return [];
         }
     }
     restart;
+    /**
+     * Sets the client's desired log level
+     */
+    setLogLevel(level) {
+        const validLevels = ['emergency', 'alert', 'critical', 'error', 'warning', 'notice', 'info', 'debug'];
+        if (validLevels.includes(level)) {
+            this.clientLogLevel = level;
+            this.logger.debug(`Client log level set to: ${level}`);
+        }
+        else {
+            this.logger.warning(`Invalid log level: ${level}. Valid levels are: ${validLevels.join(', ')}`);
+        }
+    }
+    /**
+     * Create a display-safe version of the command with environment variables masked
+     */
+    getSafeCommandDisplay() {
+        const command = this.config.command;
+        const args = this.config.commandArgs.map(arg => {
+            // Mask potential environment variable values (KEY=VALUE format)
+            if (arg.includes('=')) {
+                const [key, ...valueParts] = arg.split('=');
+                // Common env var patterns to mask
+                const sensitiveKeys = ['token', 'key', 'secret', 'password', 'auth', 'api', 'credential'];
+                const isSensitive = sensitiveKeys.some(s => key.toLowerCase().includes(s));
+                if (isSensitive) {
+                    return `${key}=***`;
+                }
+                // For other env vars, show first 2 chars if value is long
+                const value = valueParts.join('=');
+                if (value.length > 8) {
+                    return `${key}=${value.substring(0, 2)}***`;
+                }
+            }
+            return arg;
+        });
+        return `${command} ${args.join(' ')}`;
+    }
+    /**
+     * Determines if a log message should be forwarded based on severity
+     */
+    shouldForwardLog(level) {
+        const severityOrder = {
+            'emergency': 0,
+            'alert': 1,
+            'critical': 2,
+            'error': 3,
+            'warning': 4,
+            'notice': 5,
+            'info': 6,
+            'debug': 7
+        };
+        const logSeverity = severityOrder[level];
+        const clientSeverity = severityOrder[this.clientLogLevel];
+        // If either severity is undefined, default to forwarding
+        if (logSeverity === undefined || clientSeverity === undefined) {
+            return true;
+        }
+        // Forward if log level is at or above (numerically less than or equal) the client level
+        return logSeverity <= clientSeverity;
+    }
     async startWatcher() {
         if (!this.config.watchTargets || this.config.watchTargets.length === 0)
             return;
@@ -834,11 +1013,11 @@ export class MCPProxy {
                 }
                 catch (error) {
                     // Log warning but continue - some targets might not be files (e.g., packages)
-                    console.error(`⚠️  Could not verify target: ${target} (${error})`);
+                    this.logger.warning(`Could not verify target: ${target} (${error})`);
                 }
             }
             const targets = this.config.watchTargets.join(", ");
-            console.error(`✅ Watching ${targets} for changes`);
+            this.logger.info(`Watching ${targets} for changes`);
             this.fileWatcher = this.changeSource.watch(this.config.watchTargets);
             for await (const event of this.fileWatcher) {
                 // Check if shutdown was requested
@@ -847,17 +1026,17 @@ export class MCPProxy {
                 }
                 // Handle both old FileEvent types and new ChangeEvent types
                 if (["modify", "remove", "version_update", "dependency_change"].includes(event.type)) {
-                    console.error(`📝 ${event.type}: ${event.path}`);
+                    this.logger.debug(`${event.type}: ${event.path}`);
                     this.restart();
                 }
             }
         }
         catch (error) {
-            console.error(`❌ Failed to watch file: ${error}`);
+            this.logger.error(`Failed to watch file: ${error}`);
         }
     }
     async shutdown() {
-        console.error("\n🛑 Shutting down proxy...");
+        this.logger.info("Shutting down proxy...");
         this.restarting = true;
         this.shutdownRequested = true;
         // Clear any pending restart
@@ -868,7 +1047,7 @@ export class MCPProxy {
                 await this.extensionRegistry.shutdownAll();
             }
             catch (error) {
-                console.error("❌ Error shutting down extensions:", error);
+                this.logger.error("Error shutting down extensions:", { error });
             }
         }
         // Clear monitoring timeouts

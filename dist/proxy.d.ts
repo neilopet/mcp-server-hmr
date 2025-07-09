@@ -58,6 +58,10 @@ export declare class MCPProxy {
     private errorRetryTimeout?;
     private pendingToolsListRequests;
     private sessionId;
+    private clientLogLevel;
+    private serverSupportsLogging;
+    private logLevelRequestId;
+    private initializeRequestId;
     private procManager;
     private changeSource;
     private config;
@@ -67,6 +71,7 @@ export declare class MCPProxy {
     private exit;
     private extensionRegistry?;
     private extensionHooks;
+    private logger;
     constructor(dependencies: ProxyDependencies, config: MCPProxyConfig);
     /**
      * Auto-detect files to watch from command and arguments
@@ -99,6 +104,18 @@ export declare class MCPProxy {
     private sendRequest;
     private getToolsList;
     readonly restart: DebouncedFunction<() => Promise<void>>;
+    /**
+     * Sets the client's desired log level
+     */
+    private setLogLevel;
+    /**
+     * Create a display-safe version of the command with environment variables masked
+     */
+    private getSafeCommandDisplay;
+    /**
+     * Determines if a log message should be forwarded based on severity
+     */
+    private shouldForwardLog;
     private startWatcher;
     shutdown(): Promise<void>;
 }

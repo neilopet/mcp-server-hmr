@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env node --no-warnings
 /**
  * mcpmon - Hot-reload monitor for MCP servers
  *

@@ -25,7 +25,7 @@ const getThresholdFromEnv = () => {
     return 25000; // 25KB default
 };
 const DEFAULT_CONFIG = {
-    threshold: getThresholdFromEnv(),
+    threshold: 25000, // 25KB default - will be overridden by getThresholdFromEnv() in initialize()
     dataDir: './data',
     enableDuckDB: true,
     compressionLevel: 6,
@@ -122,7 +122,12 @@ class LargeResponseHandlerExtension {
     progressTokens = new Map(); // Track progress tokens by request ID
     async initialize(context) {
         this.context = context;
-        this.config = { ...DEFAULT_CONFIG, ...context.config };
+        // Calculate threshold at initialization time, not module load time
+        const defaultConfigWithDynamicThreshold = {
+            ...DEFAULT_CONFIG,
+            threshold: getThresholdFromEnv()
+        };
+        this.config = { ...defaultConfigWithDynamicThreshold, ...context.config };
         // Log threshold configuration
         const envTokens = process.env.MAX_MCP_OUTPUT_TOKENS;
         if (envTokens) {

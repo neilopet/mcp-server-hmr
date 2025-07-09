@@ -108,6 +108,8 @@ export { NodeProcessManager } from "./node/NodeProcessManager.js";
 export { NodeFileSystem } from "./node/NodeFileSystem.js";
 export type { ProcessManager, ManagedProcess, FileSystem, FileEvent, FileEventType, ExitStatus, SpawnOptions, ProxyDependencies, } from "./interfaces.js";
 export { setup, setupCommand } from "./setup.js";
+export { createMCPMonLogger, MCPMonLogger } from "./mcpmon-logger.js";
+export type { LogLevel } from "./mcpmon-logger.js";
 /**
  * Helper function to create a standard MCP proxy with Node.js implementations.
  * This provides a simple API for common use cases.
