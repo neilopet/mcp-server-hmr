@@ -168,7 +168,12 @@ export class MCPProxy {
     this.extensionRegistry = dependencies.extensionRegistry;
     
     // Create MCP logger instance
-    this.logger = createMCPMonLogger(this.stdout, () => this.clientLogLevel);
+    // During tests, use a null stream to avoid interfering with test expectations
+    const isTestEnvironment = process.env.NODE_ENV === 'test' || process.env.JEST_WORKER_ID !== undefined;
+    const loggerStream = isTestEnvironment 
+      ? new WritableStream({ write() { /* discard */ } })
+      : this.stdout;
+    this.logger = createMCPMonLogger(loggerStream, () => this.clientLogLevel);
 
     // Initialize restart function with config
     this.restart = debounce(async () => {

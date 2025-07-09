@@ -97,6 +97,9 @@ export class MCPMonLogger {
       // Log errors to stderr instead of throwing
       console.error('MCPMonLogger write error:', error);
     });
+    
+    // Wait for the write to complete before returning
+    await this.writeQueue;
   }
 
   /**
