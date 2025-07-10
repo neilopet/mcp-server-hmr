@@ -86,22 +86,34 @@ MCPMON_VERBOSE=1 mcpmon node server.js
 MCPMON_DELAY=2000 mcpmon node server.js
 ```
 
-## Basic Examples
+## Popular MCP Server Examples
 
-**Development with extensions:**
+**Zen MCP Server** - AI orchestration for collaborative coding:
 ```bash
-# Enable large response handling for data-heavy servers
-mcpmon --enable-extension large-response-handler python data-server.py
-
-# Development with verbose logging
-MCPMON_VERBOSE=1 mcpmon node server.js
+# Multi-AI model orchestration (OpenAI, Gemini, OpenRouter)
+mcpmon pipx run --spec git+https://github.com/BeehiveInnovations/zen-mcp-server.git zen-mcp-server
 ```
 
-**Docker integration:**
+**Context7** - Real-time documentation fetching:
 ```bash
-# Basic containerized MCP server with hot-reload
-mcpmon docker run -d -p 3000:3000 my-server:latest
+# Up-to-date docs with large response handling for big documentation
+mcpmon --enable-extension large-response-handler npx -y @upstash/context7-mcp
 ```
+
+**Browser Tools MCP** - Browser monitoring and auditing:
+```bash
+# Browser debugging with large response handling for audit data
+# Requires: npx @agentdeskai/browser-tools-server (run first)
+mcpmon --enable-extension large-response-handler npx @agentdeskai/browser-tools-mcp@latest
+```
+
+**Serena** - Coding agent toolkit:
+```bash
+# Semantic code analysis and autonomous coding
+mcpmon uvx --from git+https://github.com/oraios/serena serena-mcp-server
+```
+
+> **💡 Why mcpmon?** All these servers get the `mcpmon_reload-server` tool for manual restarts, proxy stability during long operations, and optional extension benefits like large response handling—without any file watching needed!
 
 ## How It Works
 
