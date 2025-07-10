@@ -412,3 +412,9 @@ mcpmon node server.js
 # Override if needed
 MCPMON_WATCH=server.js mcpmon node server.js
 ```
+
+## See Also
+
+- [Architecture Guide](architecture.md) - How mcpmon works internally
+- [Testing Guide](testing.md) - Test architecture and patterns
+- [Troubleshooting Guide](../TROUBLESHOOTING.md) - Common issues and solutions

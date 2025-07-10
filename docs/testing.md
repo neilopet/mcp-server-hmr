@@ -55,7 +55,7 @@ Platform-agnostic tests that verify proxy behavior through interfaces:
 - Fast execution with deterministic timing using `test_helper.ts`
 - Tests proxy logic without external dependencies
 - Comprehensive coverage of edge cases and error conditions
-- ~80% less boilerplate code compared to traditional test patterns
+- Reduced boilerplate code compared to traditional test patterns
 
 ### Integration Tests (`tests/integration/`)
 
@@ -72,15 +72,15 @@ Integration tests with real implementations:
 
 ### DI Framework Tests (`src/testing/`, `tests/extensions/`)
 
-**NEW**: Dependency injection-based testing framework with soak testing capabilities ✅ **Production Ready**
+Dependency injection-based testing framework with soak testing capabilities for the extension system.
 
 - **Extension Tests** - DI-based extension testing with MockMCPMon and TestHarness
-- **Soak Tests** - Persistent system testing implementing SYSTEMDESIGN.md Tier 2 pattern  
+- **Soak Tests** - Persistent system testing for long-running scenarios
 - **Unit Tests** - Fast isolated tests with mocks
 - **Integration Tests** - Real component interaction testing
 
 **Key Files:**
-- `tests/extensions/large-response-handler-di.test.ts` - Soak test runner (transformed from unit to integration testing)
+- `tests/extensions/large-response-handler-di.test.ts` - Soak test runner
 - `src/extensions/large-response-handler/tests/index.ts` - Test suite with soakMode configuration
 - `src/testing/MCPMonTestHarness.ts` - Real TestHarness for integration testing
 
@@ -90,8 +90,6 @@ Integration tests with real implementations:
 - **Progress Notifications**: Validates real notification flow with {progressToken, progress}
 - **System Endurance**: Tests "one long-running system" vs isolated mini-applications
 - **Configuration-Driven**: TestConfig interface enables selective test execution
-
-**Status**: Successfully resolves all previous DI test failures and implements production-ready soak testing patterns.
 
 ## Test Helper Pattern
 
@@ -142,7 +140,7 @@ await waitForStable(100); // Replaces setTimeout patterns
 
 ### Benefits
 
-1. **~80% code reduction** per behavioral test file
+1. **Significant code reduction** per behavioral test file
 2. **Eliminates flaky setTimeout patterns** with event-driven waiting
 3. **Removes brittle globalThis usage** with proper dependency injection
 4. **Consistent teardown** prevents resource leaks between tests
@@ -256,9 +254,9 @@ npm run test:integration                           # Just integration tests
 
 ## Test Coverage
 
-Current coverage targets:
+Coverage includes:
 
-- `src/proxy.ts` - ~60% coverage (core proxy logic)
+- `src/proxy.ts` - Core proxy logic
 - `src/cli.ts` - Integration tested
 - `src/node/*.ts` - Integration tested
 

@@ -104,12 +104,12 @@ mcpmon setup --restore
 ```
 
 The setup command automatically:
-- ✅ **Backs up** your original configuration
-- ✅ **Detects** and uses modern Node.js versions for compatibility
-- ✅ **Wraps** your server command with mcpmon 
-- ✅ **Preserves** all environment variables and arguments
-- ✅ **Enables** hot-reload instantly
-- ✅ **Idempotent** - safe to run multiple times
+- Backs up your original configuration
+- Detects and uses modern Node.js versions for compatibility
+- Wraps your server command with mcpmon 
+- Preserves all environment variables and arguments
+- Enables hot-reload instantly
+- Safe to run multiple times
 
 ### 🔥 Claude Desktop Hot-Reload Tips
 

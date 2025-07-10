@@ -62,6 +62,63 @@ const proxy = await createMCPProxy({
 - **Test Helpers**: DRY pattern with `tests/behavior/test_helper.ts`
 - **TDD Coverage**: Behavioral tests verify functionality through interfaces
 
+## Testing Architecture
+
+### Long-Running Systems Testing Philosophy
+
+Tests should match the operational profile of the software, not just its functional requirements. For mcpmon (a long-running proxy that persists for the lifetime of Claude Desktop):
+- It doesn't restart between operations
+- It accumulates state over time  
+- It must handle resource constraints
+- It needs self-healing capabilities
+
+### Three-Tier Testing Strategy
+
+#### Tier 1: Feature Tests
+- **Purpose**: Test individual features in isolation
+- **Lifecycle**: Fresh application instance per test
+- **Duration**: Milliseconds to seconds
+- **Implementation**: Standard Jest tests with fresh mocks
+
+#### Tier 2: System Lifecycle Tests
+- **Purpose**: Test system behavior over extended operation
+- **Lifecycle**: Single long-running instance
+- **Duration**: Minutes to hours
+- **Implementation**: DI Test Framework soak test runner (`tests/extensions/large-response-handler-di.test.ts`)
+
+#### Tier 3: Endurance Tests
+- **Purpose**: Detect slow leaks and degradation
+- **Lifecycle**: Single instance for days
+- **Environment**: Nightly CI runs
+- **Focus**: Resource usage, performance stability
+
+### System Health Patterns
+
+#### Preventative Measures
+1. **Resource Bounds** - Limit buffer sizes, connection counts
+2. **Circuit Breakers** - Prevent cascade failures
+3. **Periodic Cleanup** - Proactive maintenance routines
+4. **Immutable State** - Prevent corruption through defensive copying
+
+#### Treatment Patterns
+1. **Self-Healing** - Automatic recovery when problems detected
+2. **Graceful Degradation** - Reduce functionality to maintain stability
+3. **State Preservation** - Save/restore critical state across restarts
+4. **Managed Restarts** - Graceful shutdown with connection draining
+
+#### Diagnostic Patterns
+1. **Multi-Level Health Checks** - Liveness, readiness, detailed health
+2. **Structured Observability** - Metrics, logs, traces with correlation
+3. **State Inspection APIs** - Expose internal state safely
+4. **Resource Monitoring** - Track memory, connections, performance
+
+### Key Testing Principles
+
+1. **Testing Philosophy**: Tests should simulate the actual operational lifecycle, not idealized scenarios
+2. **State Management**: Long-running systems need explicit state boundaries and cleanup strategies
+3. **Observability First**: You cannot treat what you cannot diagnose
+4. **Design for Longevity**: Build systems that maintain themselves over time
+
 ### Future Vision
 mcpmon is designed to support monitoring beyond files - package registries, APIs, hosted services. The generic interface system enables custom ChangeSource implementations for any monitoring scenario.
 
