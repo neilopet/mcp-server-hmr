@@ -26,7 +26,7 @@ We welcome contributions from everyone, regardless of experience level. This gui
 ### 📝 Documentation Improvements
 
 - Fix typos, improve clarity, add examples
-- Documentation lives in `/docs` and README.md
+- Documentation lives in `/docs` (specialized guides) and README.md (quick start)
 - All contributions to docs are welcome!
 
 ## Development Setup
@@ -775,7 +775,12 @@ This project follows standard open source conduct guidelines. Please be respectf
 
 Need help? Here's how to get support:
 
-1. **Check Documentation**: Start with README.md and `/docs` - for extension development, see [Extension Development Guide](docs/extension-development.md)
+1. **Check Documentation**: Start with [README.md](README.md) for quick start, then see specialized guides:
+   - [CLI Reference](docs/cli.md) - Command-line options and environment variables
+   - [Configuration Guide](docs/configuration.md) - Advanced configuration and file-based setup
+   - [Examples](docs/examples.md) - Practical usage patterns and integration examples  
+   - [Docker Guide](docs/docker.md) - Container management and troubleshooting
+   - [Extension Development](docs/extension-development.md) - Building custom extensions
 2. **Search Issues**: Someone might have asked the same question
 3. **Create an Issue**: For bugs, feature requests, or questions
 4. **Discussions**: For general questions about MCP or hot-reload concepts
