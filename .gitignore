@@ -42,3 +42,15 @@ coverage/
 # Large Response Handler data
 data/lrh/
 
+# Development artifacts
+issuetracker.txt
+
+# Backup files
+*.backup
+
+# Coverage profiling
+cov_profile/
+
+# Claude commands directory
+.claude/commands/
+

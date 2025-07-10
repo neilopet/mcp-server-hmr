@@ -344,67 +344,350 @@ module.exports = {
 }
 ```
 
-### Runtime Configuration Examples
+## Examples
 
-#### Development Workflow
+This section demonstrates real-world usage patterns for mcpmon, covering extension usage, Docker integration, complex configurations, and production deployment scenarios.
+
+### Extension Usage Examples
+
+#### Large Response Handler Extension
 ```bash
-# Full-featured development setup
-MCPMON_VERBOSE=true \
-MCPMON_EXTENSIONS_DIR=./dev-data \
+# Enable large response handling for data-heavy MCP servers
 mcpmon --enable-extension large-response-handler \
-       --enable-extension request-logger \
-       --extension-config '{"logLevel":"debug","threshold":15000}' \
-       node server.js
+       --extension-config '{"threshold":25000,"format":"parquet"}' \
+       python data-server.py
 
-# Python development with custom watch patterns
-MCPMON_WATCH="*.py,requirements.txt,config/" \
-MCPMON_DELAY=500 \
-mcpmon --verbose python -m my_mcp_server
+# Configure custom data directory and lower threshold
+mcpmon --enable-extension large-response-handler \
+       --extensions-data-dir ./session-data \
+       --extension-config '{"threshold":15000,"enableDuckDB":true}' \
+       node analytics-server.js
 
-# TypeScript development with auto-detection
-mcpmon --watch "src/,tsconfig.json" \
-       --extension-config '{"threshold":30000}' \
-       npm run dev
+# Access large response handler tools
+# Automatically adds: mcpmon_analyze-with-duckdb, mcpmon_list-saved-datasets
 ```
 
-#### Production Configuration
+#### Request Logging Extension
 ```bash
-# Production monitoring setup
+# Enable request/response logging for debugging
+mcpmon --enable-extension request-logger \
+       --extension-config '{"logLevel":"debug","logFile":"./requests.log"}' \
+       node server.js
+
+# Production logging with structured output
+mcpmon --enable-extension request-logger \
+       --extension-config '{"format":"json","includeTimestamp":true}' \
+       --extensions-data-dir /var/log/mcpmon \
+       python production-server.py
+```
+
+#### Multiple Extensions with Configuration
+```bash
+# Development setup with comprehensive monitoring
+mcpmon --enable-extension large-response-handler \
+       --enable-extension request-logger \
+       --enable-extension metrics \
+       --extension-config '{
+         "threshold":20000,
+         "logLevel":"info",
+         "metricsPort":9090,
+         "enableNotifications":true
+       }' \
+       --extensions-data-dir ./dev-data \
+       node server.js
+
+# Production monitoring stack
+MCPMON_EXTENSIONS_ENABLED="large-response-handler,metrics" \
+MCPMON_EXTENSIONS_DIR="/var/lib/mcpmon" \
+mcpmon --extension-config '{
+  "threshold":50000,
+  "metricsPort":9090,
+  "prometheusEndpoint":"/metrics"
+}' \
+node production-server.js
+```
+
+### Docker Container Management Examples
+
+#### Basic Docker Integration
+```bash
+# Simple containerized MCP server with hot-reload
+mcpmon docker run -d \
+  --name my-mcp-server \
+  -p 3000:3000 \
+  my-server:latest
+
+# Development mode with volume mounting
+mcpmon docker run -d \
+  --name dev-server \
+  -v $(pwd)/src:/app/src \
+  -v $(pwd)/config:/app/config \
+  -e NODE_ENV=development \
+  my-server:dev
+```
+
+#### Docker Compose with mcpmon
+```bash
+# Hot-reload for Docker Compose services
+MCPMON_WATCH="./src,./config,docker-compose.yml" \
+mcpmon docker compose up my-service
+
+# Multi-service development environment
+mcpmon docker compose -f docker-compose.yml \
+  -f docker-compose.dev.yml \
+  up mcp-server redis postgres
+
+# Production deployment with monitoring
+MCPMON_EXTENSIONS_ENABLED="metrics,large-response-handler" \
+MCPMON_DOCKER_CLEANUP=true \
+mcpmon docker compose -f docker-compose.prod.yml up
+```
+
+#### Advanced Docker Configuration
+```bash
+# Container with comprehensive environment setup
+mcpmon docker run -d \
+  --name production-mcp \
+  -p 3000:3000 \
+  -e API_KEY=secret \
+  -e DATABASE_URL=postgres://localhost/mcp \
+  -e LOG_LEVEL=info \
+  -e REDIS_URL=redis://localhost:6379 \
+  --restart unless-stopped \
+  --health-cmd="curl -f http://localhost:3000/health || exit 1" \
+  --health-interval=30s \
+  my-server:latest
+
+# Development container with debugging enabled
+MCPMON_VERBOSE=true \
+mcpmon docker run -d \
+  --name debug-server \
+  -p 3000:3000 \
+  -p 9229:9229 \
+  -v $(pwd):/app \
+  -e NODE_ENV=development \
+  -e DEBUG=mcp:* \
+  node:18-alpine node --inspect=0.0.0.0:9229 server.js
+```
+
+#### Container Cleanup and Management
+```bash
+# Interactive cleanup of orphaned containers
+mcpmon --cleanup
+
+# Force cleanup without confirmation
+mcpmon --cleanup --force
+
+# Cleanup with detailed logging
+mcpmon --cleanup --verbose --force
+
+# Check container status and labels
+docker ps --filter label=mcpmon.managed=true \
+  --format "table {{.ID}}\t{{.Names}}\t{{.Label \"mcpmon.session\"}}"
+```
+
+### Complex Configuration Scenarios
+
+#### Multi-Language Development Environment
+```bash
+# Node.js server with Python data processing
+MCPMON_WATCH="server.js,data-processor.py,config/" \
+MCPMON_EXTENSIONS_ENABLED="large-response-handler,request-logger" \
+mcpmon --extension-config '{
+  "threshold":30000,
+  "logLevel":"debug",
+  "pythonPath":"/usr/local/bin/python3"
+}' \
+node hybrid-server.js
+
+# Microservices development with shared configuration
+MCPMON_WATCH="services/,shared/,docker-compose.yml" \
+MCPMON_DELAY=2000 \
+mcpmon docker compose up \
+  user-service \
+  data-service \
+  api-gateway
+```
+
+#### Framework-Specific Configurations
+```bash
+# Next.js MCP server development
+MCPMON_WATCH="pages/api/mcp/,lib/mcp/,next.config.js" \
+mcpmon --enable-extension large-response-handler \
+       npm run dev
+
+# FastAPI Python server with auto-reload
+MCPMON_WATCH="app/,requirements.txt,pyproject.toml" \
+MCPMON_EXTENSIONS_DIR="./fastapi-data" \
+mcpmon --enable-extension request-logger \
+       uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+# Deno MCP server with import maps
+MCPMON_WATCH="src/,import_map.json,deno.json" \
+mcpmon deno run \
+  --allow-all \
+  --import-map=import_map.json \
+  src/server.ts
+```
+
+#### High-Performance Production Setup
+```bash
+# Load-balanced production environment
 MCPMON_LOG_FILE="/var/log/mcpmon/server.log" \
+MCPMON_BUFFER_SIZE=4194304 \
+MCPMON_MAX_RETRIES=5 \
+MCPMON_GRACEFUL_SHUTDOWN=15000 \
+MAX_MCP_OUTPUT_TOKENS=25000 \
+mcpmon --enable-extension metrics \
+       --enable-extension large-response-handler \
+       --extension-config '{
+         "threshold":100000,
+         "metricsPort":9090,
+         "prometheusLabels":{"service":"mcp-server","env":"prod"}
+       }' \
+       node --max-old-space-size=4096 server.js
+
+# Cluster mode with PM2 integration
+MCPMON_WATCH="src/,ecosystem.config.js" \
+mcpmon pm2 start ecosystem.config.js --env production
+```
+
+### Real-World Integration Patterns
+
+#### CI/CD Integration
+```bash
+# GitHub Actions testing environment
+MCPMON_WATCH="src/,tests/,package.json" \
+MCPMON_DELAY=100 \
+MCPMON_LOG_LEVEL=error \
+mcpmon --enable-extension request-logger \
+       --dry-run \
+       npm test
+
+# Docker-based CI pipeline
+mcpmon docker run --rm \
+  -v $(pwd):/workspace \
+  -w /workspace \
+  -e CI=true \
+  node:18-alpine npm run test:integration
+```
+
+#### Development Team Workflows
+```bash
+# Shared development server
+MCPMON_VERBOSE=true \
+MCPMON_WATCH="src/,shared/,team-config.json" \
+MCPMON_EXTENSIONS_DIR="/shared/mcpmon-data" \
+mcpmon --enable-extension large-response-handler \
+       --enable-extension request-logger \
+       --extension-config '{
+         "threshold":20000,
+         "logFile":"/shared/logs/requests.log",
+         "teamMode":true
+       }' \
+       node shared-server.js
+
+# Individual developer setup
+MCPMON_WATCH="src/,personal-config/" \
+MCPMON_EXTENSIONS_DIR="~/.mcpmon/$(whoami)" \
+mcpmon --enable-extension large-response-handler \
+       node personal-server.js
+```
+
+#### Production Monitoring and Alerting
+```bash
+# Production server with comprehensive monitoring
+MCPMON_LOG_FILE="/var/log/mcpmon/production.log" \
 MCPMON_EXTENSIONS_DIR="/var/lib/mcpmon" \
 MCPMON_WATCH="src/,config/production.json" \
 mcpmon --enable-extension metrics \
        --enable-extension large-response-handler \
-       --extension-config '{"metricsPort":9090,"threshold":50000}' \
+       --extension-config '{
+         "threshold":75000,
+         "metricsPort":9090,
+         "alerting": {
+           "webhookUrl":"https://alerts.company.com/webhook",
+           "thresholds": {
+             "responseTime": 5000,
+             "errorRate": 0.05,
+             "memoryUsage": 0.8
+           }
+         }
+       }' \
        node production-server.js
 
-# High-performance configuration
-MCPMON_DELAY=100 \
-MCPMON_DEBOUNCE=50 \
-MCPMON_BUFFER_SIZE=2097152 \
-MAX_MCP_OUTPUT_TOKENS=12500 \
-mcpmon --watch "src/,package.json" \
-       --no-auto-restart \
-       node server.js
+# Health check integration
+mcpmon --enable-extension metrics \
+       docker run -d \
+       --health-cmd="curl -f http://localhost:9090/health" \
+       --health-interval=10s \
+       --health-retries=3 \
+       my-server:latest
 ```
 
-#### Docker Integration
+#### Multi-Environment Configuration Management
 ```bash
-# Docker development with comprehensive configuration
-MCPMON_VERBOSE=true \
-MCPMON_DOCKER_CLEANUP=true \
-MCPMON_WATCH="./src,./config" \
+# Development environment
+NODE_ENV=development \
+MCPMON_WATCH="src/,config/dev.json" \
+MCPMON_DELAY=500 \
 mcpmon --enable-extension large-response-handler \
+       --enable-extension request-logger \
+       node server.js
+
+# Staging environment
+NODE_ENV=staging \
+MCPMON_WATCH="src/,config/staging.json" \
+MCPMON_LOG_FILE="/var/log/mcpmon/staging.log" \
+mcpmon --enable-extension metrics \
+       --extension-config '{"threshold":40000}' \
+       docker compose -f docker-compose.staging.yml up
+
+# Production environment
+NODE_ENV=production \
+MCPMON_WATCH="src/,config/production.json" \
+MCPMON_LOG_FILE="/var/log/mcpmon/production.log" \
+MCPMON_EXTENSIONS_DIR="/var/lib/mcpmon" \
+mcpmon --enable-extension metrics \
+       --enable-extension large-response-handler \
+       --extension-config '{
+         "threshold":100000,
+         "metricsPort":9090,
+         "persistence":true
+       }' \
+       node cluster-server.js
+```
+
+#### Integration with External Tools
+```bash
+# MCP Inspector with custom extensions
+MCPMON_VERBOSE=true \
+npx @modelcontextprotocol/inspector \
+mcpmon --enable-extension large-response-handler \
+       --enable-extension request-logger \
+       --extension-config '{"threshold":15000,"logLevel":"debug"}' \
+       node server.js
+
+# Grafana metrics integration
+mcpmon --enable-extension metrics \
+       --extension-config '{
+         "metricsPort":9090,
+         "prometheusEndpoint":"/metrics",
+         "grafanaDashboard":true
+       }' \
        docker run -d \
-       -e NODE_ENV=development \
-       -e API_KEY=secret \
-       -v $(pwd)/src:/app/src \
+       -p 3000:3000 \
+       -p 9090:9090 \
        my-server:latest
 
-# Docker Compose with environment integration
-MCPMON_WATCH="./src,./config,docker-compose.yml" \
-MCPMON_EXTENSIONS_DIR="./docker-data" \
-mcpmon docker compose up my-service
+# Custom notification integration
+mcpmon --enable-extension request-logger \
+       --extension-config '{
+         "webhookUrl":"https://hooks.slack.com/services/...",
+         "notificationThreshold":"error",
+         "customFields":{"team":"backend","service":"mcp"}
+       }' \
+       node server.js
 ```
 
 ### Advanced Auto-Detection
@@ -818,6 +1101,8 @@ The `ExtensionRegistry` manages extension lifecycle:
 - **Error handling**: Graceful degradation on extension failures
 
 Extensions are initialized with full dependency injection, ensuring they work across different platforms and runtime environments while maintaining clean separation of concerns.
+
+**Want to create your own extension?** See the [Extension Development Guide](docs/extension-development.md) for a complete quick-start tutorial with examples and best practices.
 
 ## Docker Container Management
 
@@ -1268,6 +1553,7 @@ We welcome contributions! See [Contributing Guide](CONTRIBUTING.md) for details.
 ## Documentation
 
 - [API Documentation](docs/api.md) - Library usage and advanced features
+- [Extension Development Guide](docs/extension-development.md) - Quick-start guide for creating extensions
 - [Architecture Guide](docs/architecture.md) - How mcpmon works internally
 - [Testing Guide](docs/testing.md) - Test architecture and patterns
 - [Troubleshooting Guide](TROUBLESHOOTING.md) - Common issues and solutions

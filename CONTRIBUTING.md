@@ -89,132 +89,624 @@ examples/              # Usage examples
 docs/                  # Documentation
 ```
 
-## Making Changes
+## Development Workflow
 
-### 1. Create a Branch
+### Extension Development Setup
+
+mcpmon features a robust extension system for enhancing functionality through isolated, pluggable components. Extensions can intercept messages, provide additional tools, and implement custom workflows without modifying core code.
+
+#### Prerequisites
+
+Before developing extensions, ensure you have:
+
+- Node.js 18+ with npm
+- TypeScript knowledge
+- Understanding of MCP protocol basics
+- Familiarity with JSON-RPC message structure
+
+#### Initial Setup
+
+1. **Clone and Setup**:
+   ```bash
+   git clone https://github.com/YOUR_USERNAME/mcpmon.git
+   cd mcpmon
+   npm install
+   npm run build
+   ```
+
+2. **Create Extension Branch**:
+   ```bash
+   git checkout -b feature/extension-your-extension-name
+   ```
+
+3. **Extension Development Structure**:
+   ```
+   src/extensions/
+   ├── your-extension-name/
+   │   ├── index.ts           # Main extension implementation
+   │   ├── index.test.ts      # Unit tests
+   │   └── README.md          # Extension documentation
+   ├── interfaces.ts          # Extension interfaces
+   └── registry.ts            # Extension registry
+   ```
+
+### Development Loop with Extensions
+
+#### 1. Extension Scaffold Creation
 
 ```bash
-# Create a descriptive branch name
-git checkout -b feature/add-config-validation
-git checkout -b fix/debouncing-issue
-git checkout -b docs/update-examples
+# Create extension directory
+mkdir src/extensions/your-extension-name
+
+# Create core files
+touch src/extensions/your-extension-name/index.ts
+touch src/extensions/your-extension-name/index.test.ts
+touch src/extensions/your-extension-name/README.md
 ```
 
-### 2. Code Standards
+#### 2. Extension Implementation
 
-We use standard Node.js tooling for code quality:
+Implement the extension following the hook pattern:
+
+```typescript
+import type { Extension, ExtensionContext, MessageHook } from '../interfaces.js';
+
+export class YourExtension implements Extension {
+  readonly id = 'your-extension-name';
+  readonly name = 'Your Extension Name';
+  readonly version = '1.0.0';
+  readonly defaultEnabled = false;
+  
+  private context?: ExtensionContext;
+  
+  async initialize(context: ExtensionContext): Promise<void> {
+    this.context = context;
+    
+    // Register hooks during initialization
+    context.hooks.beforeStdinForward = this.interceptRequest.bind(this);
+    context.hooks.afterStdoutReceive = this.interceptResponse.bind(this);
+    context.hooks.getAdditionalTools = this.provideTools.bind(this);
+    context.hooks.handleToolCall = this.handleTool.bind(this);
+  }
+  
+  async shutdown(): Promise<void> {
+    this.context = undefined;
+  }
+  
+  private async interceptRequest(message: any): Promise<any> {
+    this.context?.logger.debug(`Processing request: ${message.method}`);
+    return message; // Always return the message
+  }
+  
+  private async provideTools(): Promise<ToolDefinition[]> {
+    return [
+      {
+        name: 'your-tool-name',
+        description: 'Description of what your tool does',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            input: {
+              type: 'string',
+              description: 'Input parameter description'
+            }
+          },
+          required: ['input']
+        }
+      }
+    ];
+  }
+}
+```
+
+## Code Standards for Extensions
+
+This section defines coding standards, best practices, and quality requirements for mcpmon extension development. All extensions must follow these standards to ensure consistency, maintainability, and reliability.
+
+### Extension Coding Standards
+
+#### 1. Project Structure Standards
+
+Extensions must follow the standardized directory structure:
+
+```
+src/extensions/
+├── extension-name/           # Use kebab-case naming
+│   ├── index.ts             # Main extension implementation
+│   ├── index.test.ts        # Comprehensive unit tests
+│   ├── README.md            # Extension documentation
+│   └── config.schema.json   # Configuration schema (if needed)
+├── interfaces.ts            # Shared extension interfaces
+└── registry.ts              # Extension registry
+```
+
+#### 2. Naming Conventions
+
+- **Extension IDs**: Use kebab-case (e.g., `large-response-handler`, `data-transformer`)
+- **Class Names**: Use PascalCase (e.g., `LargeResponseHandler`, `DataTransformer`)
+- **Method Names**: Use camelCase (e.g., `handleMessage`, `processResponse`)
+- **File Names**: Use kebab-case for directories, camelCase for TypeScript files
+- **Tool Names**: Use kebab-case (e.g., `format-response`, `analyze-data`)
+
+#### 3. Interface Implementation Requirements
+
+All extensions must implement the core `Extension` interface:
+
+```typescript
+export class YourExtension implements Extension {
+  readonly id = 'your-extension-name';        // kebab-case, unique identifier
+  readonly name = 'Your Extension Name';      // Human-readable display name
+  readonly version = '1.0.0';                 // Semantic versioning
+  readonly defaultEnabled = false;            // Conservative default
+  
+  private context?: ExtensionContext;         // Store context privately
+  
+  async initialize(context: ExtensionContext): Promise<void> {
+    this.context = context;
+    // Register hooks during initialization only
+  }
+  
+  async shutdown(): Promise<void> {
+    // Clean up resources, clear context
+    this.context = undefined;
+  }
+}
+```
+
+#### 4. TypeScript Standards
+
+- **Strict Mode**: Enable all TypeScript strict checks
+- **Type Safety**: Use explicit types, avoid `any` except for message objects
+- **Interface Contracts**: Implement all interface methods completely
+- **Error Handling**: Use try-catch blocks in all hook implementations
+- **Async/Await**: Prefer async/await over Promise chains
+- **Import/Export**: Use ES modules with `.js` extensions for compiled output
+
+### Hook Implementation Best Practices
+
+#### 1. Message Hook Guidelines
+
+Message hooks (`beforeStdinForward`, `afterStdoutReceive`) must follow these patterns:
+
+```typescript
+// CORRECT: Always return the message
+private async interceptRequest(message: any): Promise<any> {
+  try {
+    this.context?.logger.debug(`Processing ${message.method}`);
+    
+    // Perform processing
+    const processedMessage = this.processMessage(message);
+    
+    // Always return a message object
+    return processedMessage;
+  } catch (error) {
+    this.context?.logger.error(`Hook error: ${error.message}`);
+    return message; // Return original on error
+  }
+}
+
+// INCORRECT: Don't modify message structure unexpectedly
+private async badHook(message: any): Promise<any> {
+  delete message.id; // Breaking change
+  return null; // Never return null
+}
+```
+
+#### 2. Tool Hook Guidelines
+
+Tool hooks (`getAdditionalTools`, `handleToolCall`) must provide complete implementations:
+
+```typescript
+private async provideTools(): Promise<ToolDefinition[]> {
+  return [
+    {
+      name: 'tool-name',                    // kebab-case
+      description: 'Clear, specific description of tool functionality',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          requiredParam: {
+            type: 'string',
+            description: 'Clear parameter description'
+          }
+        },
+        required: ['requiredParam'],       // Always specify required fields
+        additionalProperties: false       // Strict schema validation
+      }
+    }
+  ];
+}
+
+private async handleTool(name: string, args: any): Promise<any> {
+  if (name !== 'tool-name') {
+    throw new Error(`Unknown tool: ${name}`);
+  }
+  
+  // Validate arguments against schema
+  this.validateToolArgs(args);
+  
+  try {
+    const result = await this.executeTool(args);
+    return {
+      content: [
+        {
+          type: 'text',
+          text: result
+        }
+      ]
+    };
+  } catch (error) {
+    this.context?.logger.error(`Tool execution failed: ${error.message}`);
+    throw error; // Re-throw for proper error handling
+  }
+}
+```
+
+#### 3. Hook Registration Standards
+
+- **Timing**: Register all hooks during `initialize()` method only
+- **Binding**: Always bind hook methods to maintain `this` context
+- **Selective Registration**: Only register hooks that the extension actually uses
+- **Error Isolation**: Wrap hook logic in try-catch blocks to prevent proxy crashes
+
+#### 4. State Management Guidelines
+
+- **Private State**: Store all extension state as private class properties
+- **Context Storage**: Use `context.dataDir` for persistent data
+- **Session Isolation**: Avoid global variables or shared state between sessions
+- **Resource Cleanup**: Clear all state during `shutdown()` method
+
+### Testing Standards for Extensions
+
+#### 1. Test Coverage Requirements
+
+- **Minimum Coverage**: 90% line coverage for all extension code
+- **Branch Coverage**: 85% branch coverage for conditional logic
+- **Hook Coverage**: 100% coverage for all registered hooks
+- **Error Coverage**: Test all error handling paths
+
+#### 2. Test File Organization
+
+```typescript
+// extension-name/index.test.ts
+import { describe, it, expect, beforeEach, afterEach, jest } from '@jest/globals';
+import { YourExtension } from './index.js';
+import type { ExtensionContext } from '../interfaces.js';
+
+describe('YourExtension', () => {
+  let extension: YourExtension;
+  let mockContext: ExtensionContext;
+  
+  beforeEach(() => {
+    extension = new YourExtension();
+    mockContext = createMockContext(); // Use helper function
+  });
+  
+  afterEach(async () => {
+    await extension.shutdown();
+    jest.clearAllMocks();
+  });
+  
+  describe('Core Interface', () => {
+    // Test interface implementation
+  });
+  
+  describe('Hook Registration', () => {
+    // Test hook registration and behavior
+  });
+  
+  describe('Tool Functionality', () => {
+    // Test tool definitions and handling
+  });
+  
+  describe('Error Handling', () => {
+    // Test error scenarios
+  });
+});
+```
+
+#### 3. Mock Standards
+
+- **Dependency Injection**: Use Jest mocks for all external dependencies
+- **Context Mocking**: Provide complete mock ExtensionContext objects
+- **Logger Mocking**: Mock all logger methods to verify debug output
+- **Hook Mocking**: Test hook registration and execution independently
+
+#### 4. Test Implementation Patterns
+
+```typescript
+// Test hook registration
+it('should register hooks during initialization', async () => {
+  await extension.initialize(mockContext);
+  
+  expect(mockContext.hooks.beforeStdinForward).toBeDefined();
+  expect(mockContext.hooks.getAdditionalTools).toBeDefined();
+});
+
+// Test hook behavior
+it('should process messages correctly', async () => {
+  await extension.initialize(mockContext);
+  
+  const inputMessage = { method: 'test', params: {} };
+  const result = await mockContext.hooks.beforeStdinForward!(inputMessage);
+  
+  expect(result).toEqual(expect.objectContaining({
+    method: 'test',
+    params: expect.any(Object)
+  }));
+});
+
+// Test error handling
+it('should handle hook errors gracefully', async () => {
+  await extension.initialize(mockContext);
+  
+  const invalidMessage = null;
+  const result = await mockContext.hooks.beforeStdinForward!(invalidMessage);
+  
+  expect(mockContext.logger.error).toHaveBeenCalled();
+  expect(result).toBe(invalidMessage); // Should return original
+});
+```
+
+### Code Review Criteria for Extensions
+
+#### 1. Architecture Review
+
+- **Interface Compliance**: Extension implements all required interface methods
+- **Hook Usage**: Hooks are used appropriately for their intended purpose
+- **Separation of Concerns**: Extension logic is well-separated and focused
+- **Resource Management**: Proper initialization and cleanup procedures
+
+#### 2. Code Quality Review
+
+- **TypeScript Compliance**: Code compiles without errors or warnings
+- **Naming Consistency**: All names follow kebab-case/camelCase conventions
+- **Error Handling**: Comprehensive error handling with proper logging
+- **Performance Impact**: Extension doesn't negatively impact proxy performance
+
+#### 3. Testing Review
+
+- **Test Coverage**: Meets minimum coverage requirements (90% line, 85% branch)
+- **Test Quality**: Tests are meaningful and cover edge cases
+- **Mock Usage**: Appropriate use of mocks and dependency injection
+- **Test Documentation**: Clear test descriptions and setup
+
+#### 4. Documentation Review
+
+- **Extension README**: Complete documentation with usage examples
+- **Code Comments**: Complex logic is well-commented
+- **Configuration Schema**: JSON schema for configuration options (if applicable)
+- **Hook Documentation**: Clear explanation of hook behavior and side effects
+
+#### 5. Integration Review
+
+- **Extension Registry**: Extension properly registered in `registry.ts`
+- **Configuration Integration**: Extension configuration integrates with main config
+- **Tool Integration**: Extension tools work correctly with MCP protocol
+- **Backward Compatibility**: Extension doesn't break existing functionality
+
+#### 6. Security Review
+
+- **Input Validation**: All external inputs are validated
+- **File System Access**: Appropriate use of `context.dataDir` for data storage
+- **Error Information**: Error messages don't leak sensitive information
+- **Resource Limits**: Extension respects system resource constraints
+
+### Development Loop Process
 
 ```bash
-# Format your code
-npm run format
-
-# Lint your code
-npm run lint
-
-# Type check
-npm run typecheck
-
-# Build the project
+# 1. Implement extension logic
 npm run build
 
-# Run all quality checks
-npm run build && npm run lint
+# 2. Run tests in watch mode
+npm run test:watch
+
+# 3. Test with real MCP server
+npm start
+
+# 4. Run full test suite
+npm test
+
+# 5. Check code quality
+npm run lint && npm run format
+
+# 6. Verify coverage
+npm run test:coverage
 ```
 
-**Code Style Guidelines:**
+### Testing Workflow for Extensions
 
-- Use TypeScript for all code
-- Write descriptive variable and function names
-- Add JSDoc comments for public APIs
-- Keep functions focused and testable
-- Follow Node.js and TypeScript conventions
+#### Test Structure Requirements
 
-### 3. Testing Requirements
+Extensions must include comprehensive tests following mcpmon's dependency injection patterns:
 
-All changes must include appropriate tests:
+1. **Unit Tests**: Test extension logic in isolation using mocks
+2. **Integration Tests**: Test extension interaction with proxy components  
+3. **Hook Tests**: Verify hook registration and execution
+4. **Tool Tests**: Test tool definitions and handling
+
+#### Test Implementation Pattern
+
+```typescript
+// your-extension-name/index.test.ts
+import { describe, it, expect, beforeEach, afterEach } from '@jest/globals';
+import { YourExtension } from './index.js';
+import type { ExtensionContext } from '../interfaces.js';
+
+describe('YourExtension', () => {
+  let extension: YourExtension;
+  let mockContext: ExtensionContext;
+  
+  beforeEach(() => {
+    extension = new YourExtension();
+    
+    mockContext = {
+      dependencies: {} as any,
+      config: {},
+      hooks: {},
+      dataDir: '/tmp/test-data',
+      logger: {
+        debug: jest.fn(),
+        info: jest.fn(),
+        warn: jest.fn(),
+        error: jest.fn()
+      },
+      sessionId: 'test-session'
+    };
+  });
+  
+  afterEach(async () => {
+    await extension.shutdown();
+  });
+  
+  it('should initialize with correct configuration', async () => {
+    await extension.initialize(mockContext);
+    
+    expect(extension.id).toBe('your-extension-name');
+    expect(extension.name).toBe('Your Extension Name');
+    expect(extension.defaultEnabled).toBe(false);
+  });
+  
+  it('should register hooks during initialization', async () => {
+    await extension.initialize(mockContext);
+    
+    expect(mockContext.hooks.beforeStdinForward).toBeDefined();
+    expect(mockContext.hooks.getAdditionalTools).toBeDefined();
+  });
+  
+  it('should provide expected tools', async () => {
+    await extension.initialize(mockContext);
+    
+    const tools = await mockContext.hooks.getAdditionalTools!();
+    expect(tools).toHaveLength(1);
+    expect(tools[0].name).toBe('your-tool-name');
+  });
+});
+```
+
+#### Testing Commands
 
 ```bash
 # Run all tests (includes clean and build)
 npm test
 
-# Run tests in watch mode for TDD (no clean/build)
+# Run tests in watch mode for development
 npm run test:watch
 
-# Run tests with coverage (no clean/build)
+# Run extension-specific tests
+npm test -- src/extensions/your-extension-name
+
+# Run with coverage
 npm run test:coverage
-
-# Run specific test files (includes clean and build)
-npm test -- tests/behavior/proxy_restart.test.ts
-npm test -- tests/integration/cli.test.ts
-
-# Fast test runs without clean/build
-npm run test:unit        # Just behavioral tests
-npm run test:integration # Just integration tests
 ```
 
-**Testing Guidelines:**
+#### Testing Standards
 
-- Add tests for new features
-- Update tests when modifying behavior
-- Test edge cases and error conditions
-- Use descriptive test names
-- Include e2e tests for user-facing features
+- **Test File Naming**: Use `{extension-name}.test.ts` format
+- **Mock Dependencies**: Use Jest mocks for all external dependencies
+- **Test Hook Behavior**: Verify hooks are registered and function correctly
+- **Test Error Handling**: Include tests for error conditions
+- **Coverage Requirements**: Maintain >90% test coverage for extension code
 
-**Behavioral Test Pattern:**
+### Contribution Process for Extensions
 
-For platform-agnostic behavioral tests, use the test helper pattern:
+#### 1. Planning and Design
 
-```typescript
-import { setupProxyTest, simulateRestart } from "./test_helper.js";
-import { describe, it, expect } from '@jest/globals';
+1. **Identify Use Case**: Clearly define what problem the extension solves
+2. **Review Existing Extensions**: Check if similar functionality exists
+3. **Design Extension Interface**: Plan hook usage and tool definitions
+4. **Create Proposal**: Open an issue describing the extension concept
 
-describe('Test Suite', () => {
-  it('Feature - specific behavior description', async () => {
-    const { proxy, procManager, fs, teardown } = setupProxyTest({
-      restartDelay: 100, // Configure test timing
-    });
+#### 2. Implementation Phase
 
-    try {
-      await proxy.start();
-      await simulateRestart(procManager, fs);
+1. **Follow Hook Guidelines**:
+   - Always return messages from message hooks
+   - Handle errors gracefully with try-catch blocks
+   - Use kebab-case naming for extension IDs and tools
+   - Log hook activity using `context.logger`
+   - Maintain state carefully as private properties
 
-      // Test assertions
-      expect(procManager.getSpawnCallCount()).toBe(2);
-    } finally {
-      await teardown(); // Always clean up
-    }
-  });
-});
-```
+2. **Code Quality Standards**:
+   ```bash
+   # Format code
+   npm run format
+   
+   # Check linting
+   npm run lint
+   
+   # Build and verify compilation
+   npm run build
+   ```
 
-This pattern provides:
+3. **Registry Update** (if needed):
+   ```typescript
+   // src/extensions/registry.ts - add to builtins array
+   const builtins: string[] = [
+     'large-response-handler',
+     'your-extension-name', // Add your extension
+   ];
+   ```
 
-- Consistent test setup with mock implementations
-- Deterministic timing (no setTimeout)
-- Proper resource cleanup
-- ~80% less boilerplate code
+#### 3. Documentation Requirements
 
-### 4. Commit Guidelines
+Create comprehensive documentation:
 
-We follow [Conventional Commits](https://conventionalcommits.org/):
+1. **Extension README**: Create `src/extensions/your-extension-name/README.md`
+2. **Configuration Schema**: Document all config options
+3. **Hook Documentation**: Explain hook behavior and side effects
+4. **Tool Documentation**: Document provided tools and usage examples
+
+#### 4. Quality Assurance
+
+Before submission, verify:
+
+- [ ] Extension follows interface contracts exactly
+- [ ] All hooks return appropriate values
+- [ ] Configuration schema is well-defined
+- [ ] Tests achieve >90% coverage
+- [ ] Documentation is complete
+- [ ] Naming uses kebab-case consistently
+- [ ] Error handling is comprehensive
+- [ ] Resource cleanup is implemented
+
+#### 5. Submission Guidelines
+
+1. **Pull Request Format**:
+   - Title: `feat: add {extension-name} extension`
+   - Description must include:
+     - Extension purpose and functionality
+     - Hook usage and behavior
+     - Tool definitions and examples
+     - Configuration options
+     - Testing instructions
+
+2. **Review Process**:
+   - Maintainer review for architecture compliance
+   - Test coverage verification
+   - Documentation completeness check
+   - Integration testing with existing extensions
+
+### Commit Guidelines
+
+Follow [Conventional Commits](https://conventionalcommits.org/) for extension development:
 
 ```bash
-# Examples
-git commit -m "feat: add configuration validation"
-git commit -m "fix: resolve debouncing race condition"
-git commit -m "docs: update installation guide"
-git commit -m "test: add e2e tests for config launcher"
+# Extension-specific examples
+git commit -m "feat: add your-extension-name extension"
+git commit -m "fix: resolve hook registration in your-extension-name"
+git commit -m "test: add integration tests for your-extension-name"
+git commit -m "docs: update your-extension-name README"
 ```
 
-**Commit Types:**
+**Commit Types for Extensions:**
 
-- `feat`: New feature
-- `fix`: Bug fix
-- `docs`: Documentation changes
-- `test`: Test additions or modifications
-- `refactor`: Code refactoring
-- `style`: Formatting changes
-- `ci`: CI/CD changes
+- `feat`: New extension or extension feature
+- `fix`: Extension bug fix
+- `docs`: Extension documentation changes
+- `test`: Extension test additions or modifications
+- `refactor`: Extension code refactoring
+- `style`: Extension formatting changes
+
 
 ## Development Tips
 
@@ -277,13 +769,13 @@ Releases follow semantic versioning:
 
 ## Code of Conduct
 
-This project follows the [Code of Conduct](CODE_OF_CONDUCT.md). By participating, you agree to uphold this code.
+This project follows standard open source conduct guidelines. Please be respectful, professional, and constructive in all interactions.
 
 ## Getting Help
 
 Need help? Here's how to get support:
 
-1. **Check Documentation**: Start with README.md and `/docs`
+1. **Check Documentation**: Start with README.md and `/docs` - for extension development, see [Extension Development Guide](docs/extension-development.md)
 2. **Search Issues**: Someone might have asked the same question
 3. **Create an Issue**: For bugs, feature requests, or questions
 4. **Discussions**: For general questions about MCP or hot-reload concepts
